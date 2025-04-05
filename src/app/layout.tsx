@@ -45,7 +45,6 @@ export default async function RootLayout({
                 />
               </Link>
 
-              {/* Replace old nav items with TenantSwitcher */}
               <nav>
                 <TenantSwitcher />
               </nav>
