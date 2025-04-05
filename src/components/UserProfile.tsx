@@ -52,11 +52,11 @@ export default function UserProfile() {
               <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">Support</li>
             </ul>
             <div className="mt-2">
-              <Link href="/api/auth/logout">
+              <a href="/api/auth/logout">
                 <button className="w-full text-left px-4 py-2 bg-gray-200 hover:bg-gray-100 rounded text-sm cursor-pointer">
                   Logout
                 </button>
-              </Link>
+              </a>
             </div>
           </div>
         </div>
@@ -75,11 +75,11 @@ export default function UserProfile() {
         />
         <h1 className="text-2xl font-bold mb-2">Welcome to TurningPoint</h1>
         <p className="text-gray-700 mb-4">Please log in to continue</p>
-        <Link href="/api/auth/login">
+        <a href="/api/auth/login">
           <button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 transition rounded text-white cursor-pointer">
             Login
           </button>
-        </Link>
+        </a>
       </div>
     );
   }
