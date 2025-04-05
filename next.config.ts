@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // output: 'standalone',
-  // distDir: 'build',
+  distDir: 'build',
   images: {
     domains: ['s.gravatar.com'],
   },
