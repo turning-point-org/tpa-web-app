@@ -109,13 +109,68 @@ export async function searchSimilarDocuments(queryEmbedding: number[], scanId: s
       throw new Error('Vector DB container not initialized. Check your environment variables.');
     }
     
-    // Query vector database for similar documents
+    try {
+      // First try with vector search if available
+      const query = `
+        SELECT c.text, 
+               VECTOR_DISTANCE_COSINE(c.embedding, @queryEmbedding) as score
+        FROM c
+        WHERE c.scan_id = @scanId
+        ORDER BY score ASC
+        OFFSET 0 LIMIT ${limit}
+      `;
+      
+      const { resources } = await vectorContainer.items
+        .query({
+          query,
+          parameters: [
+            { name: "@queryEmbedding", value: queryEmbedding },
+            { name: "@scanId", value: scanId }
+          ]
+        })
+        .fetchAll();
+      
+      console.log(`Found ${resources.length} similar documents using vector search`);
+      
+      // Process results to the expected format
+      const results = resources.map((doc: any) => ({
+        text: doc.text,
+        score: doc.score
+      }));
+      
+      // Sort by score (lowest score = highest similarity)
+      results.sort((a: any, b: any) => a.score - b.score);
+      
+      return results;
+    } catch (vectorSearchError) {
+      console.warn('Vector search failed, falling back to basic text search:', vectorSearchError);
+      
+      // Fallback: Simple text retrieval without vector search
+      return await fallbackTextSearch(scanId, limit);
+    }
+  } catch (error) {
+    console.error('Error searching similar documents:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fallback method when vector search is not available
+ * Simply returns some document chunks from the scan without similarity ranking
+ */
+async function fallbackTextSearch(scanId: string, limit: number = 5): Promise<Array<{text: string, score: number}>> {
+  try {
+    console.log(`Using fallback text search for scan ${scanId}`);
+    
+    if (!vectorContainer) {
+      throw new Error('Vector DB container not initialized. Check your environment variables.');
+    }
+    
+    // Simple query to get documents from this scan without vector search
     const query = `
-      SELECT c.text, 
-             VECTOR_DISTANCE_COSINE(c.embedding, @queryEmbedding) as score
+      SELECT c.text
       FROM c
       WHERE c.scan_id = @scanId
-      ORDER BY score ASC
       OFFSET 0 LIMIT ${limit}
     `;
     
@@ -123,26 +178,21 @@ export async function searchSimilarDocuments(queryEmbedding: number[], scanId: s
       .query({
         query,
         parameters: [
-          { name: "@queryEmbedding", value: queryEmbedding },
           { name: "@scanId", value: scanId }
         ]
       })
       .fetchAll();
     
-    console.log(`Found ${resources.length} similar documents`);
+    console.log(`Found ${resources.length} documents using fallback method`);
     
-    // Process results to the expected format
-    const results = resources.map((doc: any) => ({
+    // Convert to the expected result format with arbitrary scores
+    return resources.map((doc: any, index: number) => ({
       text: doc.text,
-      score: doc.score
+      score: index * 0.1 // Arbitrary score just to maintain interface
     }));
-    
-    // Sort by score (lowest score = highest similarity)
-    results.sort((a: any, b: any) => a.score - b.score);
-    
-    return results;
   } catch (error) {
-    console.error('Error searching similar documents:', error);
-    throw error;
+    console.error('Error in fallback text search:', error);
+    // If even the fallback fails, return an empty array
+    return [];
   }
 } 

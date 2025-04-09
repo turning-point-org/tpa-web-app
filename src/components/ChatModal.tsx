@@ -412,8 +412,15 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Chat API error:', errorData);
-        throw new Error(errorData.error || 'Failed to fetch chat response');
+        // Replace console.error with a more lint-friendly approach
+        const errorMessage = errorData.error || 'Failed to fetch chat response';
+        // You can add debugging information to the component state instead if needed
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: `I encountered an error: ${errorMessage}. Please try again or contact support if the issue persists.`
+        }]);
+        setIsLoading(false);
+        return; // Exit early since we're handling the error in the UI
       }
 
       const data = await response.json();
@@ -442,12 +449,23 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
         // Add assistant message
         setMessages(prev => [...prev, { role: 'assistant', content: assistantResponse }]);
       }
-    } catch (error) {
-      console.error('Error searching documents:', error);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Sorry, I encountered an error searching through your documents. This could be because you haven\'t uploaded any documents yet, or there\'s an issue with the document processing. Please try uploading some documents first.'
-      }]);
+    } catch (error: any) {
+      // Check specifically for vector search errors
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('VECTOR_DISTANCE_COSINE') || 
+          errorMessage.includes('vector') || 
+          errorMessage.includes('not a recognized built-in function')) {
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: 'It looks like the vector search functionality is not properly configured in the database. This is likely because vector search is not enabled in your Cosmos DB instance. Please contact your administrator to enable vector search or check the application configuration.'
+        }]);
+      } else {
+        // Generic error message for other errors
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: 'Sorry, I encountered an error searching through your documents. This could be because you haven\'t uploaded any documents yet, or there\'s an issue with the document processing. Please try uploading some documents first.'
+        }]);
+      }
     } finally {
       setIsLoading(false);
     }
