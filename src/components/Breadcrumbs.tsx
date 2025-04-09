@@ -1,0 +1,243 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { useUser } from '@auth0/nextjs-auth0/client';
+import { fetchWithAuth } from '../utils/api';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+// Helper: Converts a hyphenated string to title case.
+function toTitleCase(str: string): string {
+  return str
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface Workspace {
+  id: string;
+  name: string;
+}
+
+interface Scan {
+  id: string;
+  name: string;
+}
+
+// Define the workflow steps to match the ones in WorkflowNav
+const WORKFLOW_STEPS = [
+  { name: "Data Room", slug: "data-room" },
+  { name: "Lifecycles", slug: "lifecycles" },
+  { name: "Stakeholders", slug: "stakeholders" },
+  { name: "Strategic Objectives", slug: "strategic-objectives" },
+  { name: "Lifecycle Cost", slug: "lifecycle-cost" },
+  { name: "Pain Points", slug: "pain-points" },
+  { name: "Scenario Planning", slug: "scenario-planning" },
+];
+
+export default function Breadcrumbs() {
+  const pathname = usePathname();
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [scan, setScan] = useState<Scan | null>(null);
+  const [scanStep, setScanStep] = useState<string | null>(null);
+  const [activePage, setActivePage] = useState<'dashboard' | 'tenant' | 'workspace' | 'scan' | 'scanStep'>('dashboard');
+  const { user } = useUser();
+
+  const fetchTenant = async (slug: string): Promise<Tenant | null> => {
+    try {
+      const res = await fetchWithAuth(`/api/tenants/by-slug?slug=${slug}`, user?.accessToken as string | undefined);
+      if (!res.ok) {
+        console.error("Failed to fetch tenant");
+        return null;
+      }
+      return await res.json();
+    } catch (error) {
+      console.error("Error fetching tenant:", error);
+      return null;
+    }
+  };
+
+  const fetchWorkspace = async (tenantSlug: string, workspaceId: string): Promise<Workspace | null> => {
+    try {
+      const res = await fetchWithAuth(
+        `/api/tenants/by-slug/workspaces?slug=${tenantSlug}&id=${workspaceId}`,
+        user?.accessToken as string | undefined
+      );
+
+      if (!res.ok) {
+        console.error("Failed to fetch workspace");
+        return null;
+      }
+      return await res.json();
+    } catch (error) {
+      console.error("Error fetching workspace:", error);
+      return null;
+    }
+  };
+
+  const fetchScan = async (tenantSlug: string, workspaceId: string, scanId: string): Promise<Scan | null> => {
+    try {
+      const res = await fetchWithAuth(
+        `/api/tenants/by-slug/workspaces/scans?slug=${tenantSlug}&workspace_id=${workspaceId}&id=${scanId}`,
+        user?.accessToken as string | undefined
+      );
+
+      if (!res.ok) {
+        console.error("Failed to fetch scan");
+        return null;
+      }
+      return await res.json();
+    } catch (error) {
+      console.error("Error fetching scan:", error);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    const updateBreadcrumbs = async () => {
+      const pathParts = pathname.split('/').filter(Boolean);
+      
+      // Reset all states first
+      setTenant(null);
+      setWorkspace(null);
+      setScan(null);
+      setScanStep(null);
+      
+      // Determine active page based on path length
+      if (pathParts.length === 0 || (pathParts.length === 1 && pathParts[0] === '')) {
+        setActivePage('dashboard');
+      } else if (pathParts.length === 2 && pathParts[0] === 'tenants') {
+        setActivePage('tenant');
+      } else if (pathParts.length === 4 && pathParts[0] === 'tenants' && pathParts[2] === 'workspace') {
+        setActivePage('workspace');
+      } else if (pathParts.length === 6 && pathParts[0] === 'tenants' && pathParts[4] === 'scan') {
+        setActivePage('scan');
+      } else if (pathParts.length >= 7 && pathParts[0] === 'tenants' && pathParts[4] === 'scan') {
+        setActivePage('scanStep');
+      }
+      
+      if (pathParts.length >= 2 && pathParts[0] === 'tenants') {
+        const tenantSlug = pathParts[1];
+        const tenantData = await fetchTenant(tenantSlug);
+        if (tenantData) {
+          setTenant(tenantData);
+        }
+
+        if (pathParts.length >= 4 && pathParts[2] === 'workspace') {
+          const workspaceId = pathParts[3];
+          const workspaceData = await fetchWorkspace(tenantSlug, workspaceId);
+          if (workspaceData) {
+            setWorkspace(workspaceData);
+          }
+
+          if (pathParts.length >= 6 && pathParts[4] === 'scan') {
+            const scanId = pathParts[5];
+            const scanData = await fetchScan(tenantSlug, workspaceId, scanId);
+            if (scanData) {
+              setScan(scanData);
+            }
+            
+            // Check if there's a scan step in the URL (pathParts[6])
+            if (pathParts.length >= 7) {
+              const step = pathParts[6];
+              // Find the corresponding step name from our defined workflow steps
+              const matchedStep = WORKFLOW_STEPS.find(ws => ws.slug === step);
+              if (matchedStep) {
+                setScanStep(matchedStep.name);
+              } else {
+                // If not a known step, just use the URL segment converted to title case
+                setScanStep(toTitleCase(step));
+              }
+            }
+          }
+        }
+      }
+    };
+
+    updateBreadcrumbs();
+  }, [pathname, user?.accessToken]);
+
+  return (
+    <nav className="mb-4 text-sm text-gray-600">
+      <ol className="list-reset flex items-center">
+        <li>
+          {activePage === 'dashboard' ? (
+            <span className="text-gray-500">Dashboard</span>
+          ) : (
+            <Link href="/" className="text-blue-500 hover:text-blue-700">
+              Dashboard
+            </Link>
+          )}
+        </li>
+        {tenant && (
+          <>
+            <li className="mx-2">/</li>
+            <li>
+              {activePage === 'tenant' ? (
+                <span className="text-gray-500">{tenant.name}</span>
+              ) : (
+                <Link
+                  href={`/tenants/${tenant.slug}`}
+                  className="text-blue-500 hover:text-blue-700"
+                >
+                  {tenant.name}
+                </Link>
+              )}
+            </li>
+          </>
+        )}
+        {workspace && tenant && (
+          <>
+            <li className="mx-2">/</li>
+            <li>
+              {activePage === 'workspace' ? (
+                <span className="text-gray-500">{workspace.name}</span>
+              ) : (
+                <Link
+                  href={`/tenants/${tenant.slug}/workspace/${workspace.id}`}
+                  className="text-blue-500 hover:text-blue-700"
+                >
+                  {workspace.name}
+                </Link>
+              )}
+            </li>
+          </>
+        )}
+        {scan && workspace && tenant && (
+          <>
+            <li className="mx-2">/</li>
+            <li>
+              {activePage === 'scan' ? (
+                <span className="text-gray-500">{scan.name}</span>
+              ) : (
+                <Link
+                  href={`/tenants/${tenant.slug}/workspace/${workspace.id}/scan/${scan.id}`}
+                  className="text-blue-500 hover:text-blue-700"
+                >
+                  {scan.name}
+                </Link>
+              )}
+            </li>
+          </>
+        )}
+        {scanStep && scan && workspace && tenant && (
+          <>
+            <li className="mx-2">/</li>
+            <li>
+              <span className="text-gray-500">
+                {scanStep}
+              </span>
+            </li>
+          </>
+        )}
+      </ol>
+    </nav>
+  );
+}

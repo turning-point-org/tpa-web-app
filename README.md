@@ -1,3 +1,5 @@
+# Turning Point Web App
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -16,9 +18,70 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a `.env.local` file in the root directory with the following variables:
+
+```
+# Azure Cosmos DB (main database)
+COSMOS_DB_ENDPOINT=''
+COSMOS_DB_KEY=''
+COSMOS_DB_DATABASE=''
+COSMOS_DB_CONTAINER=''
+
+# Azure Cosmos DB for RAG (vector database)
+COSMOS_DB_RAG_ENDPOINT=''  # Can be the same as COSMOS_DB_ENDPOINT
+COSMOS_DB_RAG_KEY=''       # Can be the same as COSMOS_DB_KEY
+COSMOS_DB_RAG_DATABASE='db-tpa-dev' # Use your existing database name
+COSMOS_DB_RAG_CONTAINER='container-tpa-rag-dev'
+
+# Azure Blob Storage
+AZURE_STORAGE_ACCOUNT_NAME=tpawebappstoragedev
+AZURE_STORAGE_ACCOUNT_KEY=YOUR_ACCOUNT_KEY
+AZURE_STORAGE_CONTAINER_NAME=documents
+
+# Azure OpenAI
+AZURE_OPENAI_ENDPOINT=''
+AZURE_OPENAI_API_KEY=''
+AZURE_OPENAI_DEPLOYMENT_NAME='text-embedding-ada-002'
+```
+
+### Azure OpenAI Setup
+
+To configure the Azure OpenAI integration for document embeddings:
+
+1. Create an Azure OpenAI service named "tpa-openai-service" or use an existing one
+2. Deploy the "text-embedding-ada-002" model
+3. Get the endpoint and API key from the Azure Portal
+4. Add these values to your `.env.local` file
+
+### Azure Cosmos DB Vector Setup
+
+To configure the Cosmos DB for vector search:
+
+1. Enable vector search on your existing Cosmos DB account
+2. Create a new container named "container-tpa-rag-dev" with "/scanId" as the partition key
+3. Configure the vector index with path "/embedding", dimensions 1536, and cosine distance
+
+### Azure Blob Storage Setup
+
+To configure file uploads to Azure Blob Storage:
+
+1. Get your Azure Storage account key from the Azure Portal:
+   - Go to your storage account (tpawebappstoragedev)
+   - Navigate to "Access keys" under "Security + networking"
+   - Copy one of the access keys
+   
+2. Replace `YOUR_ACCOUNT_KEY` in the `.env.local` file with your actual account key
+
+3. Set the correct values for these environment variables:
+   - `AZURE_STORAGE_ACCOUNT_NAME`: Your storage account name (e.g., tpawebappstoragedev for development)
+   - `AZURE_STORAGE_ACCOUNT_KEY`: Your storage account access key
+   - `AZURE_STORAGE_CONTAINER_NAME`: The blob container name (defaults to "documents" if not specified)
+
+4. The application will automatically create the specified container in your storage account the first time a file is uploaded.
+
+5. For production deployment, you can set up different storage accounts by modifying these environment variables.
 
 ## Learn More
 

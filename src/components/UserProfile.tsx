@@ -1,5 +1,4 @@
 /* eslint-disable */
-
 "use client";
 
 import React from "react";
@@ -49,9 +48,27 @@ export default function UserProfile() {
         <div className="absolute left-0 right-0 bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
           <div className="bg-white text-black rounded-lg shadow-lg p-2">
             <ul className="divide-y divide-gray-200">
-              <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">Account</li>
-              <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">Documentation</li>
-              <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">Support</li>
+              <li>
+                <Link href="/profile">
+                  <span className="block px-4 py-2 hover:bg-gray-100 cursor-pointer">
+                    Profile
+                  </span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/documentation">
+                  <span className="block px-4 py-2 hover:bg-gray-100 cursor-pointer">
+                    Documentation
+                  </span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/support">
+                  <span className="block px-4 py-2 hover:bg-gray-100 cursor-pointer">
+                    Support
+                  </span>
+                </Link>
+              </li>
             </ul>
             <div className="mt-2">
               <a href="/api/auth/logout">
