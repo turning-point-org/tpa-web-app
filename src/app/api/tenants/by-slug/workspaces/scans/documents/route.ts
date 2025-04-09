@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 import { generateSasToken, deleteFromBlobStorage } from "@/lib/blobStorage";
-import { removeEmbeddings } from "@/lib/vectordb";
+import { deleteDocumentChunks } from "@/lib/vectordb";
 
 // Import the container name for consistency in path parsing
 const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'documents';
@@ -18,6 +18,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         { error: "Missing tenant slug, workspace id, or scan id" },
         { status: 400 }
+      );
+    }
+
+    // Check if container is initialized
+    if (!container) {
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 503 }
       );
     }
 
@@ -99,6 +107,14 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    // Check if container is initialized
+    if (!container) {
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 503 }
+      );
+    }
+
     // First check if document exists
     const query = `
       SELECT * FROM c 
@@ -163,7 +179,7 @@ export async function DELETE(req: NextRequest) {
 
     // Also remove embeddings from the vector database
     try {
-      await removeEmbeddings(documentId);
+      await deleteDocumentChunks(documentId, scanId);
       console.log(`Removed embeddings for document ${documentId}`);
     } catch (embeddingError) {
       console.error("Failed to remove document embeddings:", embeddingError);

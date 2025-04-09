@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateEmbeddings, generateChatCompletion } from "@/lib/openai";
-import { vectorSearch } from "@/lib/vectordb";
+import { searchSimilarDocuments } from "@/lib/vectordb";
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       console.log(`Embedding generated with dimension: ${embedding.length}`);
       
       // Search for relevant document chunks
-      const results = await vectorSearch(embedding, scanId, 5);
+      const results = await searchSimilarDocuments(embedding, scanId, 5);
       console.log(`Found ${results.length} relevant document chunks`);
       
       // Format results into context for the AI
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
         // Create context from document results
         context += "Document Content:\n";
         results.forEach((result, index) => {
-          context += `Document: ${result.file_name} (${result.document_type})\n`;
+          context += `Document section ${index + 1}:\n`;
           context += `${result.text}\n\n`;
         });
         
@@ -155,8 +155,8 @@ function createRawDocumentResponse(results: any[], query: string, formatInstruct
       message: `Based on the documents you've uploaded, here's what I found:
       
 <ul>
-${results.map(result => 
-  `<li><b>From document "${result.file_name}" (${result.document_type}):</b><br>
+${results.map((result, index) => 
+  `<li><b>Document section ${index + 1}:</b><br>
    ${result.text.substring(0, 500)}${result.text.length > 500 ? '...' : ''}</li>`
 ).join('\n')}
 </ul>`,
@@ -168,8 +168,8 @@ ${results.map(result =>
   // Otherwise use the original formatting
   return NextResponse.json({
     message: `Based on the documents you've uploaded, here's what I found:\n\n${
-      results.map(result => 
-        `From document "${result.file_name}" (${result.document_type}):\n${
+      results.map((result, index) => 
+        `Document section ${index + 1}:\n${
           result.text.substring(0, 500)}${result.text.length > 500 ? '...' : ''}\n\n`
       ).join('')
     }`,

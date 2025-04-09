@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { container } from "@/lib/cosmos";
 import { uploadToBlobStorage, ensureContainerExists } from "@/lib/blobStorage";
 import { processDocument } from "@/lib/openai";
-import { storeEmbeddings } from "@/lib/vectordb";
+import { storeDocumentChunks } from "@/lib/vectordb";
 import { extractTextFromFile } from "@/lib/documentParser";
 import { Readable } from "stream";
 
@@ -102,6 +102,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Missing tenant slug, workspace id, or scan id" },
         { status: 400 }
+      );
+    }
+
+    // Check if container is initialized
+    if (!container) {
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 503 }
       );
     }
 
@@ -214,14 +222,10 @@ export async function POST(req: NextRequest) {
               
               // Store embeddings in Cosmos DB vector container
               console.log(`Storing embeddings in Cosmos DB (${process.env.COSMOS_DB_RAG_CONTAINER})`);
-              await storeEmbeddings(
+              await storeDocumentChunks(
+                chunks,
                 existingDocument.id, 
-                scanId,
-                existingDocument.tenant_id,
-                workspaceId,
-                existingDocument.document_type || documentType || "Unknown",
-                file.name,
-                chunks
+                scanId
               );
               
               console.log(`Updated embeddings for document: ${file.name}`);
@@ -287,14 +291,10 @@ export async function POST(req: NextRequest) {
               
               // Store embeddings in Cosmos DB vector container
               console.log(`Storing embeddings in Cosmos DB (${process.env.COSMOS_DB_RAG_CONTAINER})`);
-              await storeEmbeddings(
+              await storeDocumentChunks(
+                chunks,
                 newDocumentId, 
-                scanId,
-                scanRecord.tenant_id,
-                workspaceId,
-                documentType || "Unknown",
-                file.name,
-                chunks
+                scanId
               );
               
               console.log(`Successfully stored embeddings for document: ${file.name}`);
