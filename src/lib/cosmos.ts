@@ -5,12 +5,19 @@ const key = process.env.COSMOS_DB_KEY;
 const databaseId = process.env.COSMOS_DB_DATABASE;
 const containerId = process.env.COSMOS_DB_CONTAINER;
 
-if (!endpoint || !key || !databaseId || !containerId) {
-  throw new Error('Missing Azure Cosmos DB environment variables.');
-}
+let container: Container | null = null;
 
-const client = new CosmosClient({ endpoint, key });
-const database = client.database(databaseId);
-const container: Container = database.container(containerId);
+if (endpoint && key && databaseId && containerId) {
+  try {
+    console.log(`Connecting to Cosmos DB: ${endpoint}, database: ${databaseId}, container: ${containerId}`);
+    const client = new CosmosClient({ endpoint, key });
+    const database = client.database(databaseId);
+    container = database.container(containerId);
+  } catch (error) {
+    console.warn('Error initializing Cosmos DB client:', error);
+  }
+} else {
+  console.warn('Missing Azure Cosmos DB environment variables. Database features will not work.');
+}
 
 export { container };

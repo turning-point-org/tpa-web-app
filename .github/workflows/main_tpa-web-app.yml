@@ -32,6 +32,30 @@ jobs:
           NEXT_TELEMETRY_DISABLED: 1
           ESLINT_SKIP: true
           SKIP_TYPESCRIPT_CHECK: true
+          # Azure OpenAI
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_DEPLOYMENT_NAME: ${{ secrets.AZURE_OPENAI_DEPLOYMENT_NAME || 'text-embedding-ada-002' }}
+          AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: ${{ secrets.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME || 'gpt-35-turbo' }}
+          # Azure Cosmos DB
+          COSMOS_DB_ENDPOINT: ${{ secrets.COSMOS_DB_ENDPOINT }}
+          COSMOS_DB_KEY: ${{ secrets.COSMOS_DB_KEY }}
+          COSMOS_DB_DATABASE: ${{ secrets.COSMOS_DB_DATABASE }}
+          COSMOS_DB_CONTAINER: ${{ secrets.COSMOS_DB_CONTAINER }}
+          # Azure Cosmos DB for RAG
+          COSMOS_DB_RAG_ENDPOINT: ${{ secrets.COSMOS_DB_RAG_ENDPOINT }}
+          COSMOS_DB_RAG_KEY: ${{ secrets.COSMOS_DB_RAG_KEY }}
+          COSMOS_DB_RAG_DATABASE: ${{ secrets.COSMOS_DB_RAG_DATABASE || 'db-tpa-dev' }}
+          COSMOS_DB_RAG_CONTAINER: ${{ secrets.COSMOS_DB_RAG_CONTAINER || 'container-tpa-rag-dev' }}
+          # Azure Blob Storage
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
+          AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
+          AZURE_STORAGE_CONTAINER_NAME: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME || 'documents' }}
+          # Azure Speech
+          AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+          AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
+          # Other
+          BASE_URL: ${{ secrets.BASE_URL || 'https://tpa-web-app.azurewebsites.net' }}
 
       - name: Zip artifact for deployment
         run: zip release.zip ./* -r

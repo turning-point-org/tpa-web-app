@@ -35,7 +35,12 @@ export async function POST(req: Request) {
       
       // Save the default summary to Cosmos DB if requested
       if (saveToDatabase) {
-        await saveSummaryToCosmosDB(defaultSummary, tenantSlug, workspaceId, scanId);
+        try {
+          await saveSummaryToCosmosDB(defaultSummary, tenantSlug, workspaceId, scanId);
+        } catch (error) {
+          console.warn('Failed to save default summary to database:', error);
+          // Continue anyway since we have a default summary to return
+        }
       }
       
       return NextResponse.json({ summary: defaultSummary });
@@ -51,7 +56,12 @@ export async function POST(req: Request) {
       
       // Save the initial summary to Cosmos DB if requested
       if (saveToDatabase) {
-        await saveSummaryToCosmosDB(initialSummary, tenantSlug, workspaceId, scanId);
+        try {
+          await saveSummaryToCosmosDB(initialSummary, tenantSlug, workspaceId, scanId);
+        } catch (error) {
+          console.warn('Failed to save initial summary to database:', error);
+          // Continue anyway since we have an initial summary to return
+        }
       }
       
       return NextResponse.json({ summary: initialSummary });
@@ -80,11 +90,18 @@ Your summary should focus on the most important points and try to keep it concis
     
     console.log('Sending to OpenAI for summarization');
     
-    const summaryText = await generateChatCompletion(
-      prompt,
-      '', // No additional context needed
-      [] // No conversation history needed
-    );
+    let summaryText;
+    try {
+      summaryText = await generateChatCompletion(
+        prompt,
+        '', // No additional context needed
+        [] // No conversation history needed
+      );
+    } catch (error) {
+      console.error('Error calling OpenAI for summarization:', error);
+      // Fallback to a generic summary when OpenAI fails
+      summaryText = "## Summary\n\nUnable to generate a detailed summary at this time. Please try again later.";
+    }
     
     console.log('Received summary from OpenAI');
     
@@ -96,7 +113,12 @@ Your summary should focus on the most important points and try to keep it concis
     
     // Save the summary to Cosmos DB if requested
     if (saveToDatabase) {
-      await saveSummaryToCosmosDB(formattedSummary, tenantSlug, workspaceId, scanId);
+      try {
+        await saveSummaryToCosmosDB(formattedSummary, tenantSlug, workspaceId, scanId);
+      } catch (error) {
+        console.warn('Failed to save generated summary to database:', error);
+        // Continue anyway since we have a summary to return
+      }
     }
     
     return NextResponse.json({ summary: formattedSummary });
@@ -124,6 +146,11 @@ async function saveSummaryToCosmosDB(
 ): Promise<void> {
   try {
     console.log('Saving summary to Cosmos DB...');
+    
+    // Check if container is available
+    if (!container) {
+      throw new Error('Cosmos DB container is not initialized. Check your environment variables.');
+    }
     
     // First, fetch the tenant record to get the tenant_id for partitioning
     const tenantQuery = `SELECT * FROM c WHERE LOWER(c.slug) = @slug AND c.id = c.tenant_id`;

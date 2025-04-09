@@ -5,14 +5,17 @@ const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
 const apiKey = process.env.AZURE_OPENAI_API_KEY;
 const deploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || "text-embedding-ada-002";
 
-if (!endpoint || !apiKey) {
-  throw new Error('Missing Azure OpenAI environment variables.');
+// Create OpenAI client only if we have the required environment variables
+let client: OpenAIClient | null = null;
+
+// Only initialize the client when the environment variables are available
+if (endpoint && apiKey) {
+  console.log(`Azure OpenAI configured with endpoint: ${endpoint}, deployment: ${deploymentName}`);
+  client = new OpenAIClient(endpoint, new AzureKeyCredential(apiKey));
+} else {
+  // Log a warning instead of throwing an error at load time
+  console.warn('Missing Azure OpenAI environment variables. Features requiring OpenAI will not work.');
 }
-
-console.log(`Azure OpenAI configured with endpoint: ${endpoint}, deployment: ${deploymentName}`);
-
-// Create OpenAI client
-const client = new OpenAIClient(endpoint, new AzureKeyCredential(apiKey));
 
 /**
  * Generate embeddings for a text document
@@ -21,6 +24,11 @@ const client = new OpenAIClient(endpoint, new AzureKeyCredential(apiKey));
  */
 export async function generateEmbeddings(text: string): Promise<number[]> {
   try {
+    // Check if client is initialized
+    if (!client) {
+      throw new Error('Azure OpenAI client not initialized. Check your environment variables.');
+    }
+    
     if (!text || text.trim().length === 0) {
       console.warn("Empty text provided for embedding generation");
       return [];
@@ -141,6 +149,11 @@ export async function generateChatCompletion(
   conversationHistory: Array<{role: string, content: string}> = []
 ): Promise<string> {
   try {
+    // Check if client is initialized
+    if (!client) {
+      throw new Error('Azure OpenAI client not initialized. Check your environment variables.');
+    }
+    
     // Use a default deployment name if not specified in .env
     const chatDeploymentName = process.env.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME || "gpt-35-turbo";
     
