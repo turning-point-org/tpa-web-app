@@ -1,6 +1,25 @@
-# Turning Point Web App
+# Turning Point Advisory Web App
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+A Next.js-based application that provides an intelligent document management and analysis platform for business advisory services. The application helps consultants and clients collaborate, manage business assessments, and extract insights from uploaded documents using AI-powered analysis.
+
+## Core Features
+
+- **Multi-tenant Architecture**: Support for multiple client organizations with isolated data
+- **Workspace Management**: Organize client engagements in structured workspaces
+- **Scan Workflow**: Systematic business assessment process with document requirements
+- **Document Management**: Upload, store, and analyze business documents
+- **AI-Powered Chat**: Interact with uploaded documents through a conversational interface
+- **Azure Integrations**: Leverages Azure OpenAI, Cosmos DB, and Blob Storage for enterprise-grade capabilities
+
+## How It Works
+
+1. **Client Onboarding**: Create a tenant for each client organization
+2. **Workspace Creation**: Set up workspaces for different business areas or projects
+3. **Scan Process**: Initiate a scan to assess a specific business function
+4. **Document Collection**: Upload required documents for the scan (HRIS reports, org charts, financial data, etc.)
+5. **AI Analysis**: The system processes documents using Azure OpenAI for text embedding and RAG (Retrieval Augmented Generation)
+6. **Interactive Chat**: Use the AI assistant to ask questions about uploaded documents and receive contextual answers
+7. **Comprehensive Analysis**: The system provides insights based on document analysis and business context
 
 ## Getting Started
 
@@ -81,16 +100,24 @@ To configure file uploads to Azure Blob Storage:
 
 4. The application will automatically create the specified container in your storage account the first time a file is uploaded.
 
-5. For production deployment, you can set up different storage accounts by modifying these environment variables.
+## Technologies Used
+
+- **Next.js 15**: React framework with App Router
+- **Auth0**: Authentication and authorization
+- **Azure Cosmos DB**: NoSQL database with vector search capabilities
+- **Azure Blob Storage**: Document storage
+- **Azure OpenAI**: Text embedding and text generation
+- **TypeScript**: Type-safe coding
+- **TailwindCSS**: UI styling
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+To learn more about the technologies used:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Azure OpenAI Service](https://learn.microsoft.com/en-us/azure/ai-services/openai/)
+- [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/)
+- [Auth0 Next.js SDK](https://auth0.com/docs/quickstart/webapp/nextjs)
 
 ## Deploy on Vercel
 

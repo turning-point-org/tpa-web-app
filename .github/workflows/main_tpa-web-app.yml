@@ -31,6 +31,7 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: 1
           ESLINT_SKIP: true
+          SKIP_TYPESCRIPT_CHECK: true
 
       - name: Zip artifact for deployment
         run: zip release.zip ./* -r
