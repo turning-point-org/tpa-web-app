@@ -450,14 +450,13 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
         setMessages(prev => [...prev, { role: 'assistant', content: assistantResponse }]);
       }
     } catch (error: any) {
-      // Check specifically for vector search errors
+      // Generic error message for document search issues
       const errorMessage = error?.message || '';
-      if (errorMessage.includes('VECTOR_DISTANCE_COSINE') || 
-          errorMessage.includes('vector') || 
-          errorMessage.includes('not a recognized built-in function')) {
+      if (errorMessage.includes('vector') || 
+          errorMessage.includes('embedding')) {
         setMessages(prev => [...prev, { 
           role: 'assistant', 
-          content: 'It looks like the vector search functionality is not properly configured in the database. This is likely because vector search is not enabled in your Cosmos DB instance. Please contact your administrator to enable vector search or check the application configuration.'
+          content: 'I encountered an issue searching through your documents. This could be related to the document processing system. Please try again later or contact your administrator if the problem persists.'
         }]);
       } else {
         // Generic error message for other errors

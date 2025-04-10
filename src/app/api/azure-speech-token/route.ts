@@ -6,15 +6,25 @@ export async function GET() {
     const key = process.env.AZURE_SPEECH_KEY;
     const region = process.env.AZURE_SPEECH_REGION;
     
-    if (!key || !region) {
+    if (!key) {
       return NextResponse.json(
-        { error: 'Azure Speech Service credentials not configured' },
+        { error: 'Azure Speech Service key not configured' },
         { status: 500 }
       );
     }
     
-    // Return the credentials to the client
-    return NextResponse.json({ key, region });
+    if (!region) {
+      return NextResponse.json(
+        { error: 'Azure Speech Service region not configured' },
+        { status: 500 }
+      );
+    }
+    
+    // Validate region format - should be lowercase without spaces
+    const validRegion = region.toLowerCase().trim();
+    
+    // Return the credentials to the client with the normalized region
+    return NextResponse.json({ key, region: validRegion });
   } catch (error) {
     console.error('Error fetching Azure Speech Service token:', error);
     return NextResponse.json(

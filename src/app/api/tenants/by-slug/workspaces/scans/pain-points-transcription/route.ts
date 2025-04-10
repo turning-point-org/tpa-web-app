@@ -5,6 +5,15 @@ import { v4 as uuidv4 } from "uuid";
 // GET: Retrieve a pain points transcription for a specific scan
 export async function GET(req: NextRequest) {
   try {
+    // Check if container is available
+    if (!container) {
+      console.error("Cosmos DB container not initialized");
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 500 }
+      );
+    }
+    
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
     const workspaceId = searchParams.get("workspace_id");
@@ -64,6 +73,15 @@ export async function GET(req: NextRequest) {
 // POST: Save a transcription
 export async function POST(req: NextRequest) {
   try {
+    // Check if container is available
+    if (!container) {
+      console.error("Cosmos DB container not initialized");
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 500 }
+      );
+    }
+    
     const body = await req.json();
     const { transcription, speakers, tenantSlug, workspaceId, scanId } = body;
     
@@ -90,7 +108,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Error saving transcription:', error);
     return NextResponse.json(
-      { error: 'Failed to save transcription', details: error instanceof Error ? error.message : String(error) },
+      { error: 'Failed to save transcription' },
       { status: 500 }
     );
   }
@@ -112,7 +130,10 @@ async function saveTranscriptionToCosmosDB(
   scanId: string
 ): Promise<void> {
   try {
-    console.log('Saving transcription to Cosmos DB...');
+    // Check if container is available
+    if (!container) {
+      throw new Error("Cosmos DB container not initialized");
+    }
     
     // First, fetch the tenant record to get the tenant_id for partitioning
     const tenantQuery = `SELECT * FROM c WHERE LOWER(c.slug) = @slug AND c.id = c.tenant_id`;
@@ -152,8 +173,6 @@ async function saveTranscriptionToCosmosDB(
       await container
         .item(existingTranscription.id, tenantId)
         .replace(existingTranscription);
-        
-      console.log(`Updated existing transcription with ID: ${existingTranscription.id}`);
     } else {
       // Create a new transcription document
       const transcriptionDocument = {
@@ -170,7 +189,6 @@ async function saveTranscriptionToCosmosDB(
       };
       
       await container.items.create(transcriptionDocument);
-      console.log(`Created new transcription document with ID: ${transcriptionDocument.id}`);
     }
   } catch (error) {
     console.error('Error saving transcription to Cosmos DB:', error);

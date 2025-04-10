@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       query, 
       conversationHistory = [], 
       documentStatus = "",
-      formatInstructions = "Format lists with HTML tags like <ul> and <li> rather than dashes or asterisks." 
+      formatInstructions = "Format lists with dashes (-) and use ** for bold text and * for italic. Use ### for section headings." 
     } = body;
 
     if (!query) {
@@ -149,17 +149,14 @@ export async function POST(req: NextRequest) {
 
 // Helper function to create a response with raw document data
 function createRawDocumentResponse(results: any[], query: string, formatInstructions: string = "") {
-  // If format instructions are provided, try to format the response with HTML
+  // If format instructions are provided, try to format the response with markdown
   if (formatInstructions) {
     return NextResponse.json({
       message: `Based on the documents you've uploaded, here's what I found:
       
-<ul>
 ${results.map((result, index) => 
-  `<li><b>Document section ${index + 1}:</b><br>
-   ${result.text.substring(0, 500)}${result.text.length > 500 ? '...' : ''}</li>`
-).join('\n')}
-</ul>`,
+  `- **Document section ${index + 1}:**\n   ${result.text.substring(0, 500)}${result.text.length > 500 ? '...' : ''}`
+).join('\n\n')}`,
       results,
       query
     });

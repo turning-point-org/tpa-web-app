@@ -98,101 +98,118 @@ export async function deleteDocumentChunks(documentId: string, scanId: string): 
 }
 
 /**
- * Search for similar documents using vector similarity
+ * Search for documents by scan ID
+ * This method retrieves document chunks from a specific scan
+ * and assigns arbitrary similarity scores (not based on vector similarity)
  */
 export async function searchSimilarDocuments(queryEmbedding: number[], scanId: string, limit: number = 5): Promise<Array<{text: string, score: number}>> {
   try {
-    console.log(`Searching for similar documents in scan ${scanId}`);
+    console.log(`Searching for documents in scan ${scanId}`);
     
     // Check if vector container is initialized
     if (!vectorContainer) {
       throw new Error('Vector DB container not initialized. Check your environment variables.');
     }
     
-    try {
-      // First try with vector search if available
-      const query = `
-        SELECT c.text, 
-               VECTOR_DISTANCE_COSINE(c.embedding, @queryEmbedding) as score
-        FROM c
-        WHERE c.scan_id = @scanId
-        ORDER BY score ASC
-        OFFSET 0 LIMIT ${limit}
-      `;
+    // Simple query to get documents from this scan
+    const query = `
+      SELECT c.text, c.embedding
+      FROM c
+      WHERE c.scan_id = @scanId
+      OFFSET 0 LIMIT ${limit * 3}
+    `;
+    
+    const queryOptions = {
+      query,
+      parameters: [
+        { name: "@scanId", value: scanId }
+      ]
+    };
+    
+    // Execute the query with partition key specified
+    const { resources } = await vectorContainer.items
+      .query(queryOptions, { partitionKey: scanId })
+      .fetchAll();
+    
+    console.log(`Found ${resources.length} documents for scan ${scanId}`);
+    
+    // If we have embeddings, we can calculate similarity scores in memory
+    // This avoids using database-specific vector functions
+    let results: Array<{text: string, score: number}> = [];
+    
+    if (resources.length > 0 && resources[0].embedding) {
+      console.log('Calculating similarity scores locally');
       
-      const { resources } = await vectorContainer.items
-        .query({
-          query,
-          parameters: [
-            { name: "@queryEmbedding", value: queryEmbedding },
-            { name: "@scanId", value: scanId }
-          ]
-        })
-        .fetchAll();
+      // Calculate cosine similarity for each document
+      results = resources.map((doc: any) => {
+        // Calculate cosine similarity if both embeddings exist
+        const similarity = doc.embedding && queryEmbedding ? 
+                           calculateCosineSimilarity(queryEmbedding, doc.embedding) :
+                           0;
+        
+        return {
+          text: doc.text,
+          score: similarity
+        };
+      });
       
-      console.log(`Found ${resources.length} similar documents using vector search`);
+      // Sort by score (highest similarity first)
+      results.sort((a, b) => b.score - a.score);
       
-      // Process results to the expected format
-      const results = resources.map((doc: any) => ({
+      // Limit results
+      results = results.slice(0, limit);
+    } else {
+      // Fallback to arbitrary scoring if no embeddings are available
+      console.log('No embeddings found, using arbitrary scoring');
+      results = resources.map((doc: any, index: number) => ({
         text: doc.text,
-        score: doc.score
+        score: 1 - (index * 0.1) // Higher score is better, so start from 1.0 and decrease
       }));
       
-      // Sort by score (lowest score = highest similarity)
-      results.sort((a: any, b: any) => a.score - b.score);
-      
-      return results;
-    } catch (vectorSearchError) {
-      console.warn('Vector search failed, falling back to basic text search:', vectorSearchError);
-      
-      // Fallback: Simple text retrieval without vector search
-      return await fallbackTextSearch(scanId, limit);
+      // Limit results
+      results = results.slice(0, limit);
     }
+    
+    return results;
   } catch (error) {
-    console.error('Error searching similar documents:', error);
-    throw error;
+    console.error('Error searching documents:', error);
+    
+    // If everything fails, return an empty array
+    return [];
   }
 }
 
 /**
- * Fallback method when vector search is not available
- * Simply returns some document chunks from the scan without similarity ranking
+ * Calculate cosine similarity between two vectors
+ * Higher value (closer to 1) means more similar
  */
-async function fallbackTextSearch(scanId: string, limit: number = 5): Promise<Array<{text: string, score: number}>> {
+function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
   try {
-    console.log(`Using fallback text search for scan ${scanId}`);
-    
-    if (!vectorContainer) {
-      throw new Error('Vector DB container not initialized. Check your environment variables.');
+    if (!vecA || !vecB || vecA.length !== vecB.length) {
+      return 0;
     }
     
-    // Simple query to get documents from this scan without vector search
-    const query = `
-      SELECT c.text
-      FROM c
-      WHERE c.scan_id = @scanId
-      OFFSET 0 LIMIT ${limit}
-    `;
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
     
-    const { resources } = await vectorContainer.items
-      .query({
-        query,
-        parameters: [
-          { name: "@scanId", value: scanId }
-        ]
-      })
-      .fetchAll();
+    for (let i = 0; i < vecA.length; i++) {
+      dotProduct += vecA[i] * vecB[i];
+      normA += vecA[i] * vecA[i];
+      normB += vecB[i] * vecB[i];
+    }
     
-    console.log(`Found ${resources.length} documents using fallback method`);
+    normA = Math.sqrt(normA);
+    normB = Math.sqrt(normB);
     
-    // Convert to the expected result format with arbitrary scores
-    return resources.map((doc: any, index: number) => ({
-      text: doc.text,
-      score: index * 0.1 // Arbitrary score just to maintain interface
-    }));
+    if (normA === 0 || normB === 0) {
+      return 0;
+    }
+    
+    // Cosine similarity formula: dot(A, B) / (|A| * |B|)
+    return dotProduct / (normA * normB);
   } catch (error) {
-    console.error('Error in fallback text search:', error);
-    // If even the fallback fails, return an empty array
-    return [];
+    console.error('Error calculating cosine similarity:', error);
+    return 0;
   }
 } 

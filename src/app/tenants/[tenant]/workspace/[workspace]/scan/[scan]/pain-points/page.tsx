@@ -351,6 +351,19 @@ export default function PainPointsPage() {
     setError(null);
     
     try {
+      // First check if microphone access is available
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          // Stop the stream immediately after testing
+          stream.getTracks().forEach(track => track.stop());
+        } catch (micError) {
+          throw new Error(`Microphone access denied: ${micError instanceof Error ? micError.message : String(micError)}`);
+        }
+      } else {
+        throw new Error('Your browser does not support microphone access. Please try a modern browser like Chrome, Edge, or Firefox.');
+      }
+      
       // First update the state to show we're starting
       setIsTranscribing(true);
       
@@ -361,10 +374,17 @@ export default function PainPointsPage() {
       const response = await fetch('/api/azure-speech-token');
       
       if (!response.ok) {
-        throw new Error('Failed to get Azure Speech Service credentials');
+        const errorText = await response.text();
+        throw new Error(`Failed to get Azure Speech Service credentials: ${response.status} ${errorText}`);
       }
       
-      const { key, region } = await response.json();
+      const tokenData = await response.json();
+      
+      if (!tokenData.key || !tokenData.region) {
+        throw new Error('Speech token is missing key or region');
+      }
+      
+      const { key, region } = tokenData;
       
       // Configure the speech service
       const speechConfig = SpeechConfig.fromSubscription(key, region);
@@ -376,10 +396,20 @@ export default function PainPointsPage() {
       speechConfig.enableAudioLogging();
       
       // Use the default microphone
-      const audioConfig = AudioConfig.fromDefaultMicrophoneInput();
+      let audioConfig;
+      try {
+        audioConfig = AudioConfig.fromDefaultMicrophoneInput();
+      } catch (audioError) {
+        throw new Error(`Failed to access microphone: ${audioError instanceof Error ? audioError.message : String(audioError)}`);
+      }
       
       // Create the speech recognizer
-      const recognizer = new SpeechRecognizer(speechConfig, audioConfig);
+      let recognizer;
+      try {
+        recognizer = new SpeechRecognizer(speechConfig, audioConfig);
+      } catch (recognizerError) {
+        throw new Error(`Failed to create speech recognizer: ${recognizerError instanceof Error ? recognizerError.message : String(recognizerError)}`);
+      }
       
       // Store the recognizer in the ref
       azureSpeechServiceRef.current = recognizer;
@@ -402,9 +432,18 @@ export default function PainPointsPage() {
         }
       };
       
+      // Add session started/stopped events
+      recognizer.sessionStarted = (s, e) => {
+        // Session started
+      };
+      
+      recognizer.sessionStopped = (s, e) => {
+        // Session stopped
+      };
+      
       // Handle errors
       recognizer.canceled = (s, e) => {
-        setError(`Transcription canceled: ${e.errorDetails}`);
+        setError(`Transcription canceled: ${e.errorDetails} (Code: ${e.errorCode})`);
         setIsTranscribing(false);
         clearSummaryInterval();
         
@@ -421,8 +460,6 @@ export default function PainPointsPage() {
           console.log('Transcription started');
           
           // Start the summary interval - update summary every 20 seconds
-          // We're still calculating the summary in real-time for display,
-          // but only saving it when recording stops
           startSummaryInterval();
           
           // Trigger an initial summary after a short delay to let some transcription happen
@@ -433,13 +470,15 @@ export default function PainPointsPage() {
           }, 5000);
         },
         (err: unknown) => {
-          setError(`Error starting transcription: ${err instanceof Error ? err.message : String(err)}`);
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          setError(`Error starting transcription: ${errorMessage}`);
           setIsTranscribing(false);
         }
       );
       
-    } catch (err: unknown) {
-      setError(`Failed to start transcription: ${err instanceof Error ? err.message : String(err)}`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(`Failed to start transcription: ${errorMessage}`);
       setIsTranscribing(false);
     }
   };
@@ -526,7 +565,6 @@ export default function PainPointsPage() {
     try {
       const currentTranscription = transcriptionRef.current;
       if (!currentTranscription.trim()) {
-        console.log('No transcription to summarize');
         return;
       }
       
@@ -556,7 +594,6 @@ export default function PainPointsPage() {
       }
       
       const data = await response.json();
-      console.log('Summary response received:', data);
       
       if (data.summary) {
         setSummary(data.summary);
@@ -566,13 +603,10 @@ export default function PainPointsPage() {
         setLastUpdated(now.toLocaleTimeString());
         
         console.log('Summary updated successfully');
-        if (saveToDatabase) {
-          console.log('Summary saved to database');
-        }
       } else {
         console.warn('Summary API returned no summary text');
       }
-    } catch (err: unknown) {
+    } catch (err) {
       console.error('Error generating summary:', err);
     } finally {
       setIsUpdatingSummary(false);

@@ -5,8 +5,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: Request) {
   try {
-    console.log('Summarize API called');
-    
     const body = await req.json();
     const { text, tenantSlug, workspaceId, scanId, saveToDatabase = false } = body;
     
@@ -114,7 +112,9 @@ Your summary should focus on the most important points and try to keep it concis
     // Save the summary to Cosmos DB if requested
     if (saveToDatabase) {
       try {
+        console.log('Saving summary to database');
         await saveSummaryToCosmosDB(formattedSummary, tenantSlug, workspaceId, scanId);
+        console.log('Summary saved successfully');
       } catch (error) {
         console.warn('Failed to save generated summary to database:', error);
         // Continue anyway since we have a summary to return
