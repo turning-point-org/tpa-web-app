@@ -1,57 +1,98 @@
+'use client';
+
 import { notFound } from "next/navigation";
-import WorkflowNav from "./components/WorkflowNav";
 import { WorkflowNavButtons } from "./components/WorkflowNav";
+import OraPanel from "@/components/OraPanel";
+import { useEffect, useState } from "react";
+import { use } from "react";
 
 interface ScanLayoutProps {
   children: React.ReactNode;
-  params: {
-    tenant: string;
-    workspace: string;
-    scan: string;
-  };
+  params: any; // Allow for Promise
 }
 
-export default async function ScanLayout({ children, params }: ScanLayoutProps) {
-  const { tenant, workspace, scan } = await Promise.resolve(params);
+interface UnwrappedParams {
+  tenant: string;
+  workspace: string;
+  scan: string;
+}
 
-  const res = await fetch(
-    `${process.env.BASE_URL}/api/tenants/by-slug/workspaces/scans?slug=${tenant}&workspace_id=${workspace}&id=${scan}`,
-    { cache: "no-store" }
-  );
-  if (!res.ok) return notFound();
-
-  const scanData = await res.json();
+export default function ScanLayout({ children, params }: ScanLayoutProps) {
+  // Unwrap params using React.use()
+  const unwrappedParams = use(params) as UnwrappedParams;
+  const tenant = unwrappedParams.tenant;
+  const workspace = unwrappedParams.workspace;
+  const scan = unwrappedParams.scan;
+  
+  const [scanData, setScanData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  
+  // Watch for the CSS variable changes
+  useEffect(() => {
+    const checkPanelState = () => {
+      const expandedValue = document.documentElement.style.getPropertyValue('--ora-panel-expanded');
+      setIsPanelExpanded(expandedValue === 'true');
+    };
+    
+    // Initialize
+    checkPanelState();
+    
+    // Set up a small interval to check the CSS variable
+    // This is more reliable than MutationObserver in this case
+    const intervalId = setInterval(checkPanelState, 200);
+    
+    return () => clearInterval(intervalId);
+  }, []);
+  
+  // Fetch scan data
+  useEffect(() => {
+    async function fetchScanData() {
+      try {
+        const res = await fetch(
+          `/api/tenants/by-slug/workspaces/scans?slug=${tenant}&workspace_id=${workspace}&id=${scan}`,
+          { cache: "no-store" }
+        );
+        
+        if (!res.ok) {
+          throw new Error("Failed to fetch scan data");
+        }
+        
+        const data = await res.json();
+        setScanData(data);
+      } catch (error) {
+        console.error("Error fetching scan data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    fetchScanData();
+  }, [tenant, workspace, scan]);
+  
+  if (isLoading) {
+    return <div className="flex min-h-screen justify-center items-center">Loading...</div>;
+  }
+  
+  if (!scanData) {
+    return notFound();
+  }
 
   return (
-    <div className="max-w-[1200px] mx-auto">
-      <div className="mb-8">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-700">
-            {scanData.name}
-          </h1>
-          <span
-            className={`px-2 py-1 rounded ${
-              scanData.status === "done"
-                ? "bg-green-100 text-green-800"
-                : scanData.status === "active"
-                ? "bg-blue-100 text-blue-800"
-                : "bg-yellow-100 text-yellow-800"
-            }`}
-          >
-            {scanData.status}
-          </span>
+    <div className="flex min-h-screen bg-gray-100">
+      <div className={`flex-1 min-w-0 mt-5 transition-all duration-300 ${isPanelExpanded ? 'pr-[520px]' : 'pr-18'}`}>
+        <div className="mx-auto">
+          <div className="p-6">
+            {children}
+            {/* <WorkflowNavButtons /> */}
+          </div>
         </div>
-        <p className="mt-1 text-sm text-gray-500">
-          Created: {new Date(scanData.created_at).toLocaleString()}
-        </p>
       </div>
-      
-      <WorkflowNav />
-      
-      <div className="bg-gray-100 p-6 rounded-lg shadow-sm">
-        {children}
-        <WorkflowNavButtons />
-      </div>
+      <OraPanel
+        scanId={scan}
+        tenantSlug={tenant}
+        workspaceId={workspace}
+      />
     </div>
   );
 } 

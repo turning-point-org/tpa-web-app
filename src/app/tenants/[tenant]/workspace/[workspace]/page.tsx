@@ -20,7 +20,7 @@ export default async function WorkspacePage({ params }: WorkspacePageProps) {
   const workspaceData = await res.json();
 
   return (
-    <div className="max-w-[1200px] mx-auto">
+    <div className="mx-auto pr-5 mt-5 pl-5">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-700">
           {workspaceData.name}

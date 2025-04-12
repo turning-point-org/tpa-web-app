@@ -75,6 +75,7 @@ export default function FileUpload({
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -299,167 +300,273 @@ export default function FileUpload({
     }
   };
   
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const droppedFile = e.dataTransfer.files[0];
+      
+      // Check if the file type is allowed
+      if (!allowedTypes.includes(droppedFile.type)) {
+        const allowedTypesText = allowedTypes.map(type => getFileTypeDescription(type)).join(", ");
+        setError(`Invalid file type. Allowed types: ${allowedTypesText}`);
+        return;
+      }
+      
+      setFile(droppedFile);
+      setFileName(droppedFile.name);
+      setError("");
+      setUploadComplete(false);
+    }
+  };
+  
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(true);
+  };
+  
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+  };
+  
   if (isLoading) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow mb-6">
-        <h3 className="text-xl font-medium mb-2">{title}</h3>
-        <p className="text-gray-600 mb-4">{description}</p>
-        <div className="flex justify-center items-center h-16">
-          <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="bg-white rounded-lg shadow mb-6 overflow-hidden">
+        <div className="p-6 border-b border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          <p className="text-sm text-gray-500 mt-1">{description}</p>
+        </div>
+        <div className="p-6 flex justify-center items-center h-16">
+          <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
         </div>
       </div>
     );
   }
   
   return (
-    <div className="bg-white p-6 rounded-lg shadow mb-6">
-      <h3 className="text-xl font-medium mb-2">{title}</h3>
-      <p className="text-gray-600 mb-4">{description}</p>
+    <div className="bg-white rounded-lg shadow mb-6 overflow-hidden">
+      <div className="p-6 border-b border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        <p className="text-sm text-gray-500 mt-1">{description}</p>
+      </div>
       
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-800 rounded">
-          {error}
-        </div>
-      )}
-      
-      {uploadComplete && (
-        <div className="mb-4 p-3 bg-green-100 text-green-800 rounded">
-          {existingDocument ? "Upload successful!" : "Document deleted successfully!"}
-          {uploadedFileUrl && (
-            <div className="mt-2">
-              <a 
-                href={uploadedFileUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                View uploaded document
-              </a>
-            </div>
-          )}
-        </div>
-      )}
-      
-      {existingDocument && !isUploading && !uploadComplete && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
-          <h4 className="font-medium text-blue-800 mb-2">Current Document</h4>
-          <div className="mb-2">
-            <span className="font-medium">File name:</span> {existingDocument.file_name}
-          </div>
-          <div className="mb-2">
-            <span className="font-medium">Type:</span> {existingDocument.file_type || 
-              (existingDocument.content_type ? getFileTypeDescription(existingDocument.content_type) : '') || 
-              getFileExtensionFromFilename(existingDocument.file_name)}
-          </div>
-          {existingDocument.file_size && (
-            <div className="mb-2">
-              <span className="font-medium">Size:</span> {formatFileSize(existingDocument.file_size)}
-            </div>
-          )}
-          <div className="mb-2">
-            <span className="font-medium">Uploaded:</span> {formatDate(existingDocument.uploaded_at)}
-          </div>
-          <div className="mt-3 flex items-center">
-            <a 
-              href={existingDocument.file_url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline mr-3"
-            >
-              View Document
-            </a>
-            {!showDeleteConfirmation ? (
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirmation(true)}
-                className="text-red-600 hover:text-red-800 hover:underline"
-              >
-                Delete Document
-              </button>
-            ) : (
-              <div className="flex items-center">
-                <span className="text-red-600 mr-2">Confirm delete?</span>
-                <button
-                  type="button"
-                  onClick={handleDeleteDocument}
-                  disabled={isDeleting}
-                  className="bg-red-600 text-white px-2 py-1 rounded text-xs mr-2 hover:bg-red-700 disabled:opacity-50"
-                >
-                  {isDeleting ? "Deleting..." : "Yes"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirmation(false)}
-                  className="bg-gray-200 text-gray-800 px-2 py-1 rounded text-xs hover:bg-gray-300"
-                >
-                  No
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {existingDocument ? "Select a file to replace the current document" : "Select a file to upload"}
-          </label>
-          <p className="text-xs text-gray-500 mb-2">
-            Accepted file types: PDF, CSV, Excel
-          </p>
-          <div className="flex items-center space-x-4">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept={allowedTypes.join(",")}
-              className="block w-full text-sm text-gray-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded file:border-0
-                file:text-sm file:font-semibold
-                file:bg-blue-50 file:text-blue-700
-                hover:file:bg-blue-100"
-            />
-            {file && (
-              <button
-                type="button"
-                onClick={resetFileInput}
-                className="text-red-600 hover:text-red-800"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-          {fileName && (
-            <div className="mt-2 text-sm text-gray-600">
-              Selected file: {fileName}
-            </div>
-          )}
-        </div>
-        
-        {isUploading && (
-          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-            <div
-              className="bg-blue-600 h-2.5 rounded-full"
-              style={{ width: `${uploadProgress}%` }}
-            ></div>
-            <p className="text-xs text-gray-600 mt-1">
-              Uploading: {uploadProgress}%
-            </p>
+      <div className="p-6">
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded border border-red-200">
+            {error}
           </div>
         )}
         
-        <div className="mt-4">
-          <button
-            type="submit"
-            disabled={isUploading || !file}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-          >
-            {isUploading ? "Uploading..." : existingDocument ? "Replace Document" : "Upload Document"}
-          </button>
-        </div>
-      </form>
+        {uploadComplete && (
+          <div className="mb-4 p-3 bg-green-50 text-green-700 text-sm rounded border border-green-200">
+            {existingDocument ? "Upload successful!" : "Document deleted successfully!"}
+          </div>
+        )}
+        
+        {/* Current Document Display */}
+        {existingDocument && !isUploading && !uploadComplete && (
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-medium text-blue-800 mb-2 text-sm">Current Document</h4>
+                <p className="text-sm font-medium text-gray-900 truncate mb-1">
+                  {existingDocument.file_name}
+                </p>
+                <div className="flex text-xs text-gray-500 space-x-2">
+                  <span>{existingDocument.file_type || 
+                    (existingDocument.content_type ? getFileTypeDescription(existingDocument.content_type) : '') || 
+                    getFileExtensionFromFilename(existingDocument.file_name)}</span>
+                  <span>•</span>
+                  {existingDocument.file_size && (
+                    <span>{formatFileSize(existingDocument.file_size)}</span>
+                  )}
+                  <span>•</span>
+                  <span>{formatDate(existingDocument.uploaded_at)}</span>
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                <a 
+                  href={existingDocument.file_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  View
+                </a>
+                {!showDeleteConfirmation ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirmation(true)}
+                    className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                  >
+                    Delete
+                  </button>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={handleDeleteDocument}
+                      disabled={isDeleting}
+                      className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+                    >
+                      {isDeleting ? "Deleting..." : "Confirm"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirmation(false)}
+                      className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* File Upload Area */}
+        {(!existingDocument || file) && (
+          <form onSubmit={handleSubmit}>
+            {!file && (
+              <div 
+                className={`border-2 border-dashed rounded-lg p-6 text-center ${
+                  isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'
+                }`}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+              >
+                <div className="space-y-2">
+                  <svg 
+                    className="mx-auto h-12 w-12 text-gray-400" 
+                    stroke="currentColor" 
+                    fill="none" 
+                    viewBox="0 0 48 48" 
+                    aria-hidden="true"
+                  >
+                    <path 
+                      d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" 
+                      strokeWidth={2} 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                    />
+                  </svg>
+                  <div className="text-sm text-gray-600">
+                    <label 
+                      htmlFor={`file-upload-${title}`} 
+                      className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
+                    >
+                      <span>Upload a file</span>
+                      <input 
+                        id={`file-upload-${title}`} 
+                        name="file-upload" 
+                        type="file" 
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept={allowedTypes.join(",")}
+                        className="sr-only" 
+                      />
+                    </label>
+                    <span className="pl-1">or drag and drop</span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    PDF, CSV, Excel up to 10MB
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {file && (
+              <div className="mt-2">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-3">
+                    <svg 
+                      className="h-8 w-8 text-gray-400" 
+                      fill="currentColor" 
+                      viewBox="0 0 20 20"
+                    >
+                      <path 
+                        fillRule="evenodd" 
+                        d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" 
+                        clipRule="evenodd" 
+                      />
+                    </svg>
+                    <div className="text-sm">
+                      <p className="font-medium text-gray-900 truncate">{fileName}</p>
+                      <p className="text-gray-500 text-xs">{formatFileSize(file.size)}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetFileInput}
+                    className="text-gray-400 hover:text-gray-500"
+                  >
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path 
+                        fillRule="evenodd" 
+                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" 
+                        clipRule="evenodd" 
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {isUploading && (
+              <div className="mt-4">
+                <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
+                  <div
+                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Uploading... {uploadProgress}%
+                </p>
+              </div>
+            )}
+            
+            {file && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isUploading}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {isUploading ? "Uploading..." : existingDocument ? "Replace" : "Upload"}
+                </button>
+              </div>
+            )}
+          </form>
+        )}
+        
+        {/* Replace Button for Existing Document */}
+        {existingDocument && !file && !isUploading && (
+          <div className="mt-4">
+            <label
+              htmlFor={`file-replace-${title}`}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
+            >
+              Replace Document
+              <input
+                id={`file-replace-${title}`}
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept={allowedTypes.join(",")}
+                className="sr-only"
+              />
+            </label>
+          </div>
+        )}
+      </div>
     </div>
   );
 } 

@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import CompanyInfoForm from "@/components/CompanyInfoForm";
 import FileUpload from "@/components/FileUpload";
-import ChatModal from "@/components/ChatModal";
 
 // List of document types required for the scan workflow
 const REQUIRED_DOCUMENT_TYPES = [
@@ -17,14 +15,6 @@ const REQUIRED_DOCUMENT_TYPES = [
   "Data Capability"
 ];
 
-type CompanyData = {
-  name: string;
-  website: string;
-  country: string;
-  industry: string;
-  description: string;
-};
-
 type DocumentInfo = {
   id: string;
   document_type: string;
@@ -36,33 +26,19 @@ type DocumentInfo = {
   content_type?: string;
 };
 
-export default function DataRoomPage() {
+export default function DataSourcesPage() {
   const params = useParams();
   const tenantSlug = params.tenant as string;
   const workspaceId = params.workspace as string;
   const scanId = params.scan as string;
   
-  const [companyData, setCompanyData] = useState<CompanyData | undefined>(undefined);
   const [uploadedDocuments, setUploadedDocuments] = useState<DocumentInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       try {
-        // Load company data
-        const companyResponse = await fetch(
-          `/api/tenants/by-slug/workspaces/scans/data-room?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`
-        );
-        
-        if (companyResponse.status === 404) {
-          setCompanyData(undefined);
-        } else if (companyResponse.ok) {
-          const data = await companyResponse.json();
-          setCompanyData(data);
-        }
-
         // Load documents
         const documentsResponse = await fetch(
           `/api/tenants/by-slug/workspaces/scans/documents?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`
@@ -82,53 +58,21 @@ export default function DataRoomPage() {
     loadData();
   }, [tenantSlug, workspaceId, scanId]);
 
-  const handleFormSuccess = () => {
-    // Reload company data after successful update
-    setIsLoading(true);
-    fetch(`/api/tenants/by-slug/workspaces/scans/data-room?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`)
-      .then(res => {
-        if (res.status === 404) {
-          setCompanyData(undefined);
-          setIsLoading(false);
-          return null;
-        }
-        if (!res.ok) {
-          throw new Error("Failed to reload company information");
-        }
-        return res.json();
-      })
-      .then(data => {
-        if (data) {
-          setCompanyData(data);
-        }
-        setIsLoading(false);
-      })
-      .catch(() => {
-        setIsLoading(false);
-      });
-  };
-
   const handleDocumentUploadSuccess = () => {
     // Optional: Trigger a refresh of documents list if you implement that feature
     console.log("Document upload successful");
   };
 
-  const openChat = () => setIsChatOpen(true);
-  const closeChat = () => setIsChatOpen(false);
-
   return (
-    <div className="space-y-6 bg-gray-100">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold mb-2">Data Room</h2>
-        <button 
-          onClick={openChat}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors"
-        >
-          Data Room Assistant
-        </button>
+    <div>
+      <div className="flex items-center">
+        <h2 className="text-2xl font-semibold mb-2">Data Sources</h2>
+        <span className="text-gray-600 text-sm mb-1 ml-2">
+          ({uploadedDocuments.length} of {REQUIRED_DOCUMENT_TYPES.length} required)
+        </span>
       </div>
       <p className="text-gray-600 mb-6">
-        Capture and manage company information for this scan.
+        Upload and manage documents related to this company.
       </p>
       
       {isLoading ? (
@@ -140,24 +84,7 @@ export default function DataRoomPage() {
           {error}
         </div>
       ) : (
-        <>
-          <CompanyInfoForm 
-            initialData={companyData} 
-            onSubmitSuccess={handleFormSuccess} 
-          />
-          
-          <div className="my-8">
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-semibold mb-2">Documents</h2>
-              <span className="text-gray-600 text-sm mb-2">
-                ({uploadedDocuments.length} of {REQUIRED_DOCUMENT_TYPES.length} required)
-              </span>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Upload and manage documents related to this company.
-            </p>
-          </div>
-          
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">            
           <FileUpload 
             title="HRIS Report"
             description="Upload the company's Human Resource Information System report."
@@ -199,16 +126,7 @@ export default function DataRoomPage() {
             description="Upload documentation about the company's data processing capabilities and infrastructure."
             onUploadSuccess={handleDocumentUploadSuccess}
           />
-
-          {/* Chat Modal */}
-          <ChatModal 
-            isOpen={isChatOpen} 
-            onClose={closeChat} 
-            scanId={scanId}
-            tenantSlug={tenantSlug}
-            workspaceId={workspaceId}
-          />
-        </>
+        </div>
       )}
     </div>
   );

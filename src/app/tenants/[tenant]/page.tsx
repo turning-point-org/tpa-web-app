@@ -18,7 +18,7 @@ export default async function TenantPage({ params }: TenantPageProps) {
   const tenant = await res.json();
 
   return (
-    <div className="max-w-[1200px] mx-auto">
+    <div className="mx-auto pr-5 mt-5 pl-5">
       <TenantHeader tenant={tenant} />
       <WorkspaceManager tenantSlug={tenant.slug} />
     </div>

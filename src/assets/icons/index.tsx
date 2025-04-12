@@ -20,3 +20,5 @@ export const PencilIcon: React.FC<IconProps> = ({ className = "h-4 w-4" }) => (
     />
   </svg>
 ); 
+
+export { OraIcon } from './OraIcon'; 

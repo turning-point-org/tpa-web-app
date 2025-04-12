@@ -32,7 +32,8 @@ interface Scan {
 
 // Define the workflow steps to match the ones in WorkflowNav
 const WORKFLOW_STEPS = [
-  { name: "Data Room", slug: "data-room" },
+  { name: "Company Details", slug: "company-details" },
+  { name: "Data Sources", slug: "data-sources" },
   { name: "Lifecycles", slug: "lifecycles" },
   { name: "Stakeholders", slug: "stakeholders" },
   { name: "Strategic Objectives", slug: "strategic-objectives" },
@@ -165,7 +166,7 @@ export default function Breadcrumbs() {
   }, [pathname, user?.accessToken]);
 
   return (
-    <nav className="mb-4 text-sm text-gray-600">
+    <nav className="text-sm text-gray-600 pt-5 pb-5 border-b border-gray-200 pl-6">
       <ol className="list-reset flex items-center">
         <li>
           {activePage === 'dashboard' ? (
