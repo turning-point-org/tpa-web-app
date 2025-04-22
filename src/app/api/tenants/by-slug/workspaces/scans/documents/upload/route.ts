@@ -169,13 +169,11 @@ async function getSummarizationPrompt(tenantSlug: string, workspaceId: string, s
   
   // Check for any document or settings with a prompt
   const defaultPrompts: Record<string, string> = {
-    "HRIS Report": "Focus on extracting key information about employee roles, departments, reporting structures, and headcount metrics. Identify organizational patterns and employee distribution.",
-    "Org. Structure": "Analyze the organizational hierarchy, reporting relationships, and departmental structures. Identify key leadership positions and span of control.",
-    "Strategic Objectives": "Extract the company's mission, vision, strategic goals, key performance indicators, and priority initiatives. Focus on timeframes and success metrics.",
-    "Cost Breakdown": "Summarize major expense categories, cost centers, budget allocations, and spending patterns. Highlight significant financial insights and trends.",
+    "HRIS Reports": "Focus on extracting key information about employee roles, departments, reporting structures, and headcount metrics. Identify organizational patterns and employee distribution.",
+    "Business Strategy Documents": "Extract the company's mission, vision, strategic goals, key performance indicators, and priority initiatives. Focus on timeframes and success metrics.",
+    "Financial Documents": "Summarize major expense categories, cost centers, budget allocations, and spending patterns. Highlight significant financial insights and trends.",
     "Technology Roadmaps": "Identify current technology systems, planned implementations, integration points, and timelines. Focus on strategic technology initiatives and dependencies.",
-    "General Ledger": "Extract financial accounts, transaction categories, revenue streams, and expense patterns. Identify financial reporting structures and accounting practices.",
-    "Data Capability": "Summarize data assets, data management practices, analytics capabilities, and data governance structures. Identify data flows and integration points."
+    "Pain Points": "Identify key challenges, obstacles, and pain points mentioned across the organization. Focus on operational bottlenecks, process inefficiencies, and areas of improvement."
   };
   
   // First check for document_settings

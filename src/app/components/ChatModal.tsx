@@ -33,13 +33,11 @@ type DocumentInfo = {
 
 // List of document types required for the scan workflow
 const REQUIRED_DOCUMENT_TYPES = [
-  "HRIS Report",
-  "Org. Structure",
-  "Strategic Objectives",
-  "Cost Breakdown",
+  "HRIS Reports",
+  "Business Strategy Documents",
+  "Financial Documents",
   "Technology Roadmaps",
-  "General Ledger",
-  "Data Capability"
+  "Pain Points"
 ];
 
 type ChatModalProps = {
@@ -144,13 +142,11 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
   // Helper function to get document descriptions
   const getDocumentDescription = (docType: string): string => {
     const descriptions: Record<string, string> = {
-      "HRIS Report": "Contains employee data, roles, compensation, and HR metrics",
-      "Org. Structure": "Outlines reporting relationships and organizational hierarchy",
-      "Strategic Objectives": "Defines business goals, initiatives, and strategic direction",
-      "Cost Breakdown": "Detailed breakdown of costs with general ledger codes",
+      "HRIS Reports": "Contains employee data, roles, compensation, and HR metrics",
+      "Business Strategy Documents": "Defines business goals, initiatives, and strategic direction",
+      "Financial Documents": "Detailed breakdown of costs, budgets, and financial information",
       "Technology Roadmaps": "Plans for technology implementation and digital transformation",
-      "General Ledger": "Complete financial transaction records and accounting data",
-      "Data Capability": "Information about data systems, analytics, and processing capabilities"
+      "Pain Points": "Documents highlighting organizational challenges and areas for improvement"
     };
     
     return descriptions[docType] || "Important document for business analysis";
@@ -164,7 +160,7 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
     
     // These are simple heuristics to determine if filenames match expected content
     // In a production environment, this could be enhanced with actual content analysis
-    if (docType === "HRIS Report" && 
+    if (docType === "HRIS Reports" && 
         (filenameLower.includes("hr") || 
          filenameLower.includes("employee") || 
          filenameLower.includes("personnel") ||
@@ -172,15 +168,7 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
       return "Appears to be a relevant HR document";
     }
     
-    if (docType === "Org. Structure" && 
-        (filenameLower.includes("org") || 
-         filenameLower.includes("structure") || 
-         filenameLower.includes("hierarchy") ||
-         filenameLower.includes("chart"))) {
-      return "Appears to be a relevant organizational document";
-    }
-    
-    if (docType === "Strategic Objectives" && 
+    if (docType === "Business Strategy Documents" && 
         (filenameLower.includes("strateg") || 
          filenameLower.includes("objective") || 
          filenameLower.includes("plan") ||
@@ -188,11 +176,12 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
       return "Appears to be a relevant strategic document";
     }
     
-    if (docType === "Cost Breakdown" && 
+    if (docType === "Financial Documents" && 
         (filenameLower.includes("cost") || 
          filenameLower.includes("expense") || 
          filenameLower.includes("budget") ||
          filenameLower.includes("gl") ||
+         filenameLower.includes("financial") ||
          filenameLower.includes("ledger"))) {
       return "Appears to be a relevant financial document";
     }
@@ -205,20 +194,13 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
       return "Appears to be a relevant technology document";
     }
     
-    if (docType === "General Ledger" && 
-        (filenameLower.includes("ledger") || 
-         filenameLower.includes("gl") || 
-         filenameLower.includes("financial") ||
-         filenameLower.includes("account"))) {
-      return "Appears to be a relevant financial document";
-    }
-    
-    if (docType === "Data Capability" && 
-        (filenameLower.includes("data") || 
-         filenameLower.includes("capability") || 
-         filenameLower.includes("analytics") ||
-         filenameLower.includes("processing"))) {
-      return "Appears to be a relevant data document";
+    if (docType === "Pain Points" && 
+        (filenameLower.includes("pain") || 
+         filenameLower.includes("challenge") || 
+         filenameLower.includes("issue") ||
+         filenameLower.includes("problem") ||
+         filenameLower.includes("obstacle"))) {
+      return "Appears to be a relevant document about organizational challenges";
     }
     
     // If no specific matches, give a more general assessment

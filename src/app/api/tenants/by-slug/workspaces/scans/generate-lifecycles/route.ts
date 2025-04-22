@@ -20,17 +20,28 @@ if (endpoint && apiKey) {
 }
 
 // Function to summarize a document using OpenAI
-async function summarizeDocument(documentType: string, fileName: string, documentContent: string, customPrompt: string = '') {
+async function summarizeDocument(documentType: string, fileName: string, documentContent: string, customPrompt: string = '', companyInfo: any = null) {
   if (!client) {
     throw new Error("OpenAI client not initialized");
   }
 
+  const companyInfoSection = companyInfo ? 
+    `Company Information:
+    Name: ${companyInfo.name || 'Not specified'}
+    Industry: ${companyInfo.industry || 'Not specified'}
+    Country: ${companyInfo.country || 'Not specified'}
+    Description: ${companyInfo.description || 'Not specified'}
+    Website: ${companyInfo.website || 'Not specified'}` : 
+    'No company information available';
+
   const summarizationPrompt = `
-Please provide a concise summary of the following document.
+Please provide a summary of the following document.
 Document Type: ${documentType}
 Document Name: ${fileName}
 
-${customPrompt || 'Focus on key information relevant to business processes, operations, and organizational structure.'}
+${companyInfoSection}
+
+${customPrompt || 'Focus on key information relevant to business processes and operations, and identify the industry the company is in.'}
 Limit your summary to 300-500 words highlighting only the most essential points.
 
 Document Content:
@@ -38,7 +49,7 @@ ${documentContent}
 `;
 
   const messages = [
-    { role: "system", content: "You are a business analyst who extracts and summarizes key information from business documents." },
+    { role: "system", content: "You are a business analyst who extracts and summarizes key information from business documents in preparation for a business process design workshop that uses the APQC Process Classification Framework (PCF). Focus on key information relevant to business processes and operations, and identify the industry the company is in." },
     { role: "user", content: summarizationPrompt }
   ];
 
@@ -72,6 +83,34 @@ async function getTenantIdFromSlug(tenantSlug: string): Promise<string> {
   }
 
   return resources[0].tenant_id;
+}
+
+// Function to get company information for a scan
+async function getCompanyInfoForScan(tenant_slug: string, workspace_id: string, scan_id: string): Promise<any> {
+  if (!container) {
+    throw new Error("Database connection not available");
+  }
+  
+  const query = `
+    SELECT * FROM c 
+    WHERE c.scan_id = @scan_id 
+    AND c.workspace_id = @workspace_id 
+    AND c.tenant_slug = @tenant_slug 
+    AND c.type = "company_info"
+  `;
+  
+  const { resources } = await container.items
+    .query({
+      query,
+      parameters: [
+        { name: "@scan_id", value: scan_id },
+        { name: "@workspace_id", value: workspace_id },
+        { name: "@tenant_slug", value: tenant_slug },
+      ],
+    })
+    .fetchAll();
+
+  return resources.length > 0 ? resources[0] : null;
 }
 
 // Function to calculate cosine similarity between two vectors
@@ -143,6 +182,17 @@ export async function POST(req: NextRequest) {
         { error: "Failed to find tenant" },
         { status: 404 }
       );
+    }
+
+    // Get company information for this scan
+    let companyInfo;
+    try {
+      companyInfo = await getCompanyInfoForScan(tenant_slug, workspace_id, scan_id);
+      console.log(`Retrieved company info for scan ${scan_id}: ${companyInfo ? companyInfo.name : 'None found'}`);
+    } catch (error) {
+      console.warn("Failed to retrieve company information:", error);
+      // Continue even if company info retrieval fails
+      companyInfo = null;
     }
 
     // 1. Get all documents for this scan
@@ -265,7 +315,8 @@ export async function POST(req: NextRequest) {
         doc.document_type,
         doc.file_name,
         documentContent,
-        customPrompt
+        customPrompt,
+        companyInfo
       );
       
       // Add the document summary to the collection
@@ -288,7 +339,18 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Generate lifecycles using OpenAI with the document summaries
+    const companyInfoSection = companyInfo ? 
+      `Company Information:
+      Name: ${companyInfo.name || 'Not specified'}
+      Industry: ${companyInfo.industry || 'Not specified'}
+      Country: ${companyInfo.country || 'Not specified'}
+      Description: ${companyInfo.description || 'Not specified'}
+      Website: ${companyInfo.website || 'Not specified'}` : 
+      'No company information available';
+
     const prompt = `You are an expert business process architect with deep knowledge of the APQC Process Classification Framework (PCF). You are analyzing business documents to identify the key business lifecycles for a company.
+
+${companyInfoSection}
 
 Based on the document summaries provided, generate 3-6 business lifecycles that represent the core operational processes of the organization. These lifecycles should reflect the company's unique operating model and strategic context.
 
@@ -297,8 +359,8 @@ For each lifecycle:
 2. Write a summary description (3-5 sentences) that explains what this lifecycle encompasses, why it's important to the business, and how it aligns with the company's specific context
 
 Your analysis should:
-- Draw from APQC PCF categories such as: Develop Vision and Strategy, Develop and Manage Products/Services, Market and Sell Products/Services, Deliver Products/Services, Manage Customer Service, Develop and Manage Human Capital, Manage Information Technology, Manage Financial Resources, etc.
-- Adapt these standard frameworks to match the company's unique processes evident in the documents
+- Draw from APQC PCF categories.
+- Adapt these standard frameworks to match the company's unique processes evident in the documents and the type of industry the company is in.
 - Focus on end-to-end business processes that span multiple functions, not just departmental activities
 - Consider both operational and management processes
 - Reflect industry-specific nuances apparent in the document summaries
@@ -319,7 +381,7 @@ Respond in the following JSON format only:
 }`;
 
     const messages = [
-      { role: "system", content: "You are a business process design expert specialized in applying the APQC Process Classification Framework to identify core business lifecycles for organizations." },
+      { role: "system", content: "You are a business process design expert specialized in applying the APQC Process Classification Framework to identify core business lifecycles for organizations specific to their industry." },
       { role: "user", content: prompt }
     ];
 

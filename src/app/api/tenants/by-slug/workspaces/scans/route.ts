@@ -5,13 +5,11 @@ import { deleteAllScanChunks } from "@/lib/vectordb";
 
 // Define document types and their default prompts
 const REQUIRED_DOCUMENT_TYPES = [
-  "HRIS Report",
-  "Org. Structure",
-  "Strategic Objectives",
-  "Cost Breakdown",
+  "HRIS Reports",
+  "Business Strategy Documents",
+  "Financial Documents",
   "Technology Roadmaps",
-  "General Ledger",
-  "Data Capability"
+  "Pain Points"
 ] as const;
 
 // Type for document types
@@ -19,24 +17,20 @@ type DocumentType = typeof REQUIRED_DOCUMENT_TYPES[number];
 
 // Create default summarization prompts for each document type
 const DEFAULT_PROMPTS: Record<DocumentType, string> = {
-  "HRIS Report": "Focus on extracting key information about employee roles, departments, reporting structures, and headcount metrics. Identify organizational patterns and employee distribution.",
-  "Org. Structure": "Analyze the organizational hierarchy, reporting relationships, and departmental structures. Identify key leadership positions and span of control.",
-  "Strategic Objectives": "Extract the company's mission, vision, strategic goals, key performance indicators, and priority initiatives. Focus on timeframes and success metrics.",
-  "Cost Breakdown": "Summarize major expense categories, cost centers, budget allocations, and spending patterns. Highlight significant financial insights and trends.",
+  "HRIS Reports": "Focus on extracting key information about employee roles, departments, reporting structures, and headcount metrics. Identify organizational patterns and employee distribution.",
+  "Business Strategy Documents": "Extract the company's mission, vision, strategic goals, key performance indicators, and priority initiatives. Focus on timeframes and success metrics.",
+  "Financial Documents": "Summarize major expense categories, cost centers, budget allocations, and spending patterns. Highlight significant financial insights and trends.",
   "Technology Roadmaps": "Identify current technology systems, planned implementations, integration points, and timelines. Focus on strategic technology initiatives and dependencies.",
-  "General Ledger": "Extract financial accounts, transaction categories, revenue streams, and expense patterns. Identify financial reporting structures and accounting practices.",
-  "Data Capability": "Summarize data assets, data management practices, analytics capabilities, and data governance structures. Identify data flows and integration points."
+  "Pain Points": "Identify key challenges, obstacles, and pain points mentioned across the organization. Focus on operational bottlenecks, process inefficiencies, and areas of improvement."
 };
 
 // Add document descriptions
 const DOCUMENT_DESCRIPTIONS: Record<DocumentType, string> = {
-  "HRIS Report": "Upload the company's Human Resource Information System report.",
-  "Org. Structure": "Upload the company's organizational structure and hierarchy.",
-  "Strategic Objectives": "Upload the company's strategic plans and initiatives.",
-  "Cost Breakdown": "Upload the detailed cost breakdown with general ledger codes.",
+  "HRIS Reports": "Upload the company's Human Resource Information System reports.",
+  "Business Strategy Documents": "Upload the company's strategic plans and initiatives.",
+  "Financial Documents": "Upload the detailed financial documents including cost breakdowns and budgets.",
   "Technology Roadmaps": "Upload the company's technology implementation plans and roadmaps.",
-  "General Ledger": "Upload the company's general ledger reports and financial records.",
-  "Data Capability": "Upload documentation about the company's data processing capabilities and infrastructure."
+  "Pain Points": "Upload documents highlighting key challenges and pain points within the organization."
 };
 
 // Function to get tenant_id from tenant_slug

@@ -16,21 +16,60 @@ if (endpoint && apiKey) {
   console.warn('Missing Azure OpenAI environment variables. Generate processes feature will not work.');
 }
 
+// Function to get company information for a scan
+async function getCompanyInfoForScan(tenant_slug: string, workspace_id: string, scan_id: string): Promise<any> {
+  if (!container) {
+    throw new Error("Database connection not available");
+  }
+  
+  const query = `
+    SELECT * FROM c 
+    WHERE c.scan_id = @scan_id 
+    AND c.workspace_id = @workspace_id 
+    AND c.tenant_slug = @tenant_slug 
+    AND c.type = "company_info"
+  `;
+  
+  const { resources } = await container.items
+    .query({
+      query,
+      parameters: [
+        { name: "@scan_id", value: scan_id },
+        { name: "@workspace_id", value: workspace_id },
+        { name: "@tenant_slug", value: tenant_slug },
+      ],
+    })
+    .fetchAll();
+
+  return resources.length > 0 ? resources[0] : null;
+}
+
 // Function to generate process categories and process groups for a lifecycle
-async function generateProcesses(lifecycleName: string, lifecycleDescription: string) {
+async function generateProcesses(lifecycleName: string, lifecycleDescription: string, companyInfo: any = null) {
   if (!client) {
     throw new Error("OpenAI client not initialized");
   }
 
+  const companyInfoSection = companyInfo ? 
+    `Company Information:
+    Name: ${companyInfo.name || 'Not specified'}
+    Industry: ${companyInfo.industry || 'Not specified'}
+    Country: ${companyInfo.country || 'Not specified'}
+    Description: ${companyInfo.description || 'Not specified'}
+    Website: ${companyInfo.website || 'Not specified'}` : 
+    'No company information available';
+
   const processGenerationPrompt = `
-You are a business process expert specializing in utility companies in the energy sector. 
+You are a business process expert specializing in organizational process design.
 Your task is to generate a comprehensive list of process categories and their process groups that would be relevant to the following business lifecycle:
+
+${companyInfoSection}
 
 Lifecycle Name: ${lifecycleName}
 Lifecycle Description: ${lifecycleDescription}
 
 Please follow these instructions:
-1. Reference information from the APQC UTILITIES PROCESS CLASSIFICATION FRAMEWORK for utilities in the energy sector.
+1. Reference information from the APQC Process Classification Framework appropriate for the company's industry.
 2. Create a logical structure with process categories and nested process groups.
 3. Each process group should have a short description that explains its purpose.
 4. Focus on processes that are highly relevant to the specific lifecycle described above.
@@ -59,7 +98,7 @@ Ensure your response is ONLY the valid JSON object, nothing else.
 `;
 
   const messages = [
-    { role: "system", content: "You are a business process expert specializing in utilities and energy sector operations." },
+    { role: "system", content: "You are a business process expert specializing in organizational process design across various industries." },
     { role: "user", content: processGenerationPrompt }
   ];
 
@@ -192,6 +231,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get company information for this scan
+    let companyInfo;
+    try {
+      companyInfo = await getCompanyInfoForScan(tenant_slug, workspace_id, scan_id);
+      console.log(`Retrieved company info for scan ${scan_id}: ${companyInfo ? companyInfo.name : 'None found'}`);
+    } catch (error) {
+      console.warn("Failed to retrieve company information:", error);
+      // Continue even if company info retrieval fails
+      companyInfo = null;
+    }
+
     // Find the tenant ID from the tenant slug for partition key
     const tenantQuery = `
       SELECT * FROM c 
@@ -245,7 +295,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate processes based on lifecycle name and description
-    const processesData = await generateProcesses(lifecycle_name, lifecycle_description || "");
+    const processesData = await generateProcesses(lifecycle_name, lifecycle_description || "", companyInfo);
 
     // Validate the generated processes data
     const validation = validateProcessesJson(processesData);

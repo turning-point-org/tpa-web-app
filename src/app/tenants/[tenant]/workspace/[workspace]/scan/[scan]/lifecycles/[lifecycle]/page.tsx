@@ -97,12 +97,6 @@ export default function LifecycleProcessesPage() {
   // Lifecycle info modal state
   const [showLifecycleInfo, setShowLifecycleInfo] = useState(false);
   
-  // Drag and drop state
-  const [draggedItem, setDraggedItem] = useState<{
-    categoryIndex: number;
-    groupIndex: number;
-  } | null>(null);
-  
   // Canvas and container refs for measuring
   const containerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -575,120 +569,6 @@ export default function LifecycleProcessesPage() {
     }
   };
   
-  // Handlers for drag and drop
-  const handleDragStart = (
-    e: React.DragEvent<HTMLDivElement>,
-    categoryIndex: number,
-    groupIndex: number
-  ) => {
-    e.stopPropagation();
-    setDraggedItem({ categoryIndex, groupIndex });
-    
-    // Set the drag data
-    e.dataTransfer.setData(
-      'text/plain', 
-      JSON.stringify({ categoryIndex, groupIndex })
-    );
-    
-    // Add a custom class to the element being dragged
-    if (e.currentTarget) {
-      e.currentTarget.classList.add('opacity-50');
-    }
-  };
-  
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    // Prevent default to allow drop
-    e.preventDefault();
-    
-    // Add a visual cue
-    if (e.currentTarget) {
-      e.currentTarget.classList.add('bg-blue-50');
-    }
-  };
-  
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    // Remove visual cue
-    if (e.currentTarget) {
-      e.currentTarget.classList.remove('bg-blue-50');
-    }
-  };
-  
-  const handleDrop = async (
-    e: React.DragEvent<HTMLDivElement>,
-    targetCategoryIndex: number
-  ) => {
-    e.preventDefault();
-    
-    // Remove visual cue
-    if (e.currentTarget) {
-      e.currentTarget.classList.remove('bg-blue-50');
-    }
-    
-    try {
-      // Get the dragged item data
-      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-      const sourceCategoryIndex = data.categoryIndex;
-      const sourceGroupIndex = data.groupIndex;
-      
-      // If dropped in the same category, do nothing
-      if (sourceCategoryIndex === targetCategoryIndex) {
-        return;
-      }
-      
-      // Create a deep copy of the lifecycle
-      const updatedLifecycle = JSON.parse(JSON.stringify(lifecycle));
-      
-      if (updatedLifecycle?.processes?.process_categories) {
-        const sourceCategory = updatedLifecycle.processes.process_categories[sourceCategoryIndex];
-        const targetCategory = updatedLifecycle.processes.process_categories[targetCategoryIndex];
-        
-        // Get the group to move
-        const [movedGroup] = sourceCategory.process_groups.splice(sourceGroupIndex, 1);
-        
-        // Add to the target category
-        targetCategory.process_groups.push(movedGroup);
-        
-        // Update the lifecycle state
-        setLifecycle(updatedLifecycle);
-        
-        // API call to update the process group order
-        await fetch('/api/tenants/by-slug/workspaces/scans/lifecycles', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            tenant_slug: tenantSlug,
-            workspace_id: workspaceId,
-            scan_id: scanId,
-            lifecycle_id: lifecycleId,
-            action: 'reorder_group',
-            reorder: {
-              source_category_index: sourceCategoryIndex,
-              source_group_index: sourceGroupIndex,
-              dest_category_index: targetCategoryIndex,
-              dest_group_index: targetCategory.process_groups.length - 1
-            }
-          }),
-        });
-      }
-    } catch (err: any) {
-      setError(err.message || "An error occurred while reordering process groups");
-      // Reload the data to ensure consistency
-      loadLifecycleData();
-    }
-    
-    setDraggedItem(null);
-  };
-  
-  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    // Reset the appearance of the dragged item
-    if (e.currentTarget) {
-      e.currentTarget.classList.remove('opacity-50');
-    }
-    setDraggedItem(null);
-  };
-  
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -934,17 +814,11 @@ export default function LifecycleProcessesPage() {
                         
                         <div 
                           className="p-3 space-y-3 overflow-visible min-h-[100px]"
-                          onDragOver={handleDragOver}
-                          onDragLeave={handleDragLeave}
-                          onDrop={(e) => handleDrop(e, catIndex)}
                         >
                           {category.process_groups?.map((group, groupIndex) => (
                             <div 
                               key={`group-${catIndex}-${groupIndex}`} 
-                              className="p-3 bg-white border-2 border-transparent hover:border-indigo-500 rounded-lg shadow-sm relative cursor-move transition-colors duration-200"
-                              draggable={toggles.editMode}
-                              onDragStart={(e) => handleDragStart(e, catIndex, groupIndex)}
-                              onDragEnd={handleDragEnd}
+                              className="p-3 bg-white border-2 border-transparent hover:border-indigo-500 rounded-lg shadow-sm relative cursor-pointer transition-colors duration-200"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (toggles.editMode) {
