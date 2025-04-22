@@ -7,16 +7,19 @@ import { useEffect, useState } from "react";
 import UserProfile from "@/components/UserProfile";
 import TenantSwitcher from "@/components/TenantSwitcher";
 import WorkflowNav from "@/app/tenants/[tenant]/workspace/[workspace]/scan/[scan]/components/WorkflowNav";
+import { useUser } from "@auth0/nextjs-auth0/client";
+import { AuthenticationError } from "@/utils/api";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const isScanPage = pathname?.includes("/scan/");
   const [scanData, setScanData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useUser();
 
   useEffect(() => {
     async function fetchScanData() {
-      if (!isScanPage) {
+      if (!isScanPage || !user) {
         setIsLoading(false);
         return;
       }
@@ -47,14 +50,19 @@ export default function Sidebar() {
         const data = await res.json();
         setScanData(data);
       } catch (error) {
-        console.error("Error fetching scan data:", error);
+        // Handle authentication errors gracefully
+        if (error instanceof AuthenticationError) {
+          console.log("Authentication required for scan data fetch - this is expected when not logged in");
+        } else {
+          console.error("Error fetching scan data:", error);
+        }
       } finally {
         setIsLoading(false);
       }
     }
     
     fetchScanData();
-  }, [pathname, isScanPage]);
+  }, [pathname, isScanPage, user]);
 
   return (
     <aside className="fixed top-0 left-0 w-80 h-screen flex flex-col bg-[var(--color-secondary)] border-r border-[var(--color-border)] p-6 shadow-sm z-[10]">

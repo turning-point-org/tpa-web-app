@@ -80,7 +80,7 @@ export default function ScanLayout({ children, params }: ScanLayoutProps) {
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      <div className={`flex-1 min-w-0 mt-5 transition-all duration-300 ${isPanelExpanded ? 'pr-[520px]' : 'pr-18'}`}>
+      <div className={`flex-1 min-w-0 mt-5 transition-all duration-300 ${isPanelExpanded ? 'pr-[670px]' : 'pr-18'}`}>
         <div className="mx-auto">
           <div className="p-6">
             {children}

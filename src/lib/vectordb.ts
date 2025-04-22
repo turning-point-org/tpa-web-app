@@ -212,4 +212,84 @@ function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     console.error('Error calculating cosine similarity:', error);
     return 0;
   }
+}
+
+/**
+ * Retrieve all document chunks for a specific scan in a single query
+ * @param scanId The ID of the scan to retrieve chunks for
+ * @returns An array of document chunks with text and embeddings
+ */
+export async function retrieveAllScanChunks(
+  scanId: string
+): Promise<Array<{text: string, embedding: number[], document_id: string}>> {
+  try {
+    console.log(`Retrieving all document chunks for scan ${scanId}`);
+    
+    // Check if vector container is initialized
+    if (!vectorContainer) {
+      throw new Error('Vector DB container not initialized. Check your environment variables.');
+    }
+    
+    // Query to get all document chunks for this scan
+    const query = `
+      SELECT c.text, c.embedding, c.document_id
+      FROM c
+      WHERE c.scan_id = @scanId
+    `;
+    
+    const queryOptions = {
+      query,
+      parameters: [
+        { name: "@scanId", value: scanId }
+      ]
+    };
+    
+    // Execute the query with partition key specified
+    const { resources } = await vectorContainer.items
+      .query(queryOptions, { partitionKey: scanId })
+      .fetchAll();
+    
+    console.log(`Retrieved ${resources.length} document chunks for scan ${scanId} in a single query`);
+    
+    return resources;
+  } catch (error) {
+    console.error('Error retrieving all document chunks:', error);
+    return [];
+  }
+}
+
+/**
+ * Delete all chunks for a specific scan
+ */
+export async function deleteAllScanChunks(scanId: string): Promise<void> {
+  try {
+    console.log(`Deleting all chunks for scan ${scanId}`);
+    
+    // Check if vector container is initialized
+    if (!vectorContainer) {
+      throw new Error('Vector DB container not initialized. Check your environment variables.');
+    }
+    
+    // Find all chunks for this scan
+    const query = "SELECT c.id FROM c WHERE c.scan_id = @scanId";
+    const { resources } = await vectorContainer.items
+      .query({ 
+        query, 
+        parameters: [{ name: "@scanId", value: scanId }] 
+      })
+      .fetchAll();
+    
+    console.log(`Found ${resources.length} chunks to delete for scan ${scanId}`);
+    
+    // Delete each chunk
+    for (const item of resources) {
+      // Use the scan_id as the partition key
+      await vectorContainer.item(item.id, scanId).delete();
+    }
+    
+    console.log(`Successfully deleted all chunks for scan ${scanId}`);
+  } catch (error) {
+    console.error('Error deleting scan chunks:', error);
+    throw error;
+  }
 } 

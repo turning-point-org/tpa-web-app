@@ -2,16 +2,46 @@ import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 import { v4 as uuidv4 } from "uuid";
 import slugify from "slugify";
+import { withAuth } from "@/utils/api-handler";
 
-export async function GET(req: NextRequest) {
+// Authenticated GET endpoint for tenants
+export const GET = withAuth(async (req: NextRequest) => {
+  console.log("GET /api/tenants - Authenticated request received");
+  
+  if (!container) {
+    console.error("GET /api/tenants error: Database container not initialized");
+    return NextResponse.json(
+      { error: "Database error" },
+      { status: 500 }
+    );
+  }
+  
   // Query tenant records where id equals tenant_id.
   const query = `SELECT * FROM c WHERE c.id = c.tenant_id`;
-  const { resources } = await container.items.query({ query }).fetchAll();
+  
+  try {
+    const { resources } = await container.items.query({ query }).fetchAll();
+    console.log(`GET /api/tenants - Found ${resources.length} tenants`);
+    return NextResponse.json(resources);
+  } catch (error) {
+    console.error("GET /api/tenants error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch tenants" },
+      { status: 500 }
+    );
+  }
+});
 
-  return NextResponse.json(resources);
-}
-
-export async function POST(req: NextRequest) {
+// Authenticated POST endpoint for creating tenants
+export const POST = withAuth(async (req: NextRequest) => {
+  if (!container) {
+    console.error("POST /api/tenants error: Database container not initialized");
+    return NextResponse.json(
+      { error: "Database error" },
+      { status: 500 }
+    );
+  }
+  
   try {
     const body = await req.json();
     const name = body.name?.trim();
@@ -63,4 +93,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

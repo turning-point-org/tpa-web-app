@@ -56,7 +56,7 @@ export default function CompanyInfoForm({
     setError("");
 
     try {
-      const url = `/api/tenants/by-slug/workspaces/scans/data-room?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`;
+      const url = `/api/tenants/by-slug/workspaces/scans/company-details?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`;
       
       const method = initialData ? "PATCH" : "POST";
       

@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
       query, 
       conversationHistory = [], 
       documentStatus = "",
+      companyInfo = null,
       formatInstructions = "Format lists with dashes (-) and use ** for bold text and * for italic. Use ### for section headings." 
     } = body;
 
@@ -57,6 +58,17 @@ export async function POST(req: NextRequest) {
       // Add document status to context
       if (documentStatus) {
         context += documentStatus + "\n\n";
+      }
+      
+      // Add company info to context if available and not already in document status
+      if (companyInfo && !documentStatus.includes("Company Information")) {
+        context += "### Company Information\n\n";
+        if (companyInfo.name) context += `- **Company Name:** ${companyInfo.name}\n`;
+        if (companyInfo.website) context += `- **Website:** ${companyInfo.website}\n`;
+        if (companyInfo.country) context += `- **Country:** ${companyInfo.country}\n`;
+        if (companyInfo.industry) context += `- **Industry:** ${companyInfo.industry}\n`;
+        if (companyInfo.description) context += `- **Description:** ${companyInfo.description}\n`;
+        context += "\n";
       }
 
       // Add formatting instructions

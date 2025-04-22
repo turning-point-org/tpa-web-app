@@ -82,23 +82,10 @@ export default function UserProfile() {
       </div>
     );
   } else {
-    // Full screen takeover for not logged in state
+    // This case should not occur in practice since AuthWrapper will handle unauthenticated users
     return (
-      <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
-        <Image
-          src="/turning-point-logo.svg"
-          alt="TurningPoint Logo"
-          width={150}
-          height={150}
-          className="mb-4"
-        />
-        <h1 className="text-2xl font-bold mb-2">Welcome to TurningPoint</h1>
-        <p className="text-gray-700 mb-4">Please log in to continue</p>
-        <a href="/api/auth/login">
-          <button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 transition rounded text-white cursor-pointer">
-            Login
-          </button>
-        </a>
+      <div className="bg-gray-800 text-white border border-gray-700 rounded-lg p-4 w-[250px]">
+        Not logged in
       </div>
     );
   }

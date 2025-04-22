@@ -30,6 +30,11 @@ interface Scan {
   name: string;
 }
 
+interface Lifecycle {
+  id: string;
+  name: string;
+}
+
 // Define the workflow steps to match the ones in WorkflowNav
 const WORKFLOW_STEPS = [
   { name: "Company Details", slug: "company-details" },
@@ -48,7 +53,8 @@ export default function Breadcrumbs() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [scan, setScan] = useState<Scan | null>(null);
   const [scanStep, setScanStep] = useState<string | null>(null);
-  const [activePage, setActivePage] = useState<'dashboard' | 'tenant' | 'workspace' | 'scan' | 'scanStep'>('dashboard');
+  const [lifecycle, setLifecycle] = useState<Lifecycle | null>(null);
+  const [activePage, setActivePage] = useState<'dashboard' | 'tenant' | 'workspace' | 'scan' | 'scanStep' | 'lifecycle'>('dashboard');
   const { user } = useUser();
 
   const fetchTenant = async (slug: string): Promise<Tenant | null> => {
@@ -101,6 +107,36 @@ export default function Breadcrumbs() {
     }
   };
 
+  const fetchLifecycle = async (tenantSlug: string, workspaceId: string, scanId: string, lifecycleId: string): Promise<Lifecycle | null> => {
+    try {
+      // First try to get the specific lifecycle by ID
+      const res = await fetchWithAuth(
+        `/api/tenants/by-slug/workspaces/scans/lifecycles?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}`,
+        user?.accessToken as string | undefined
+      );
+
+      if (!res.ok) {
+        console.error("Failed to fetch lifecycle");
+        return null;
+      }
+
+      const data = await res.json();
+      
+      // Handle both single object and array responses
+      if (Array.isArray(data)) {
+        const specificLifecycle = data.find(lc => lc.id === lifecycleId);
+        return specificLifecycle ? { id: specificLifecycle.id, name: specificLifecycle.name } : null;
+      } else if (data && data.id === lifecycleId) {
+        return { id: data.id, name: data.name };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error fetching lifecycle:", error);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const updateBreadcrumbs = async () => {
       const pathParts = pathname.split('/').filter(Boolean);
@@ -110,8 +146,9 @@ export default function Breadcrumbs() {
       setWorkspace(null);
       setScan(null);
       setScanStep(null);
+      setLifecycle(null);
       
-      // Determine active page based on path length
+      // Determine active page based on path length and pattern
       if (pathParts.length === 0 || (pathParts.length === 1 && pathParts[0] === '')) {
         setActivePage('dashboard');
       } else if (pathParts.length === 2 && pathParts[0] === 'tenants') {
@@ -120,6 +157,9 @@ export default function Breadcrumbs() {
         setActivePage('workspace');
       } else if (pathParts.length === 6 && pathParts[0] === 'tenants' && pathParts[4] === 'scan') {
         setActivePage('scan');
+      } else if (pathParts.length === 8 && pathParts[0] === 'tenants' && pathParts[6] === 'lifecycles') {
+        // This is a specific lifecycle page
+        setActivePage('lifecycle');
       } else if (pathParts.length >= 7 && pathParts[0] === 'tenants' && pathParts[4] === 'scan') {
         setActivePage('scanStep');
       }
@@ -145,8 +185,18 @@ export default function Breadcrumbs() {
               setScan(scanData);
             }
             
+            // Check if we're on a lifecycle detail page
+            if (pathParts.length >= 8 && pathParts[6] === 'lifecycles') {
+              const lifecycleId = pathParts[7];
+              const lifecycleData = await fetchLifecycle(tenantSlug, workspaceId, scanId, lifecycleId);
+              if (lifecycleData) {
+                setLifecycle(lifecycleData);
+              }
+              // Set scanStep to "Lifecycles" to show it in the breadcrumb
+              setScanStep("Lifecycles");
+            }
             // Check if there's a scan step in the URL (pathParts[6])
-            if (pathParts.length >= 7) {
+            else if (pathParts.length >= 7) {
               const step = pathParts[6];
               // Find the corresponding step name from our defined workflow steps
               const matchedStep = WORKFLOW_STEPS.find(ws => ws.slug === step);
@@ -232,8 +282,27 @@ export default function Breadcrumbs() {
           <>
             <li className="mx-2">/</li>
             <li>
+              {activePage === 'scanStep' || (activePage !== 'lifecycle' && scanStep !== 'Lifecycles') ? (
+                <span className="text-gray-500">
+                  {scanStep}
+                </span>
+              ) : (
+                <Link
+                  href={`/tenants/${tenant.slug}/workspace/${workspace.id}/scan/${scan.id}/${scanStep.toLowerCase().replace(/ /g, '-')}`}
+                  className="text-blue-500 hover:text-blue-700"
+                >
+                  {scanStep}
+                </Link>
+              )}
+            </li>
+          </>
+        )}
+        {lifecycle && scanStep === "Lifecycles" && (
+          <>
+            <li className="mx-2">/</li>
+            <li>
               <span className="text-gray-500">
-                {scanStep}
+                {lifecycle.name}
               </span>
             </li>
           </>

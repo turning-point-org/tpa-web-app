@@ -12,4 +12,6 @@ export interface DocumentInfo {
   uploaded_at: string;
   file_type?: string;
   content_type?: string;
+  status?: 'placeholder' | 'uploaded' | 'processed' | 'failed';
+  title?: string;
 } 

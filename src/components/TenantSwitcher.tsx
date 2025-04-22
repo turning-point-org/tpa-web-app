@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useUser } from '@auth0/nextjs-auth0/client';
-import { fetchWithAuth } from '../utils/api';
+import { fetchWithAuth, AuthenticationError } from '../utils/api';
 
 interface Tenant {
   name: string;
@@ -38,12 +38,55 @@ export default function TenantSwitcher() {
 
   const fetchTenants = async () => {
     try {
-      const res = await fetchWithAuth("/api/tenants", user?.accessToken as string | undefined);
-      if (!res.ok) {
-        console.error("Failed to fetch tenants");
+      // Check if we have a user and token before making the API call
+      if (!user) {
+        console.log("User not authenticated yet, skipping tenant fetch");
         return;
       }
+      
+      // Ensure we have a token - add more detailed logging
+      console.log("Auth status:", { 
+        isAuthenticated: !!user, 
+        user: user?.sub || user?.email || 'unknown',
+        hasToken: !!user?.accessToken,
+        tokenType: user?.accessToken ? typeof user.accessToken : 'undefined'
+      });
+      
+      // Try to get token from session if not directly available in user object
+      let token = user?.accessToken as string | undefined;
+      
+      if (!token) {
+        // Log the absence of token and attempt to get it from /api/auth/session
+        console.log("No direct token available, attempting to get from session API");
+        try {
+          const sessionRes = await fetch('/api/auth/session', {
+            credentials: 'include'
+          });
+          if (sessionRes.ok) {
+            const sessionData = await sessionRes.json();
+            if (sessionData.accessToken) {
+              console.log("Retrieved token from session API");
+              token = sessionData.accessToken;
+            } else {
+              console.log("No token in session API response:", sessionData);
+            }
+          } else {
+            console.log("Failed to get session data:", sessionRes.status);
+          }
+        } catch (e) {
+          console.error("Error fetching session:", e);
+        }
+      }
+      
+      // Make the API call with the token (either from user or session)
+      const res = await fetchWithAuth("/api/tenants", token);
+      if (!res.ok) {
+        console.error("Failed to fetch tenants", res.status, res.statusText);
+        return;
+      }
+      
       const data: Tenant[] = await res.json();
+      console.log("Fetched tenants:", data.length);
       setTenants(data);
 
       // Auto-select a tenant from the URL path
@@ -57,6 +100,13 @@ export default function TenantSwitcher() {
         }
       }
     } catch (error) {
+      // Handle the specific "Authentication required" error gracefully
+      if (error instanceof AuthenticationError) {
+        console.log("Authentication required for tenant fetch - this is expected when not logged in");
+        return;
+      }
+      
+      // Log other errors
       console.error("Error fetching tenants:", error);
     }
   };
@@ -75,7 +125,27 @@ export default function TenantSwitcher() {
     }
 
     try {
-      const res = await fetchWithAuth("/api/tenants", user?.accessToken as string | undefined, {
+      // Try to get token from user object or session
+      let token = user?.accessToken as string | undefined;
+      
+      if (!token) {
+        // Try to get token from session API
+        try {
+          const sessionRes = await fetch('/api/auth/session', {
+            credentials: 'include'
+          });
+          if (sessionRes.ok) {
+            const sessionData = await sessionRes.json();
+            if (sessionData.accessToken) {
+              token = sessionData.accessToken;
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching session:", e);
+        }
+      }
+      
+      const res = await fetchWithAuth("/api/tenants", token, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -103,18 +173,29 @@ export default function TenantSwitcher() {
       setIsCreating(false);
       router.push(`/tenants/${newTenant.slug}`);
     } catch (err) {
+      // Handle authentication errors gracefully
+      if (err instanceof AuthenticationError) {
+        console.log("Authentication required for tenant creation - redirecting to login");
+        window.location.href = "/api/auth/login";
+        return;
+      }
+      
       console.error(err);
       alert("Error creating tenant.");
     }
   };
 
   useEffect(() => {
-    fetchTenants();
+    // Only fetch tenants if the user is loaded and authenticated
+    if (!isLoading && user) {
+      fetchTenants();
+    }
+    
     // Clear selected tenant when returning to root path
     if (pathname === "/") {
       setSelectedTenant(null);
     }
-  }, [pathname]);
+  }, [pathname, user, isLoading]);
 
   return (
     <div className="mt-6">

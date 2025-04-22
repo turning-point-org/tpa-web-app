@@ -65,6 +65,12 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
     if (!trimmedName) return;
 
     try {
+      console.log("Creating scan with data:", {
+        name: trimmedName,
+        description: newScanDescription.trim(),
+        status: newScanStatus,
+      });
+      
       const res = await fetchWithAuth(
         `/api/tenants/by-slug/workspaces/scans?slug=${tenantSlug}&workspace_id=${workspaceId}`,
         user?.accessToken as string | undefined,
@@ -81,9 +87,16 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
         }
       );
 
-      if (!res.ok) throw new Error("Failed to create scan");
+      console.log("Scan creation response status:", res.status);
+      
+      if (!res.ok) {
+        const errorData = await res.text();
+        console.error("Scan creation error response:", errorData);
+        throw new Error(`Failed to create scan: ${errorData}`);
+      }
 
       const newScan = await res.json();
+      console.log("Created scan successfully:", newScan);
       setScans((prev) => [...prev, newScan]);
       setNewScanName("");
       setNewScanDescription("");

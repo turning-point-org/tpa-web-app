@@ -297,7 +297,7 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
   const fetchCompanyData = async () => {
     try {
       const response = await fetch(
-        `/api/tenants/by-slug/workspaces/scans/data-room?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`
+        `/api/tenants/by-slug/workspaces/scans/company-details?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`
       );
       
       if (response.status === 404) {

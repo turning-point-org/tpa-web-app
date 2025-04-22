@@ -4,6 +4,7 @@ import "./globals.css";
 import { UserProvider } from "@auth0/nextjs-auth0/client";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import Sidebar from "@/components/Sidebar";
+import AuthWrapper from "../components/AuthWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,14 +27,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex min-h-screen bg-gray-100 text-[var(--color-foreground)]`}
       >
-        <UserProvider loginUrl="/api/auth/login" profileUrl="/api/auth/me">
-          <Sidebar />
-          <main className="flex-grow ml-80 h-screen bg-gray-100">
-            <div className="w-full mx-auto h-full scrollable">
-              <Breadcrumbs />
-              {children}
-            </div>
-          </main>
+        <UserProvider 
+          loginUrl="/api/auth/login" 
+          profileUrl="/api/auth/me"
+        >
+          <AuthWrapper>
+            <Sidebar />
+            <main className="flex-grow ml-80 h-screen bg-gray-100">
+              <div className="w-full mx-auto h-full scrollable">
+                <Breadcrumbs />
+                {children}
+              </div>
+            </main>
+          </AuthWrapper>
         </UserProvider>
       </body>
     </html>

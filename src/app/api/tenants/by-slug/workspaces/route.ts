@@ -5,6 +5,13 @@ import { v4 as uuidv4 } from "uuid";
 // GET: Return all workspaces for the tenant identified by the slug query parameter.
 export async function GET(req: NextRequest) {
   try {
+    if (!container) {
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 500 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
     const workspaceId = searchParams.get("id");
@@ -60,6 +67,13 @@ export async function GET(req: NextRequest) {
 // POST: Create a new workspace for the tenant.
 export async function POST(req: NextRequest) {
   try {
+    if (!container) {
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 500 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
 
@@ -145,6 +159,13 @@ export async function POST(req: NextRequest) {
 // PATCH: Update an existing workspace's name and description.
 export async function PATCH(req: NextRequest) {
   try {
+    if (!container) {
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 500 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
     const workspaceId = searchParams.get("id");
@@ -206,6 +227,13 @@ export async function PATCH(req: NextRequest) {
 // DELETE: Delete a workspace.
 export async function DELETE(req: NextRequest) {
   try {
+    if (!container) {
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 500 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
     const workspaceId = searchParams.get("id");

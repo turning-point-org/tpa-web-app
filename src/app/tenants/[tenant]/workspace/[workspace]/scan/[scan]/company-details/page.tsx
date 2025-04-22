@@ -27,7 +27,7 @@ export default function CompanyDetailsPage() {
       try {
         // Load company data
         const companyResponse = await fetch(
-          `/api/tenants/by-slug/workspaces/scans/data-room?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`
+          `/api/tenants/by-slug/workspaces/scans/company-details?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`
         );
         
         if (companyResponse.status === 404) {
@@ -49,7 +49,7 @@ export default function CompanyDetailsPage() {
   const handleFormSuccess = () => {
     // Reload company data after successful update
     setIsLoading(true);
-    fetch(`/api/tenants/by-slug/workspaces/scans/data-room?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`)
+    fetch(`/api/tenants/by-slug/workspaces/scans/company-details?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`)
       .then(res => {
         if (res.status === 404) {
           setCompanyData(undefined);
