@@ -1,3 +1,6 @@
+# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+
 name: Build and deploy Node.js app to Azure Web App - tpa-web-app
 
 on:
@@ -11,27 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read #This is required for actions/checkout
-      actions: write #This is required for managing artifacts
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Delete old artifacts
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const artifacts = await github.rest.actions.listArtifactsForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
-            for (const artifact of artifacts.data.artifacts) {
-              console.log(`Deleting artifact ${artifact.name} with ID ${artifact.id}`);
-              await github.rest.actions.deleteArtifact({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                artifact_id: artifact.id
-              });
-            }
 
       - name: Set up Node.js version
         uses: actions/setup-node@v3
