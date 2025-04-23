@@ -41,15 +41,18 @@ Document Name: ${fileName}
 
 ${companyInfoSection}
 
-${customPrompt || 'Focus on key information relevant to business processes and operations, and identify the industry the company is in.'}
-Limit your summary to 300-500 words highlighting only the most essential points.
+Limit your summary to 500-1000 words.
+
+Focus on key information relevant to business processes and operations within the industry the company is in, but keep it relevant to the document theme and type.
+
+${customPrompt}
 
 Document Content:
 ${documentContent}
 `;
 
   const messages = [
-    { role: "system", content: "You are a business analyst who extracts and summarizes key information from business documents in preparation for a business process design workshop that uses the APQC Process Classification Framework (PCF). Focus on key information relevant to business processes and operations, and identify the industry the company is in." },
+    { role: "system", content: "You are a business analyst who extracts and summarizes key information from business documents in preparation for a business process design workshop that uses the APQC Process Classification Framework (PCF). Focus on key information relevant to business processes and operations, and identify the industry the company is in and descript." },
     { role: "user", content: summarizationPrompt }
   ];
 
