@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Modal from "@/components/Modal";
+import ReactMarkdown from "react-markdown";
 
 type FileUploadProps = {
   title: string;
@@ -668,8 +669,8 @@ export default function FileUpload({
           {!isEditingSummary ? (
             <div className="prose prose-sm max-w-none">
               {summary ? (
-                <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded-md border border-gray-200 max-h-[500px] overflow-y-auto">
-                  {summary}
+                <div className="bg-gray-50 p-4 rounded-md border border-gray-200 max-h-[500px] overflow-y-auto">
+                  <ReactMarkdown>{summary}</ReactMarkdown>
                 </div>
               ) : (
                 <div className="text-gray-500 italic">

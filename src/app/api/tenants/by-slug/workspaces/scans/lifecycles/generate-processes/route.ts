@@ -56,17 +56,21 @@ async function generateProcesses(lifecycleName: string, lifecycleDescription: st
     Industry: ${companyInfo.industry || 'Not specified'}
     Country: ${companyInfo.country || 'Not specified'}
     Description: ${companyInfo.description || 'Not specified'}
-    Website: ${companyInfo.website || 'Not specified'}` : 
+    Website: ${companyInfo.website || 'Not specified'}
+    Research: ${companyInfo.research || 'Not specified'}` : 
     'No company information available';
 
   const processGenerationPrompt = `
 You are a business process expert specializing in organizational process design.
-Your task is to generate a comprehensive list of process categories and their process groups that would be relevant to the following business lifecycle:
 
-${companyInfoSection}
+Your task is to generate a comprehensive list of process categories and their process groups that would be relevant to the following company lifecycle:
 
 Lifecycle Name: ${lifecycleName}
 Lifecycle Description: ${lifecycleDescription}
+
+Also here is some information about the company that may help you generate the lifecycle processes:
+
+${companyInfoSection}
 
 Please follow these instructions:
 1. Reference information from the APQC Process Classification Framework appropriate for the company's industry.

@@ -6,6 +6,7 @@ import { useUser } from "@auth0/nextjs-auth0/client";
 import Image from "next/image";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { REQUIRED_DOCUMENT_TYPES, DOCUMENT_DESCRIPTIONS } from '@/lib/document-config';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
@@ -30,15 +31,6 @@ type DocumentInfo = {
   file_type?: string;
   content_type?: string;
 };
-
-// List of document types required for the scan workflow
-const REQUIRED_DOCUMENT_TYPES = [
-  "HRIS Reports",
-  "Business Strategy Documents",
-  "Financial Documents",
-  "Technology Roadmaps",
-  "Pain Points"
-];
 
 type ChatModalProps = {
   isOpen: boolean;
@@ -94,7 +86,7 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
     
     // Get missing document types
     const missingTypes = REQUIRED_DOCUMENT_TYPES.filter(
-      type => !uploadedTypes.some(uploadedType => uploadedType === type)
+      type => !uploadedTypes.some(uploadedType => uploadedType === type.toString())
     );
     
     let message = "### Welcome to the Turning Point Advisory Data Room Assistant!\n\n";
@@ -141,15 +133,7 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
 
   // Helper function to get document descriptions
   const getDocumentDescription = (docType: string): string => {
-    const descriptions: Record<string, string> = {
-      "HRIS Reports": "Contains employee data, roles, compensation, and HR metrics",
-      "Business Strategy Documents": "Defines business goals, initiatives, and strategic direction",
-      "Financial Documents": "Detailed breakdown of costs, budgets, and financial information",
-      "Technology Roadmaps": "Plans for technology implementation and digital transformation",
-      "Pain Points": "Documents highlighting organizational challenges and areas for improvement"
-    };
-    
-    return descriptions[docType] || "Important document for business analysis";
+    return DOCUMENT_DESCRIPTIONS[docType as keyof typeof DOCUMENT_DESCRIPTIONS] || "Important document for business analysis";
   };
 
   // Helper function to assess document relevance based on filename
@@ -307,7 +291,7 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
     
     // Get missing document types
     const missingTypes = REQUIRED_DOCUMENT_TYPES.filter(
-      type => !uploadedTypes.some(uploadedType => uploadedType === type)
+      type => !uploadedTypes.some(uploadedType => uploadedType === type.toString())
     );
     
     let context = "";

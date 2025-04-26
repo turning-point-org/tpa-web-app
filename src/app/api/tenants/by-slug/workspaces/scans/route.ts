@@ -2,36 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 import { v4 as uuidv4 } from "uuid";
 import { deleteAllScanChunks } from "@/lib/vectordb";
-
-// Define document types and their default prompts
-const REQUIRED_DOCUMENT_TYPES = [
-  "HRIS Reports",
-  "Business Strategy Documents",
-  "Financial Documents",
-  "Technology Roadmaps",
-  "Pain Points"
-] as const;
-
-// Type for document types
-type DocumentType = typeof REQUIRED_DOCUMENT_TYPES[number];
-
-// Create default summarization prompts for each document type
-const DEFAULT_PROMPTS: Record<DocumentType, string> = {
-  "HRIS Reports": "Focus on extracting key information about employee roles, departments, reporting structures, and headcount metrics. Identify organizational patterns and employee distribution.",
-  "Business Strategy Documents": "Extract the company's mission, vision, strategic goals, key performance indicators, and priority initiatives. Focus on timeframes and success metrics.",
-  "Financial Documents": "Summarize major expense categories, cost centers, budget allocations, and spending patterns. Highlight significant financial insights and trends.",
-  "Technology Roadmaps": "Identify current technology systems, planned implementations, integration points, and timelines. Focus on strategic technology initiatives and dependencies.",
-  "Pain Points": "Identify key challenges, obstacles, and pain points mentioned across the organization. Focus on operational bottlenecks, process inefficiencies, and areas of improvement."
-};
-
-// Add document descriptions
-const DOCUMENT_DESCRIPTIONS: Record<DocumentType, string> = {
-  "HRIS Reports": "Upload the company's Human Resource Information System reports.",
-  "Business Strategy Documents": "Upload the company's strategic plans and initiatives.",
-  "Financial Documents": "Upload the detailed financial documents including cost breakdowns and budgets.",
-  "Technology Roadmaps": "Upload the company's technology implementation plans and roadmaps.",
-  "Pain Points": "Upload documents highlighting key challenges and pain points within the organization."
-};
+import { 
+  REQUIRED_DOCUMENT_TYPES, 
+  DEFAULT_PROMPTS, 
+  DOCUMENT_AGENT_ROLES, 
+  DOCUMENT_DESCRIPTIONS,
+  DocumentType 
+} from "@/lib/document-config";
 
 // Function to get tenant_id from tenant_slug
 async function getTenantIdFromSlug(tenantSlug: string): Promise<string> {
@@ -227,7 +204,8 @@ export async function POST(req: NextRequest) {
           summarization: "No summary available yet. Upload a document to generate a summary.",
           updated_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
-          tenant_id // Use the UUID instead of the slug
+          tenant_id, // Use the UUID instead of the slug
+          document_agent_role: DOCUMENT_AGENT_ROLES[docType] || ""
         };
         
         const { resource: createdPlaceholder } = await container.items.create(placeholderDocument);
@@ -252,6 +230,7 @@ export async function POST(req: NextRequest) {
           country: country || "",
           industry: industry || "",
           description: description || "",
+          research: "Ora has done no company research yet.",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };

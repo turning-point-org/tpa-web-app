@@ -10,6 +10,7 @@ type CompanyInfoFormProps = {
     country: string;
     industry: string;
     description: string;
+    research?: string;
   };
   onSubmitSuccess?: () => void;
 };
@@ -32,6 +33,28 @@ export default function CompanyInfoForm({
     industry: initialData?.industry || "",
     description: initialData?.description || "",
   });
+
+  const formatMarkdown = (text: string) => {
+    if (!text) return '';
+    
+    // Format headings
+    let formatted = text.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+    formatted = formatted.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+    formatted = formatted.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+    
+    // Format bold and italic
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Format lists
+    formatted = formatted.replace(/^\- (.*$)/gm, '• $1<br/>');
+    
+    // Format paragraphs
+    formatted = formatted.replace(/\n\n/g, '<br/><br/>');
+    formatted = formatted.replace(/\n/g, '<br/>');
+    
+    return formatted;
+  };
 
   useEffect(() => {
     if (initialData) {
@@ -72,6 +95,21 @@ export default function CompanyInfoForm({
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to save company information");
+      }
+
+      // After successful save, generate company research
+      try {
+        const researchUrl = `/api/tenants/by-slug/workspaces/scans/company-research?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`;
+        await fetch(researchUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+        // Research generation started, we don't need to wait for completion
+      } catch (researchError) {
+        console.error("Failed to start company research process:", researchError);
+        // We continue even if research generation fails
       }
 
       if (onSubmitSuccess) {
@@ -162,6 +200,18 @@ export default function CompanyInfoForm({
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        
+        {initialData?.research && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Company Research
+            </label>
+            <div 
+              className="w-full px-3 py-2 border border-gray-300 rounded bg-gray-50 prose prose-sm max-w-none h-64 overflow-y-auto resize-y"
+              dangerouslySetInnerHTML={{ __html: formatMarkdown(initialData.research) }}
+            />
+          </div>
+        )}
         
         <div className="mt-6">
           <button

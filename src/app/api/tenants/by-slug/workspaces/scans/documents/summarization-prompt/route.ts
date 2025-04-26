@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 import { OpenAIClient, AzureKeyCredential } from "@azure/openai";
-import { searchSimilarDocuments } from "@/lib/vectordb";
+import { searchSimilarDocuments, retrieveAllScanChunks } from "@/lib/vectordb";
 import { generateEmbeddings } from "@/lib/openai";
+import { summarizeDocument, getCompanyInfoForScan, calculateCosineSimilarity } from "@/lib/documentSummary";
 
 // Get OpenAI settings from environment variables
 const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
@@ -39,39 +40,6 @@ async function getTenantIdFromSlug(tenantSlug: string): Promise<string> {
   }
 
   return resources[0].tenant_id;
-}
-
-// Function to summarize a document using OpenAI
-async function summarizeDocument(documentType: string, fileName: string, documentContent: string, customPrompt: string) {
-  if (!client) {
-    throw new Error("OpenAI client not initialized");
-  }
-
-  // Use the custom prompt if provided, otherwise use a default prompt
-  const summarizationPrompt = `
-Please provide a concise summary of the following document.
-Document Type: ${documentType}
-Document Name: ${fileName}
-
-${customPrompt || 'Focus on key information relevant to business processes, operations, and organizational structure.'}
-Limit your summary to 300-500 words highlighting only the most essential points.
-
-Document Content:
-${documentContent}
-`;
-
-  const messages = [
-    { role: "system", content: "You are a business analyst who extracts and summarizes key information from business documents." },
-    { role: "user", content: summarizationPrompt }
-  ];
-
-  const result = await client.getChatCompletions(chatDeploymentName, messages);
-  
-  if (!result || !result.choices || result.choices.length === 0) {
-    throw new Error("No summary result returned from Azure OpenAI");
-  }
-  
-  return result.choices[0].message?.content || "";
 }
 
 export async function POST(req: NextRequest) {
@@ -160,27 +128,70 @@ export async function POST(req: NextRequest) {
           `Document type: ${document.document_type}. Document name: ${document.file_name}`
         );
         
-        const similarDocuments = await searchSimilarDocuments(
+        // Get company information for this scan
+        let companyInfo = null;
+        try {
+          companyInfo = await getCompanyInfoForScan(tenant_slug, workspace_id, scan_id);
+          console.log(`Retrieved company info for scan ${scan_id}: ${companyInfo ? companyInfo.name : 'None found'}`);
+        } catch (error) {
+          console.warn("Failed to retrieve company information:", error);
+          // Continue even if company info retrieval fails
+        }
+        
+        // Search for similar document chunks
+        let similarDocuments = await searchSimilarDocuments(
           queryEmbedding,
           scan_id,
           5 // Limit to 5 chunks
         );
         
-        if (similarDocuments && similarDocuments.length > 0) {
-          // Compile the text from similar documents
-          const documentContent = similarDocuments.map(d => d.text).join("\n\n");
+        // Filter document chunks to only include those from this specific document
+        // First, retrieve all chunks for this scan
+        const allScanDocuments = await retrieveAllScanChunks(scan_id);
+        
+        // Filter to only include chunks from the specific document we're summarizing
+        const documentChunks = allScanDocuments.filter(chunk => chunk.document_id === document.id);
+        
+        if (documentChunks.length === 0) {
+          console.log(`No document chunks found for document ${document.id}. Using general search results.`);
+          // Use the general search results if no document-specific chunks found
+        } else {
+          console.log(`Found ${documentChunks.length} chunks specific to document ${document.id}.`);
           
-          // Summarize the document content with the new custom prompt
-          const summary = await summarizeDocument(
-            document.document_type,
-            document.file_name,
-            documentContent,
-            summarization_prompt
-          );
+          // Calculate relevance scores for document-specific chunks
+          const scoredChunks = documentChunks
+            .map((chunk: {text: string, embedding: number[]}) => {
+              const similarity = chunk.embedding && queryEmbedding ? 
+                                calculateCosineSimilarity(queryEmbedding, chunk.embedding) :
+                                0;
+              
+              return {
+                text: chunk.text,
+                score: similarity
+              };
+            })
+            .sort((a: {score: number}, b: {score: number}) => b.score - a.score)
+            .slice(0, 5);
           
-          // Update the document with the new summary
-          updatedDocument.summary = summary;
+          // Use document-specific chunks instead of general search results
+          similarDocuments = scoredChunks;
         }
+        
+        // Compile the text from document chunks
+        const documentContent = similarDocuments.map(d => d.text).join("\n\n");
+        
+        // Summarize the document content with the new custom prompt
+        const summary = await summarizeDocument(
+          document.document_type,
+          document.file_name,
+          documentContent,
+          summarization_prompt,
+          companyInfo,
+          document.document_agent_role || ''
+        );
+        
+        // Update the document with the new summary
+        updatedDocument.summary = summary;
       }
       
       // Update the document in Cosmos DB

@@ -6,6 +6,7 @@ import { ChatMessage, DocumentInfo } from "@/types";
 import ReactMarkdown from 'react-markdown';
 import Image from 'next/image';
 import { OraIcon } from "@/assets/icons";
+import { REQUIRED_DOCUMENT_TYPES, DOCUMENT_DESCRIPTIONS } from "@/lib/document-config";
 
 interface OraPanelProps {
   scanId: string;
@@ -23,29 +24,9 @@ type Lifecycle = {
   updated_at: string;
 };
 
-const REQUIRED_DOCUMENT_TYPES = [
-  "HRIS Report",
-  "Org. Structure",
-  "Strategic Objectives",
-  "Cost Breakdown",
-  "Technology Roadmaps",
-  "General Ledger",
-  "Data Capability"
-];
-
 // Helper function to get document descriptions
 const getDocumentDescription = (docType: string): string => {
-  const descriptions: Record<string, string> = {
-    "HRIS Report": "Contains employee data, roles, compensation, and HR metrics",
-    "Org. Structure": "Outlines reporting relationships and organizational hierarchy",
-    "Strategic Objectives": "Defines business goals, initiatives, and strategic direction",
-    "Cost Breakdown": "Detailed breakdown of costs with general ledger codes",
-    "Technology Roadmaps": "Plans for technology implementation and digital transformation",
-    "General Ledger": "Complete financial transaction records and accounting data",
-    "Data Capability": "Information about data systems, analytics, and processing capabilities"
-  };
-  
-  return descriptions[docType] || "Important document for business analysis";
+  return DOCUMENT_DESCRIPTIONS[docType as keyof typeof DOCUMENT_DESCRIPTIONS] || "Important document for business analysis";
 };
 
 export default function OraPanel({ scanId, tenantSlug, workspaceId }: OraPanelProps) {
@@ -171,7 +152,7 @@ export default function OraPanel({ scanId, tenantSlug, workspaceId }: OraPanelPr
           // Check if this document type matches any of the required types
           const requiredType = REQUIRED_DOCUMENT_TYPES.find(type => 
             doc.title === type || 
-            doc.file_name?.includes(type)
+            doc.file_name?.includes(type.toString())
           );
           
           return { ...doc, document_type: requiredType || 'Unknown Document' };
@@ -230,7 +211,7 @@ export default function OraPanel({ scanId, tenantSlug, workspaceId }: OraPanelPr
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
   
-  // Helper function to get missing documents message (used in welcome message and other places)
+  // Fix the document type comparison in getMissingDocumentsMessage
   const getMissingDocumentsMessage = (documents: DocumentInfo[]): string => {
     // Filter out placeholder documents when checking for missing types
     const uploadedTypes = documents
@@ -238,7 +219,7 @@ export default function OraPanel({ scanId, tenantSlug, workspaceId }: OraPanelPr
       .map(doc => doc.document_type);
     
     const missingTypes = REQUIRED_DOCUMENT_TYPES.filter(
-      type => !uploadedTypes.some(uploadedType => uploadedType === type)
+      type => !uploadedTypes.some(uploadedType => uploadedType === type.toString())
     );
     
     if (missingTypes.length > 0) {
@@ -359,7 +340,7 @@ export default function OraPanel({ scanId, tenantSlug, workspaceId }: OraPanelPr
               const uploadedTypes = completedDocs.map((doc: DocumentInfo) => doc.document_type);
               
               if (uploadedTypes.length === REQUIRED_DOCUMENT_TYPES.length && 
-                  REQUIRED_DOCUMENT_TYPES.every(type => uploadedTypes.includes(type))) {
+                  REQUIRED_DOCUMENT_TYPES.every(type => uploadedTypes.includes(type.toString()))) {
                 setMessages(prev => [...prev, { 
                   role: 'assistant', 
                   content: `🎉 **Congratulations!** You've uploaded all required documents. You can now generate business lifecycles by clicking the "Generate Lifecycles" button on the Data Sources page.`
@@ -648,7 +629,7 @@ These lifecycles represent the core operational processes of the organization, a
           if (hasDocuments) {
             const uploadedTypes = actualDocuments.map(doc => doc.document_type);
             const missingTypes = REQUIRED_DOCUMENT_TYPES.filter(
-              type => !uploadedTypes.some(uploadedType => uploadedType === type)
+              type => !uploadedTypes.some(uploadedType => uploadedType === type.toString())
             );
             
             if (missingTypes.length > 0) {
@@ -738,7 +719,7 @@ These lifecycles represent the core operational processes of the organization, a
       
       const uploadedTypes = actualDocuments.map(doc => doc.document_type);
       const missingTypes = REQUIRED_DOCUMENT_TYPES.filter(
-        type => !uploadedTypes.some(uploadedType => uploadedType === type)
+        type => !uploadedTypes.some(uploadedType => uploadedType === type.toString())
       );
       
       let documentStatus = "### Document Status\n\n";

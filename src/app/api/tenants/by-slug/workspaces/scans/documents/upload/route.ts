@@ -7,6 +7,7 @@ import { storeDocumentChunks } from "@/lib/vectordb";
 import { extractTextFromFile } from "@/lib/documentParser";
 import { Readable } from "stream";
 import { OpenAIClient, AzureKeyCredential } from "@azure/openai";
+import { summarizeDocument, getCompanyInfoForScan, getSummarizationPrompt } from "@/lib/documentSummary";
 
 export const config = {
   api: {
@@ -104,95 +105,6 @@ function shouldProcessForEmbeddings(contentType: string): boolean {
     "application/msword"
   ];
   return supportedTypes.includes(contentType);
-}
-
-// Function to summarize a document using OpenAI
-async function summarizeDocument(documentType: string, fileName: string, documentContent: string, customPrompt: string) {
-  if (!client) {
-    throw new Error("OpenAI client not initialized");
-  }
-
-  // Use the custom prompt if provided, otherwise use a default prompt
-  const summarizationPrompt = `
-Please provide a concise summary of the following document.
-Document Type: ${documentType}
-Document Name: ${fileName}
-
-${customPrompt || 'Focus on key information relevant to business processes, operations, and organizational structure.'}
-Limit your summary to 300-500 words highlighting only the most essential points.
-
-Document Content:
-${documentContent}
-`;
-
-  const messages = [
-    { role: "system", content: "You are a business analyst who extracts and summarizes key information from business documents." },
-    { role: "user", content: summarizationPrompt }
-  ];
-
-  const result = await client.getChatCompletions(chatDeploymentName, messages);
-  
-  if (!result || !result.choices || result.choices.length === 0) {
-    throw new Error("No summary result returned from Azure OpenAI");
-  }
-  
-  return result.choices[0].message?.content || "";
-}
-
-// Function to get or create summarization prompt
-async function getSummarizationPrompt(tenantSlug: string, workspaceId: string, scanId: string, documentType: string) {
-  // Try to find document settings with a summarization prompt
-  const query = `
-    SELECT * FROM c 
-    WHERE c.scan_id = @scan_id 
-    AND c.workspace_id = @workspace_id 
-    AND c.tenant_slug = @tenant_slug 
-    AND ((c.type = "document_settings" AND c.document_type = @document_type) 
-         OR (c.type = "document" AND c.document_type = @document_type))
-  `;
-  
-  if (!container) {
-    throw new Error("Database connection not available");
-  }
-  
-  const { resources } = await container.items
-    .query({
-      query,
-      parameters: [
-        { name: "@scan_id", value: scanId },
-        { name: "@workspace_id", value: workspaceId },
-        { name: "@tenant_slug", value: tenantSlug },
-        { name: "@document_type", value: documentType },
-      ],
-    })
-    .fetchAll();
-  
-  // Check for any document or settings with a prompt
-  const defaultPrompts: Record<string, string> = {
-    "HRIS Reports": "Focus on extracting key information about employee roles, departments, reporting structures, and headcount metrics. Identify organizational patterns and employee distribution.",
-    "Business Strategy Documents": "Extract the company's mission, vision, strategic goals, key performance indicators, and priority initiatives. Focus on timeframes and success metrics.",
-    "Financial Documents": "Summarize major expense categories, cost centers, budget allocations, and spending patterns. Highlight significant financial insights and trends.",
-    "Technology Roadmaps": "Identify current technology systems, planned implementations, integration points, and timelines. Focus on strategic technology initiatives and dependencies.",
-    "Pain Points": "Identify key challenges, obstacles, and pain points mentioned across the organization. Focus on operational bottlenecks, process inefficiencies, and areas of improvement."
-  };
-  
-  // First check for document_settings
-  for (const resource of resources) {
-    if (resource.type === 'document_settings' && resource.summarization_prompt) {
-      return resource.summarization_prompt;
-    }
-  }
-  
-  // Then check for document with prompt
-  for (const resource of resources) {
-    if (resource.type === 'document' && resource.summarization_prompt) {
-      return resource.summarization_prompt;
-    }
-  }
-  
-  // If not found, return default prompt based on document type
-  return defaultPrompts[documentType] || 
-    "Provide a comprehensive summary of this document, focusing on key information relevant to business processes, operations, and organizational structure.";
 }
 
 // Add document record interface with required fields
@@ -361,6 +273,14 @@ export async function POST(req: NextRequest) {
               
               console.log(`Updated embeddings for document: ${file.name}`);
               
+              // Get company information for context
+              let companyInfo = null;
+              try {
+                companyInfo = await getCompanyInfoForScan(tenantSlug, workspaceId, scanId);
+              } catch (error) {
+                console.warn("Failed to retrieve company information:", error);
+              }
+              
               // Generate document summary using custom prompt
               try {
                 const summarizationPrompt = await getSummarizationPrompt(
@@ -375,7 +295,9 @@ export async function POST(req: NextRequest) {
                   documentType || existingDocument.document_type,
                   file.name,
                   documentContent,
-                  summarizationPrompt
+                  summarizationPrompt,
+                  companyInfo,
+                  existingDocument.document_agent_role || ''
                 );
                 
                 // Add summary to the updated document
@@ -461,6 +383,14 @@ export async function POST(req: NextRequest) {
               
               console.log(`Stored embeddings for document: ${file.name}`);
               
+              // Get company information for context
+              let companyInfo = null;
+              try {
+                companyInfo = await getCompanyInfoForScan(tenantSlug, workspaceId, scanId);
+              } catch (error) {
+                console.warn("Failed to retrieve company information:", error);
+              }
+              
               // Generate document summary using custom prompt
               try {
                 const summarizationPrompt = await getSummarizationPrompt(
@@ -475,7 +405,9 @@ export async function POST(req: NextRequest) {
                   documentType || 'Unknown',
                   file.name,
                   documentContent,
-                  summarizationPrompt
+                  summarizationPrompt,
+                  companyInfo,
+                  ''
                 );
                 
                 // Add summary to the document record

@@ -33,6 +33,7 @@ export default function DataSourcesPage() {
   const [isGeneratingLifecycles, setIsGeneratingLifecycles] = useState(false);
   const [lifecyclesExist, setLifecyclesExist] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showWarningModal, setShowWarningModal] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -252,9 +253,15 @@ export default function DataSourcesPage() {
   };
 
   const initiateGenerateLifecycles = () => {
-    if (lifecyclesExist) {
+    // Check if all required documents are uploaded
+    if (!allDocumentsUploaded && validUploadedDocumentsCount > 0) {
+      // Some documents are uploaded but not all - show warning
+      setShowWarningModal(true);
+    } else if (lifecyclesExist) {
+      // All documents are uploaded but lifecycles exist - show regeneration confirmation
       setShowConfirmModal(true);
     } else {
+      // All documents are uploaded and no lifecycles exist - proceed directly
       handleGenerateLifecycles();
     }
   };
@@ -324,7 +331,7 @@ export default function DataSourcesPage() {
         </div>
         <button 
           className="px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
-          disabled={!allDocumentsUploaded || isGeneratingLifecycles || requiredDocumentTypes.length === 0}
+          disabled={validUploadedDocumentsCount === 0 || isGeneratingLifecycles || requiredDocumentTypes.length === 0}
           onClick={initiateGenerateLifecycles}
         >
           {isGeneratingLifecycles ? (
@@ -341,7 +348,7 @@ export default function DataSourcesPage() {
         Upload and manage documents related to this company.
       </p>
       
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal for Regeneration */}
       <Modal
         isOpen={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
@@ -365,6 +372,42 @@ export default function DataSourcesPage() {
             onClick={handleGenerateLifecycles}
           >
             Confirm
+          </button>
+        </div>
+      </Modal>
+
+      {/* Warning Modal for Missing Documents */}
+      <Modal
+        isOpen={showWarningModal}
+        onClose={() => setShowWarningModal(false)}
+      >
+        <h3 className="text-lg font-bold mb-4">Missing Documents</h3>
+        <div className="mb-6">
+          <p className="text-yellow-600 font-semibold mb-2">Warning</p>
+          <p className="mb-4">
+            Not all required documents have been uploaded ({validUploadedDocumentsCount} of {requiredDocumentTypes.length}).
+            It's recommended to upload all documents before generating lifecycles for the best results.
+          </p>
+        </div>
+        <div className="flex justify-end space-x-2">
+          <button 
+            className="bg-gray-300 text-gray-800 py-2 px-4 rounded hover:bg-gray-400"
+            onClick={() => setShowWarningModal(false)}
+          >
+            Cancel
+          </button>
+          <button 
+            className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+            onClick={() => {
+              setShowWarningModal(false);
+              if (lifecyclesExist) {
+                setShowConfirmModal(true);
+              } else {
+                handleGenerateLifecycles();
+              }
+            }}
+          >
+            Continue Anyway
           </button>
         </div>
       </Modal>

@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
       country: country || "",
       industry: industry || "",
       description: description || "",
+      research: "Ora has done no company research yet.",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -217,6 +218,7 @@ export async function PATCH(req: NextRequest) {
     companyInfo.country = country || "";
     companyInfo.industry = industry || "";
     companyInfo.description = description || "";
+    // preserve existing research field - don't update it here
     companyInfo.updated_at = new Date().toISOString();
 
     const { resource } = await container
