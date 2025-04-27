@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import GearIcon from "@/assets/icons/GearIcon";
+import Button from '@/components/Button';
 
 type Lifecycle = {
   id: string;
@@ -30,7 +32,6 @@ export default function LifecyclesPage() {
   const [newLifecycle, setNewLifecycle] = useState<{ name: string; description: string }>({ name: "", description: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState(false);
   const [generatingProcesses, setGeneratingProcesses] = useState<string | null>(null);
   const [showRegenerateModal, setShowRegenerateModal] = useState<string | null>(null);
 
@@ -213,10 +214,30 @@ export default function LifecyclesPage() {
 
       if (response.ok) {
         const updatedLifecycle = await response.json();
+        const currentLifecycle = lifecycles.find(lc => lc.id === lifecycleId);
+        const updatedLifecycleWithCurrentProcesses = {
+          ...updatedLifecycle,
+          processes: currentLifecycle?.processes
+        };
+        
         setLifecycles(prevLifecycles => 
-          prevLifecycles.map(lc => lc.id === lifecycleId ? updatedLifecycle : lc)
+          prevLifecycles.map(lc => lc.id === lifecycleId ? updatedLifecycleWithCurrentProcesses : lc)
         );
-        setIsEditing(null);
+        
+        // After saving, generate/regenerate processes
+        if (currentLifecycle?.processes) {
+          // If processes already exist, ask for confirmation
+          setIsEditing(null);
+          setShowRegenerateModal(lifecycleId);
+        } else {
+          // If no processes, generate them right away
+          await handleGenerateProcesses({
+            ...updatedLifecycleWithCurrentProcesses,
+            name: editForm.name,
+            description: editForm.description
+          });
+          setIsEditing(null);
+        }
       } else {
         const errorData = await response.json();
         setError(errorData.error || "Failed to update lifecycle");
@@ -271,9 +292,20 @@ export default function LifecyclesPage() {
 
   const handleAddNewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newLifecycle.name.trim()) return;
+    
+    // Enhanced validation
+    if (!newLifecycle.name.trim()) {
+      setError("Lifecycle name is required");
+      return;
+    }
+    
+    if (!newLifecycle.description.trim()) {
+      setError("Lifecycle description is required");
+      return;
+    }
     
     try {
+      setError(""); // Clear any previous errors
       setIsSubmitting(true);
       const response = await fetch('/api/tenants/by-slug/workspaces/scans/lifecycles', {
         method: 'POST',
@@ -284,8 +316,8 @@ export default function LifecyclesPage() {
           tenant_slug: tenantSlug,
           workspace_id: workspaceId,
           scan_id: scanId,
-          name: newLifecycle.name,
-          description: newLifecycle.description
+          name: newLifecycle.name.trim(),
+          description: newLifecycle.description.trim()
         }),
       });
 
@@ -440,96 +472,175 @@ export default function LifecyclesPage() {
     }
   };
 
-  // Card view component for non-edit mode
-  const CardView = () => {
+  // LifecycleCard component that handles both view and edit modes
+  const LifecycleCard = ({ lifecycle, index }: { lifecycle: Lifecycle, index: number }) => {
+    const isEditingThis = isEditing === lifecycle.id;
+    const isConfirmingDeleteThis = deleteConfirm === lifecycle.id;
+    const isGeneratingThis = generatingProcesses === lifecycle.id;
+    
     return (
-      <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {lifecycles.map((lifecycle) => (
-          <div key={lifecycle.id} className="rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-            <div className="p-4 bg-gray-50">
-              <h3 className="text-lg font-semibold text-gray-800">{lifecycle.name}</h3>
-              <p className="mt-1 text-xs text-gray-600">{lifecycle.description}</p>
-            </div>
-            <div className="m-4 p-4 bg-white border border-gray-200 rounded-md relative h-[300px] overflow-auto">
-              <button 
-                className={`absolute top-2 right-2 p-2 rounded z-10 ${
-                  lifecycle.processes ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-                title={lifecycle.processes ? "Expand" : "Generate processes first"}
-                onClick={() => lifecycle.processes && router.push(`/tenants/${tenantSlug}/workspace/${workspaceId}/scan/${scanId}/lifecycles/${lifecycle.id}`)}
-                disabled={!lifecycle.processes}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-                </svg>
-              </button>
-
-              {/* Process visualization */}
-              {lifecycle.processes?.process_categories && (
-                <div className="flex flex-row overflow-x-auto space-x-2 pb-10">
-                  {lifecycle.processes.process_categories.map((category: any, catIndex: number) => (
-                    <div 
-                      key={catIndex} 
-                      className="flex-shrink-0 w-32 border border-gray-300 rounded bg-gray-50"
-                    >
-                      <div className="p-1 bg-gray-600 text-white text-center">
-                        <p className="text-xs font-medium truncate" title={category.name}>
-                          {category.name}
-                        </p>
-                      </div>
-                      <div className="p-1">
-                        {category.process_groups?.map((group: any, groupIndex: number) => (
-                          <div 
-                            key={groupIndex} 
-                            className="mb-1 p-1 bg-gray-100 border border-gray-200 rounded text-xs"
-                            title={group.description}
-                          >
-                            {group.name}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+      <div className="rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        {!isEditingThis && (
+          <div className="p-4 bg-gray-50 flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-gray-800">{lifecycle.name}</h3>
+            <Button 
+              variant={lifecycle.processes ? 'primary' : 'secondary'}
+              iconOnly
+              title={lifecycle.processes ? "Expand" : "Generate processes first"}
+              onClick={() => lifecycle.processes && router.push(`/tenants/${tenantSlug}/workspace/${workspaceId}/scan/${scanId}/lifecycles/${lifecycle.id}`)}
+              disabled={!lifecycle.processes}
+              className="p-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+              </svg>
+            </Button>
+          </div>
+        )}
+        
+        {isEditingThis ? (
+          <div className="p-6 bg-white h-full flex flex-col">
+            <form onSubmit={(e) => handleEditSubmit(e, lifecycle.id)} className="flex flex-col h-full">
+              <div className="mb-4 flex-grow">
+                <label htmlFor={`name-${lifecycle.id}`} className="block text-sm font-medium text-gray-700 mb-1">
+                  Name
+                </label>
+                <input
+                  id={`name-${lifecycle.id}`}
+                  name="name"
+                  type="text"
+                  value={editForm.name}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  required
+                  autoFocus
+                  key={`name-${lifecycle.id}`}
+                />
+              </div>
+              <div className="mb-6 flex-grow">
+                <label htmlFor={`description-${lifecycle.id}`} className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  id={`description-${lifecycle.id}`}
+                  name="description"
+                  value={editForm.description}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md h-32"
+                  rows={6}
+                  key={`description-${lifecycle.id}`}
+                />
+              </div>
+              <div className="flex justify-between mt-6">
+                <div className="space-x-2">
+                  <Button
+                    variant="danger"
+                    type="button"
+                    onClick={() => handleDeleteClick(lifecycle.id)}
+                    disabled={isSubmitting}
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={handleEditCancel}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
                 </div>
-              )}
-              
-              {/* Show message if no processes */}
-              {!lifecycle.processes?.process_categories && !generatingProcesses && (
-                <div className="flex items-center justify-center h-full pb-10">
-                  <p className="text-gray-400 text-sm">No processes generated</p>
+                <div className="space-x-2">
+                  <Button
+                    type="submit"
+                    variant={lifecycle.processes ? 'secondary' : 'primary'}
+                    disabled={isSubmitting || generatingProcesses !== null}
+                  >
+                    {isSubmitting ? 'Saving...' : 
+                     isGeneratingThis ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Generating...
+                      </span>
+                    ) : (
+                      lifecycle.processes ? "Save & Regenerate Processes" : "Save & Generate Processes"
+                    )}
+                  </Button>
                 </div>
-              )}
-
-              <button
-                className={`absolute bottom-2 right-2 px-3 py-1 ${
-                  lifecycle.processes ? 'bg-gray-500' : 'bg-blue-600'
-                } text-white text-sm rounded hover:${
-                  lifecycle.processes ? 'bg-gray-600' : 'bg-blue-700'
-                } transition`}
-                onClick={() => {
-                  if (lifecycle.processes) {
-                    setShowRegenerateModal(lifecycle.id);
-                  } else {
-                    handleGenerateProcesses(lifecycle);
-                  }
-                }}
-                disabled={generatingProcesses !== null}
+              </div>
+            </form>
+          </div>
+        ) : isConfirmingDeleteThis ? (
+          <div className="m-4 p-4 bg-white border border-gray-200 rounded-md">
+            <p className="mb-4 text-red-600 font-medium">Are you sure you want to delete this lifecycle?</p>
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="secondary"
+                onClick={handleDeleteCancel}
+                disabled={isSubmitting}
               >
-                {generatingProcesses === lifecycle.id ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Generating...
-                  </span>
-                ) : (
-                  lifecycle.processes ? "Regenerate Processes" : "Generate Processes"
-                )}
-              </button>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => handleDeleteConfirm(lifecycle.id)}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Deleting...' : 'Delete'}
+              </Button>
             </div>
           </div>
-        ))}
+        ) : (
+          <div className="p-4 bg-white relative h-[350px] overflow-x-auto overflow-y-hidden">
+            {/* Process visualization */}
+            {lifecycle.processes?.process_categories && (
+              <div className="flex flex-row overflow-x-auto space-x-2 pb-5">
+                {lifecycle.processes.process_categories.map((category: any, catIndex: number) => (
+                  <div 
+                    key={catIndex} 
+                    className="flex-shrink-0 w-32 border border-gray-300 rounded bg-gray-50"
+                  >
+                    <div className="p-1 bg-gray-600 text-white text-center">
+                      <p className="text-xs font-medium truncate" title={category.name}>
+                        {category.name}
+                      </p>
+                    </div>
+                    <div className="p-1">
+                      {category.process_groups?.map((group: any, groupIndex: number) => (
+                        <div 
+                          key={groupIndex} 
+                          className="mb-1 p-1 bg-gray-100 border border-gray-200 rounded text-xs"
+                          title={group.description}
+                        >
+                          {group.name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Show message if no processes */}
+            {!lifecycle.processes?.process_categories && !isGeneratingThis && (
+              <div className="flex items-center justify-center h-full pb-10">
+                <p className="text-gray-400 text-sm">No processes generated</p>
+              </div>
+            )}
+
+            {/* Edit gear icon in bottom right */}
+            <Button
+              variant="secondary"
+              iconOnly
+              onClick={() => handleEditClick(lifecycle)}
+              className="absolute bottom-2 right-2"
+              icon={<GearIcon />}
+            />
+          </div>
+        )}
       </div>
     );
   };
@@ -538,41 +649,34 @@ export default function LifecyclesPage() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-semibold">Business Lifecycles</h2>
-        <div className="flex items-center space-x-4">
-          {/* Toggle Switch */}
-          <div className="flex items-center">
-            <span className={`mr-2 text-sm ${!editMode ? 'font-medium text-blue-600' : 'text-gray-500'}`}>View</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                checked={editMode} 
-                onChange={() => setEditMode(!editMode)} 
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-            <span className={`ml-2 text-sm ${editMode ? 'font-medium text-blue-600' : 'text-gray-500'}`}>Edit</span>
-          </div>
-        </div>
+        {!isAddingNew && (
+          <Button
+            onClick={handleAddNewClick}
+            disabled={isAddingNew || isSubmitting}
+            icon={(
+              <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            )}
+          >
+            New Lifecycle
+          </Button>
+        )}
       </div>
       <p className="text-gray-600 mb-6">
         Business lifecycles represent the core operational processes of the organization.
-        {lifecycles.length > 1 && editMode && !isEditing && !deleteConfirm && !isAddingNew && (
-          <span className="ml-1 text-blue-600">
-            Use the up and down arrows to reorder lifecycles.
-          </span>
-        )}
       </p>
       
       {error && (
         <div className="p-4 mb-6 bg-red-100 text-red-800 rounded-lg">
           {error}
-          <button 
-            className="ml-2 text-red-600 font-semibold"
+          <Button 
+            variant="danger-secondary"
             onClick={() => setError("")}
+            className="ml-2"
           >
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
       
@@ -583,159 +687,30 @@ export default function LifecyclesPage() {
       ) : lifecycles.length === 0 && !isAddingNew ? (
         <div className="p-6 text-center bg-gray-50 rounded-lg border border-gray-200">
           <p className="text-gray-600 mb-4">No lifecycles have been created yet.</p>
-          <button
+          <Button
             onClick={handleAddNewClick}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
           >
             Create Your First Lifecycle
-          </button>
+          </Button>
         </div>
       ) : (
         <>
-          {editMode ? (
-            <div className="space-y-6">
-              <div className="space-y-6">
-                {lifecycles.map((lifecycle, index) => (
-                  <div 
-                    key={lifecycle.id} 
-                    className="p-6 bg-white rounded-lg border border-gray-200 shadow-sm"
-                  >
-                    {isEditing === lifecycle.id ? (
-                      <form onSubmit={(e) => handleEditSubmit(e, lifecycle.id)}>
-                        <div className="mb-4">
-                          <label htmlFor={`name-${lifecycle.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                            Name
-                          </label>
-                          <input
-                            id={`name-${lifecycle.id}`}
-                            name="name"
-                            type="text"
-                            value={editForm.name}
-                            onChange={handleEditChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                            required
-                          />
-                        </div>
-                        <div className="mb-4">
-                          <label htmlFor={`description-${lifecycle.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                            Description
-                          </label>
-                          <textarea
-                            id={`description-${lifecycle.id}`}
-                            name="description"
-                            value={editForm.description}
-                            onChange={handleEditChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                            rows={3}
-                          />
-                        </div>
-                        <div className="flex justify-between space-x-3">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteClick(lifecycle.id)}
-                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
-                            disabled={isSubmitting}
-                          >
-                            Delete
-                          </button>
-                          <div className="flex space-x-3">
-                            <button
-                              type="button"
-                              onClick={handleEditCancel}
-                              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition"
-                              disabled={isSubmitting}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-                              disabled={isSubmitting}
-                            >
-                              {isSubmitting ? 'Saving...' : 'Save'}
-                            </button>
-                          </div>
-                        </div>
-                      </form>
-                    ) : deleteConfirm === lifecycle.id ? (
-                      <div>
-                        <p className="mb-4 text-red-600 font-medium">Are you sure you want to delete this lifecycle?</p>
-                        <div className="flex justify-end space-x-3">
-                          <button
-                            onClick={handleDeleteCancel}
-                            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition"
-                            disabled={isSubmitting}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleDeleteConfirm(lifecycle.id)}
-                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
-                            disabled={isSubmitting}
-                          >
-                            {isSubmitting ? 'Deleting...' : 'Delete'}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">{lifecycle.name}</h3>
-                            <p className="text-gray-600">{lifecycle.description}</p>
-                          </div>
-                          <div className="flex space-x-2 ml-4">
-                            {/* Up and Down arrow buttons */}
-                            <div className="flex flex-col space-y-1 mr-2">
-                              <button
-                                onClick={() => handleMoveUp(lifecycle, index)}
-                                className={`p-1 rounded hover:bg-gray-100 transition ${index === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500'}`}
-                                disabled={index === 0 || isEditing !== null || deleteConfirm !== null || isSubmitting}
-                                title="Move up"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => handleMoveDown(lifecycle, index)}
-                                className={`p-1 rounded hover:bg-gray-100 transition ${index === lifecycles.length - 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500'}`}
-                                disabled={index === lifecycles.length - 1 || isEditing !== null || deleteConfirm !== null || isSubmitting}
-                                title="Move down"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
-                            </div>
-                            
-                            {/* Edit button only */}
-                            <button
-                              onClick={() => handleEditClick(lifecycle)}
-                              className="text-blue-600 hover:text-blue-800 transition"
-                              disabled={isEditing !== null || deleteConfirm !== null || isSubmitting}
-                              title="Edit"
-                            >
-                              <span className="sr-only">Edit</span>
-                              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-              
-              {isAddingNew && (
-                <div className="p-6 bg-white rounded-lg border border-blue-300 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {lifecycles.map((lifecycle, index) => (
+              <LifecycleCard key={lifecycle.id} lifecycle={lifecycle} index={index} />
+            ))}
+            
+            {isAddingNew && (
+              <div className="rounded-lg border border-blue-300 shadow-sm overflow-hidden">
+                <div className="p-4 bg-gray-50">
+                  <h3 className="text-lg font-semibold text-gray-800">New Lifecycle</h3>
+                </div>
+                <div className="m-4 p-4 bg-white border border-gray-200 rounded-md">
                   <form onSubmit={handleAddNewSubmit}>
-                    <h3 className="text-xl font-semibold text-gray-800 mb-4">Add New Lifecycle</h3>
                     <div className="mb-4">
                       <label htmlFor="new-name" className="block text-sm font-medium text-gray-700 mb-1">
-                        Name
+                        Name <span className="text-red-500">*</span>
                       </label>
                       <input
                         id="new-name"
@@ -743,63 +718,51 @@ export default function LifecyclesPage() {
                         type="text"
                         value={newLifecycle.name}
                         onChange={handleNewLifecycleChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                         required
+                        placeholder="Enter lifecycle name"
                       />
                     </div>
                     <div className="mb-4">
                       <label htmlFor="new-description" className="block text-sm font-medium text-gray-700 mb-1">
-                        Description
+                        Description <span className="text-red-500">*</span>
                       </label>
                       <textarea
                         id="new-description"
                         name="description"
                         value={newLifecycle.description}
                         onChange={handleNewLifecycleChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                         rows={3}
+                        required
+                        placeholder="Enter lifecycle description"
                       />
                     </div>
                     <div className="flex justify-end space-x-3">
-                      <button
+                      <Button
+                        variant="secondary"
                         type="button"
                         onClick={handleAddNewCancel}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition"
                         disabled={isSubmitting}
                       >
                         Cancel
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="submit"
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
                         disabled={isSubmitting}
                       >
                         {isSubmitting ? 'Saving...' : 'Save'}
-                      </button>
+                      </Button>
                     </div>
                   </form>
                 </div>
-              )}
-              
-              {/* Add New Lifecycle button at the bottom */}
-              {editMode && !isAddingNew && (
-                <div className="flex justify-end mt-6">
-                  <button
-                    onClick={handleAddNewClick}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-                    disabled={isAddingNew || isSubmitting}
-                  >
-                    Add New Lifecycle
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <CardView />
-          )}
+              </div>
+            )}
+          </div>
         </>
       )}
       
+      {/* Regenerate confirmation modal */}
       <Modal 
         isOpen={showRegenerateModal !== null} 
         onClose={() => setShowRegenerateModal(null)}
@@ -812,23 +775,23 @@ export default function LifecyclesPage() {
           </p>
         </div>
         <div className="flex justify-end space-x-3">
-          <button
+          <Button
+            variant="secondary"
             onClick={() => setShowRegenerateModal(null)}
-            className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 transition"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="danger"
             onClick={() => {
               const lifecycle = lifecycles.find(lc => lc.id === showRegenerateModal);
               if (lifecycle) {
                 handleGenerateProcesses(lifecycle);
               }
             }}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
           >
             Regenerate
-          </button>
+          </Button>
         </div>
       </Modal>
     </div>

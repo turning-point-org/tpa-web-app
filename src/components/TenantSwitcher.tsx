@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { fetchWithAuth, AuthenticationError } from '../utils/api';
+import Button from "@/components/Button";
 
 interface Tenant {
   name: string;
@@ -241,12 +242,12 @@ export default function TenantSwitcher() {
                 ))}
               </ul>
             </div>
-            <button
-              className="mt-2 bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 cursor-pointer"
+            <Button
               onClick={() => setIsCreating(true)}
+              className="mt-2"
             >
               Create New Tenant
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -286,8 +287,8 @@ export default function TenantSwitcher() {
           <option value="Europe">Europe</option>
         </select>
         <div className="flex justify-end space-x-2">
-          <button
-            className="bg-gray-300 text-gray-800 py-2 px-4 rounded hover:bg-gray-400"
+          <Button
+            variant="secondary"
             onClick={() => {
               setIsCreating(false);
               setNewTenantName("");
@@ -296,13 +297,12 @@ export default function TenantSwitcher() {
             }}
           >
             Cancel
-          </button>
-          <button
-            className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+          </Button>
+          <Button
             onClick={handleCreateTenant}
           >
             Save
-          </button>
+          </Button>
         </div>
       </Modal>
     </div>

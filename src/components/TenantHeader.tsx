@@ -5,6 +5,7 @@ import { useUser } from '@auth0/nextjs-auth0/client';
 import { fetchWithAuth } from '../utils/api';
 import Modal from "./Modal";
 import { PencilIcon } from '../assets/icons';
+import Button from "./Button";
 
 interface Tenant {
   name: string;
@@ -65,13 +66,14 @@ export default function TenantHeader({ tenant }: TenantHeaderProps) {
         <h1 className="text-3xl font-bold text-gray-800 group inline-flex items-center">
           {localTenant.name}
           {/* Edit button with pencil icon */}
-          <button
-            className="invisible group-hover:visible ml-3 bg-blue-500 text-white p-2 rounded-full flex items-center justify-center shadow-sm hover:bg-blue-600"
+          <Button
+            variant="primary" 
+            iconOnly
+            className="invisible group-hover:visible ml-3 p-2 rounded-full flex items-center justify-center shadow-sm"
             onClick={() => setIsEditModalOpen(true)}
-            aria-label="Edit tenant"
-          >
-            <PencilIcon className="h-3.5 w-3.5" />
-          </button>
+            title="Edit tenant"
+            icon={<PencilIcon className="h-3.5 w-3.5" />}
+          />
         </h1>
       </div>
       {localTenant.region && (
@@ -119,24 +121,23 @@ export default function TenantHeader({ tenant }: TenantHeaderProps) {
           ></textarea>
         </label>
         <div className="flex justify-end space-x-2">
-          <button
-            className="bg-gray-300 text-gray-800 py-2 px-4 rounded hover:bg-gray-400"
+          <Button
+            variant="secondary"
             onClick={() => {
               setIsEditModalOpen(false);
               setUpdatedDescription(localTenant.description || "");
             }}
           >
             Cancel
-          </button>
-          <button
-            className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+          </Button>
+          <Button
             onClick={async () => {
               await updateTenantDescription();
               setIsEditModalOpen(false);
             }}
           >
             Save
-          </button>
+          </Button>
         </div>
       </Modal>
     </div>

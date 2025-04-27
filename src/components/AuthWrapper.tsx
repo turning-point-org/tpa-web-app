@@ -3,6 +3,7 @@
 import React from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import Image from "next/image";
+import Button from "./Button";
 
 export default function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, error, isLoading } = useUser();
@@ -61,9 +62,9 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
           <h1 className="text-2xl font-bold mb-2">Welcome to TurningPoint</h1>
           <p className="text-gray-700 mb-4">Please log in to continue</p>
           <a href="/api/auth/login">
-            <button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 transition rounded text-white cursor-pointer">
+            <Button>
               Login
-            </button>
+            </Button>
           </a>
         </div>
       </div>

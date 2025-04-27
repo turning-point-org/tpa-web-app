@@ -15,6 +15,7 @@
     "@azure/storage-blob": "^12.27.0",
     "@types/sanitize-html": "^2.15.0",
     "clsx": "^2.1.1",
+    "lucide-react": "^0.503.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.43.1",
     "next": "15.2.4",
     "openai": "^4.93.0",

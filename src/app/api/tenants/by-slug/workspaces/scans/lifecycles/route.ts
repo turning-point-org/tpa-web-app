@@ -130,16 +130,11 @@ export async function POST(req: NextRequest) {
       tenant_slug, 
       workspace_id, 
       scan_id, 
+      name,
+      description,
       lifecycle_id,
       action
     } = requestBody;
-
-    if (!tenant_slug || !workspace_id || !scan_id || !lifecycle_id) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
 
     // Check if container is initialized
     if (!container) {
@@ -171,6 +166,70 @@ export async function POST(req: NextRequest) {
     }
 
     const tenant_id = tenants[0].id;
+
+    // Check if we're creating a new lifecycle
+    if (name && !lifecycle_id && !action) {
+      // This is a new lifecycle creation
+      if (!tenant_slug || !workspace_id || !scan_id || !name) {
+        return NextResponse.json(
+          { error: "Missing required fields for lifecycle creation" },
+          { status: 400 }
+        );
+      }
+
+      // Get all existing lifecycles to determine the next position
+      const existingQuery = `
+        SELECT * FROM c 
+        WHERE c.scan_id = @scan_id 
+        AND c.workspace_id = @workspace_id 
+        AND c.tenant_slug = @tenant_slug 
+        AND c.type = "lifecycle"
+      `;
+      
+      const { resources: existingLifecycles } = await container.items
+        .query({
+          query: existingQuery,
+          parameters: [
+            { name: "@scan_id", value: scan_id },
+            { name: "@workspace_id", value: workspace_id },
+            { name: "@tenant_slug", value: tenant_slug },
+          ],
+        })
+        .fetchAll();
+
+      // Determine the highest position
+      let nextPosition = 0;
+      if (existingLifecycles && existingLifecycles.length > 0) {
+        nextPosition = Math.max(...existingLifecycles.map(lc => typeof lc.position === 'number' ? lc.position : -1)) + 1;
+      }
+
+      // Create a new lifecycle
+      const newLifecycle = {
+        id: uuidv4(),
+        tenant_id: tenant_id,
+        type: "lifecycle",
+        tenant_slug: tenant_slug,
+        workspace_id: workspace_id,
+        scan_id: scan_id,
+        name: name,
+        description: description || "",
+        position: nextPosition,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      const { resource: createdLifecycle } = await container.items.create(newLifecycle);
+      
+      return NextResponse.json(createdLifecycle);
+    }
+    
+    // If not creating a new lifecycle, this is an action on an existing one
+    if (!tenant_slug || !workspace_id || !scan_id || !lifecycle_id) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
 
     // Find the lifecycle item
     const lifecycleQuery = `
@@ -541,6 +600,128 @@ export async function POST(req: NextRequest) {
           message: "Process group reordered successfully",
           source_category_score: sourceScore,
           dest_category_score: destScore
+        });
+      }
+
+      case 'add_stakeholder': {
+        const { stakeholder } = requestBody;
+        
+        if (!stakeholder || !stakeholder.name || !stakeholder.role) {
+          return NextResponse.json(
+            { error: "Missing required fields for stakeholder creation" },
+            { status: 400 }
+          );
+        }
+
+        // Initialize stakeholders array if it doesn't exist
+        if (!lifecycle.stakeholders) {
+          lifecycle.stakeholders = [];
+        }
+
+        // Add the new stakeholder
+        const newStakeholder = {
+          id: uuidv4(),
+          name: stakeholder.name,
+          role: stakeholder.role
+        };
+        
+        lifecycle.stakeholders.push(newStakeholder);
+        
+        // Update the lifecycle in the database
+        lifecycle.updated_at = new Date().toISOString();
+        await container.item(lifecycle.id, tenant_id).replace(lifecycle);
+
+        return NextResponse.json({
+          success: true,
+          message: "Stakeholder added successfully",
+          stakeholder: newStakeholder
+        });
+      }
+
+      case 'update_stakeholder': {
+        const { stakeholder_id, stakeholder } = requestBody;
+        
+        if (!stakeholder_id || !stakeholder || !stakeholder.name || !stakeholder.role) {
+          return NextResponse.json(
+            { error: "Missing required fields for stakeholder update" },
+            { status: 400 }
+          );
+        }
+
+        // Initialize stakeholders array if it doesn't exist
+        if (!lifecycle.stakeholders) {
+          return NextResponse.json(
+            { error: "Stakeholders array not found" },
+            { status: 404 }
+          );
+        }
+
+        // Find the stakeholder to update
+        const stakeholderIndex = lifecycle.stakeholders.findIndex((s: any) => s.id === stakeholder_id);
+        
+        if (stakeholderIndex === -1) {
+          return NextResponse.json(
+            { error: "Stakeholder not found" },
+            { status: 404 }
+          );
+        }
+
+        // Update the stakeholder
+        lifecycle.stakeholders[stakeholderIndex] = {
+          ...lifecycle.stakeholders[stakeholderIndex],
+          name: stakeholder.name,
+          role: stakeholder.role
+        };
+        
+        // Update the lifecycle in the database
+        lifecycle.updated_at = new Date().toISOString();
+        await container.item(lifecycle.id, tenant_id).replace(lifecycle);
+
+        return NextResponse.json({
+          success: true,
+          message: "Stakeholder updated successfully",
+          stakeholder: lifecycle.stakeholders[stakeholderIndex]
+        });
+      }
+
+      case 'delete_stakeholder': {
+        const { stakeholder_id } = requestBody;
+        
+        if (!stakeholder_id) {
+          return NextResponse.json(
+            { error: "Missing stakeholder id" },
+            { status: 400 }
+          );
+        }
+
+        // Initialize stakeholders array if it doesn't exist
+        if (!lifecycle.stakeholders) {
+          return NextResponse.json(
+            { error: "Stakeholders array not found" },
+            { status: 404 }
+          );
+        }
+
+        // Find the stakeholder to delete
+        const stakeholderIndex = lifecycle.stakeholders.findIndex((s: any) => s.id === stakeholder_id);
+        
+        if (stakeholderIndex === -1) {
+          return NextResponse.json(
+            { error: "Stakeholder not found" },
+            { status: 404 }
+          );
+        }
+
+        // Remove the stakeholder
+        lifecycle.stakeholders.splice(stakeholderIndex, 1);
+        
+        // Update the lifecycle in the database
+        lifecycle.updated_at = new Date().toISOString();
+        await container.item(lifecycle.id, tenant_id).replace(lifecycle);
+
+        return NextResponse.json({
+          success: true,
+          message: "Stakeholder deleted successfully"
         });
       }
 

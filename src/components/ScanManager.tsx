@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { fetchWithAuth } from '../utils/api';
 import { PencilIcon } from '../assets/icons';
+import Button from "./Button";
 
 interface Scan {
   id: string;
@@ -192,12 +193,11 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
     <>
       <div className="flex items-center justify-between mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4 shadow">
         <h2 className="text-xl font-semibold text-gray-800">Scans</h2>
-        <button
-          className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+        <Button
           onClick={() => setIsCreating(true)}
         >
           Create Scan
-        </button>
+        </Button>
       </div>
 
       {/* Modal for Creating Scan */}
@@ -235,8 +235,8 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
           rows={3}
         ></textarea>
         <div className="flex justify-end space-x-2">
-          <button
-            className="bg-gray-300 text-gray-800 py-2 px-4 rounded hover:bg-gray-400"
+          <Button
+            variant="secondary"
             onClick={() => {
               setIsCreating(false);
               setNewScanName("");
@@ -245,13 +245,12 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
             }}
           >
             Cancel
-          </button>
-          <button
-            className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+          </Button>
+          <Button
             onClick={handleCreateScan}
           >
             Save
-          </button>
+          </Button>
         </div>
       </Modal>
 
@@ -296,16 +295,16 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
             ></textarea>
             <div className="flex items-center justify-between mb-4">
               {/* Left Group: Delete button */}
-              <button
-                className="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600"
+              <Button
+                variant="danger"
                 onClick={() => setShowDeleteConfirmation(true)}
               >
                 Delete Scan
-              </button>
+              </Button>
               {/* Right Group: Cancel and Save buttons */}
               <div className="space-x-2">
-                <button
-                  className="bg-gray-300 text-gray-800 py-2 px-4 rounded hover:bg-gray-400"
+                <Button
+                  variant="secondary"
                   onClick={() => {
                     setIsEditModalOpen(false);
                     setEditingScan(null);
@@ -315,13 +314,12 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
                   }}
                 >
                   Cancel
-                </button>
-                <button
-                  className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+                </Button>
+                <Button
                   onClick={handleEditScan}
                 >
                   Save
-                </button>
+                </Button>
               </div>
             </div>
           </>
@@ -344,14 +342,14 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
               className="border border-gray-300 rounded px-3 py-2 w-full mb-4"
             />
             <div className="flex justify-end space-x-2">
-              <button
-                className="bg-gray-300 text-gray-800 py-2 px-4 rounded hover:bg-gray-400"
+              <Button
+                variant="secondary"
                 onClick={() => setShowDeleteConfirmation(false)}
               >
                 Cancel
-              </button>
-              <button
-                className="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600"
+              </Button>
+              <Button
+                variant="danger"
                 onClick={() => {
                   if (deleteConfirmationText === editingScan?.name) {
                     handleDeleteScan(editingScan?.id || "");
@@ -362,7 +360,7 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
                 disabled={deleteConfirmationText !== editingScan?.name}
               >
                 Confirm Delete
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -376,16 +374,17 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
           >
             {/* Edit button only visible on hover */}
             <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                className="bg-blue-500 text-white p-2.5 rounded-full flex items-center justify-center shadow-md hover:bg-blue-600"
+              <Button
+                variant="primary"
+                iconOnly
+                className="p-2.5 rounded-full flex items-center justify-center shadow-md"
                 onClick={(e) => {
                   e.stopPropagation();
                   openEditModal(scan);
                 }}
-                aria-label="Edit scan"
-              >
-                <PencilIcon className="h-4 w-4" />
-              </button>
+                icon={<PencilIcon className="h-4 w-4" />}
+                title="Edit scan"
+              />
             </div>
             {/* Status badge in top right corner - always visible */}
             <div className="absolute top-2 right-2">

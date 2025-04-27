@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import FileUpload from "@/components/FileUpload";
 import Modal from "@/components/Modal";
+import Button from "@/components/Button";
 
 type DocumentInfo = {
   id: string;
@@ -329,10 +330,10 @@ export default function DataSourcesPage() {
             ({validUploadedDocumentsCount} of {requiredDocumentTypes.length} required)
           </span>
         </div>
-        <button 
-          className="px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
+        <Button
           disabled={validUploadedDocumentsCount === 0 || isGeneratingLifecycles || requiredDocumentTypes.length === 0}
           onClick={initiateGenerateLifecycles}
+          className="flex items-center justify-center"
         >
           {isGeneratingLifecycles ? (
             <>
@@ -342,7 +343,7 @@ export default function DataSourcesPage() {
           ) : (
             lifecyclesExist ? 'Regenerate Lifecycles' : 'Generate Lifecycles'
           )}
-        </button>
+        </Button>
       </div>
       <p className="text-gray-600 mb-6">
         Upload and manage documents related to this company.
@@ -361,18 +362,17 @@ export default function DataSourcesPage() {
           </p>
         </div>
         <div className="flex justify-end space-x-2">
-          <button 
-            className="bg-gray-300 text-gray-800 py-2 px-4 rounded hover:bg-gray-400"
+          <Button 
+            variant="secondary"
             onClick={() => setShowConfirmModal(false)}
           >
             Cancel
-          </button>
-          <button 
-            className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+          </Button>
+          <Button 
             onClick={handleGenerateLifecycles}
           >
             Confirm
-          </button>
+          </Button>
         </div>
       </Modal>
 
@@ -390,14 +390,13 @@ export default function DataSourcesPage() {
           </p>
         </div>
         <div className="flex justify-end space-x-2">
-          <button 
-            className="bg-gray-300 text-gray-800 py-2 px-4 rounded hover:bg-gray-400"
+          <Button 
+            variant="secondary"
             onClick={() => setShowWarningModal(false)}
           >
             Cancel
-          </button>
-          <button 
-            className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+          </Button>
+          <Button 
             onClick={() => {
               setShowWarningModal(false);
               if (lifecyclesExist) {
@@ -408,7 +407,7 @@ export default function DataSourcesPage() {
             }}
           >
             Continue Anyway
-          </button>
+          </Button>
         </div>
       </Modal>
       
