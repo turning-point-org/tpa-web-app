@@ -207,4 +207,86 @@ export async function getSummarizationPrompt(tenantSlug: string, workspaceId: st
   // If not found, return default prompt based on document type
   return DEFAULT_PROMPTS[documentType as DocumentType] || 
     "Provide a comprehensive summary of this document, focusing on key information relevant to business processes, operations, and organizational structure.";
+}
+
+/**
+ * Extract employee information from HRIS documents
+ * 
+ * @param fileName Name of the document file
+ * @param documentContent Text content of the document
+ * @returns A JSON array of employee objects with name and role
+ */
+export async function extractEmployeesFromHRIS(
+  fileName: string,
+  documentContent: string
+): Promise<{name: string, role: string}[]> {
+  if (!client) {
+    throw new Error("OpenAI client not initialized");
+  }
+
+  const extractionPrompt = `
+Extract all employee names and their roles from the following HRIS document.
+Format the output as a valid JSON array where each object has "name" and "role" properties.
+Focus only on extracting this specific information accurately.
+
+Document Name: ${fileName}
+
+The document content is:
+${documentContent}
+
+VERY IMPORTANT: Return ONLY the raw JSON array with no markdown formatting, backticks, or additional text. Do not include \`\`\`json or \`\`\` markers.
+For example, return:
+[
+  {"name": "John Smith", "role": "Software Engineer"},
+  {"name": "Jane Doe", "role": "Product Manager"}
+]
+`;
+
+  const messages = [
+    { 
+      role: "system", 
+      content: "You are an HR data extraction specialist who extracts structured employee data from HR documents. You always return valid, parseable JSON without any markdown formatting or code block markers." 
+    },
+    { role: "user", content: extractionPrompt }
+  ];
+
+  const result = await client.getChatCompletions(chatDeploymentName, messages);
+  
+  if (!result || !result.choices || result.choices.length === 0) {
+    throw new Error("No extraction result returned from Azure OpenAI");
+  }
+  
+  let content = result.choices[0].message?.content || "[]";
+  
+  try {
+    // Clean the response - remove any markdown code block markers and whitespace
+    content = content.trim();
+    
+    // Remove markdown code block markers if present
+    content = content.replace(/^```(json)?/, '');
+    content = content.replace(/```$/, '');
+    content = content.trim();
+    
+    // Log the content we're trying to parse (for debugging)
+    console.log("Attempting to parse employee data:", content.substring(0, 100) + (content.length > 100 ? "..." : ""));
+    
+    // Parse the JSON response
+    return JSON.parse(content);
+  } catch (error) {
+    console.error("Failed to parse employee data as JSON:", error);
+    
+    // Try a more aggressive cleaning approach as fallback
+    try {
+      // Look for anything that looks like a JSON array
+      const jsonMatch = content.match(/\[\s*\{.*\}\s*\]/);
+      if (jsonMatch && jsonMatch[0]) {
+        console.log("Trying alternative parsing with extracted JSON array");
+        return JSON.parse(jsonMatch[0]);
+      }
+    } catch (fallbackError) {
+      console.error("Fallback parsing also failed:", fallbackError);
+    }
+    
+    return [];
+  }
 } 

@@ -7,7 +7,7 @@ import { storeDocumentChunks } from "@/lib/vectordb";
 import { extractTextFromFile } from "@/lib/documentParser";
 import { Readable } from "stream";
 import { OpenAIClient, AzureKeyCredential } from "@azure/openai";
-import { summarizeDocument, getCompanyInfoForScan, getSummarizationPrompt } from "@/lib/documentSummary";
+import { summarizeDocument, getCompanyInfoForScan, getSummarizationPrompt, extractEmployeesFromHRIS } from "@/lib/documentSummary";
 
 export const config = {
   api: {
@@ -102,7 +102,9 @@ function shouldProcessForEmbeddings(contentType: string): boolean {
     "text/plain",
     "text/csv",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/msword"
+    "application/msword",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   ];
   return supportedTypes.includes(contentType);
 }
@@ -128,6 +130,7 @@ interface DocumentRecord {
   summarization?: string;
   summarization_prompt?: string;
   status: string;
+  employees?: Array<{name: string, role: string}>;
 }
 
 export async function POST(req: NextRequest) {
@@ -306,6 +309,28 @@ export async function POST(req: NextRequest) {
                 updatedDocument.summarization_prompt = summarizationPrompt;
                 
                 console.log(`Generated summary for document: ${file.name}`);
+                
+                // If document type is HRIS Reports, extract employee information
+                if (documentType === "HRIS Reports" || existingDocument.document_type === "HRIS Reports") {
+                  try {
+                    // Extract employees from the document content
+                    console.log(`Extracting employees data for HRIS Reports document ${existingDocument.id}`);
+                    const employees = await extractEmployeesFromHRIS(
+                      file.name,
+                      documentContent
+                    );
+                    
+                    // Add employees to the document
+                    updatedDocument.employees = employees.map(employee => ({
+                      name: employee.name,
+                      role: employee.role
+                    }));
+                    console.log(`Extracted ${employees.length} employees from HRIS document ${existingDocument.id}`);
+                  } catch (error) {
+                    console.error("Failed to extract employees from HRIS document:", error);
+                    // Continue even if employee extraction fails
+                  }
+                }
               } catch (summaryError) {
                 console.error("Error generating document summary:", summaryError);
                 // Don't fail if summarization fails
@@ -416,6 +441,28 @@ export async function POST(req: NextRequest) {
                 documentRecord.summarization_prompt = summarizationPrompt;
                 
                 console.log(`Generated summary for document: ${file.name}`);
+                
+                // If document type is HRIS Reports, extract employee information
+                if (documentType === "HRIS Reports") {
+                  try {
+                    // Extract employees from the document content
+                    console.log(`Extracting employees data for HRIS Reports document ${newDocumentId}`);
+                    const employees = await extractEmployeesFromHRIS(
+                      file.name,
+                      documentContent
+                    );
+                    
+                    // Add employees to the document
+                    documentRecord.employees = employees.map(employee => ({
+                      name: employee.name,
+                      role: employee.role
+                    }));
+                    console.log(`Extracted ${employees.length} employees from HRIS document ${newDocumentId}`);
+                  } catch (error) {
+                    console.error("Failed to extract employees from HRIS document:", error);
+                    // Continue even if employee extraction fails
+                  }
+                }
               } catch (summaryError) {
                 console.error("Error generating document summary:", summaryError);
                 // Don't fail if summarization fails

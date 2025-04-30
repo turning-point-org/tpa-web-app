@@ -3,7 +3,7 @@ import { container } from "@/lib/cosmos";
 import { OpenAIClient, AzureKeyCredential } from "@azure/openai";
 import { searchSimilarDocuments, retrieveAllScanChunks } from "@/lib/vectordb";
 import { generateEmbeddings } from "@/lib/openai";
-import { summarizeDocument, getCompanyInfoForScan, calculateCosineSimilarity } from "@/lib/documentSummary";
+import { summarizeDocument, getCompanyInfoForScan, calculateCosineSimilarity, extractEmployeesFromHRIS } from "@/lib/documentSummary";
 
 // Get OpenAI settings from environment variables
 const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
@@ -192,6 +192,24 @@ export async function POST(req: NextRequest) {
         
         // Update the document with the new summary
         updatedDocument.summary = summary;
+
+        // If document type is HRIS Reports, extract employee information
+        if (document.document_type === "HRIS Reports") {
+          try {
+            // Extract employees from the document content
+            const employees = await extractEmployeesFromHRIS(
+              document.file_name,
+              documentContent
+            );
+            
+            // Add employees to the document
+            updatedDocument.employees = employees;
+            console.log(`Extracted ${employees.length} employees from HRIS document ${document.id}`);
+          } catch (error) {
+            console.error("Failed to extract employees from HRIS document:", error);
+            // Continue even if employee extraction fails
+          }
+        }
       }
       
       // Update the document in Cosmos DB

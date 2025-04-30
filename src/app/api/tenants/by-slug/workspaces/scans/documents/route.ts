@@ -246,6 +246,12 @@ export async function DELETE(req: NextRequest) {
       updated_at: new Date().toISOString()
     };
     
+    // If this is an HRIS Reports document, reset the employees array
+    if (documentType === "HRIS Reports") {
+      console.log(`Resetting employees data for HRIS Reports document ${documentId}`);
+      resetDocument.employees = [];
+    }
+    
     // Remove undefined fields (they would be stored as null otherwise)
     Object.keys(resetDocument).forEach(key => {
       if (resetDocument[key] === undefined) {

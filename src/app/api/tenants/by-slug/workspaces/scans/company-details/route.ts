@@ -141,6 +141,7 @@ export async function POST(req: NextRequest) {
       industry: industry || "",
       description: description || "",
       research: "Ora has done no company research yet.",
+      strategic_objectives: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

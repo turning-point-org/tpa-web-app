@@ -1,8 +1,509 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import Button from "@/components/Button";
+import Modal from "@/components/Modal";
+import { Pencil, Trash, X, Check, Wand2, AlertCircle } from "lucide-react";
+
+type StrategicObjective = {
+  name: string;
+  description: string;
+  status: "to be approved" | "approved";
+};
+
 export default function StrategicObjectivesPage() {
+  const params = useParams();
+  const tenantSlug = params.tenant as string;
+  const workspaceId = params.workspace as string;
+  const scanId = params.scan as string;
+  
+  const [objectives, setObjectives] = useState<StrategicObjective[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [editingObjective, setEditingObjective] = useState<StrategicObjective | null>(null);
+  const [newObjective, setNewObjective] = useState<Partial<StrategicObjective>>({
+    name: "",
+    description: "",
+    status: "to be approved"
+  });
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [objectiveToDelete, setObjectiveToDelete] = useState<StrategicObjective | null>(null);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  const fetchObjectives = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(
+        `/api/tenants/by-slug/workspaces/scans/strategic-objectives?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`
+      );
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          setObjectives([]);
+        } else {
+          throw new Error("Failed to fetch strategic objectives");
+        }
+      } else {
+        const data = await response.json();
+        setObjectives(data);
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred while loading data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchObjectives();
+  }, [tenantSlug, workspaceId, scanId]);
+
+  const handleSaveObjectives = async (objectives: StrategicObjective[]) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(
+        `/api/tenants/by-slug/workspaces/scans/strategic-objectives?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ strategic_objectives: objectives }),
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error("Failed to save strategic objectives");
+      }
+      
+      await fetchObjectives();
+    } catch (err: any) {
+      setError(err.message || "An error occurred while saving data");
+      setIsLoading(false);
+    }
+  };
+
+  // Check if a name is a duplicate
+  const isDuplicateName = (name: string, currentName?: string): boolean => {
+    if (!name.trim()) return false; // Empty names aren't duplicates, they're just invalid
+    return objectives.some(obj => 
+      obj.name.toLowerCase() === name.toLowerCase() && 
+      obj.name !== currentName
+    );
+  };
+
+  // Validate name as the user types in the new objective form
+  useEffect(() => {
+    if (newObjective.name && isDuplicateName(newObjective.name)) {
+      setNameError("An objective with this name already exists");
+    } else {
+      setNameError(null);
+    }
+  }, [newObjective.name, objectives]);
+  
+  // Validate name as the user types in the edit form
+  useEffect(() => {
+    if (editingObjective?.name && isDuplicateName(editingObjective.name, editingObjective.name)) {
+      setNameError("An objective with this name already exists");
+    } else if (editingObjective) {
+      setNameError(null);
+    }
+  }, [editingObjective?.name]);
+
+  const handleAddObjective = async () => {
+    if (!newObjective.name) {
+      setError("Objective name is required");
+      return;
+    }
+
+    // Check if an objective with this name already exists
+    if (isDuplicateName(newObjective.name)) {
+      setError("An objective with this name already exists");
+      return;
+    }
+    
+    const updatedObjectives = [
+      ...objectives,
+      {
+        name: newObjective.name,
+        description: newObjective.description || "",
+        status: newObjective.status as "to be approved" | "approved" || "to be approved"
+      }
+    ];
+    
+    await handleSaveObjectives(updatedObjectives);
+    setNewObjective({ name: "", description: "", status: "to be approved" });
+    setIsAddingNew(false);
+  };
+
+  const handleUpdateObjective = async () => {
+    if (!editingObjective || !editingObjective.name) return;
+    
+    // Check for duplicates
+    if (isDuplicateName(editingObjective.name, editingObjective.name)) {
+      setError("An objective with this name already exists");
+      return;
+    }
+    
+    const updatedObjectives = objectives.map(obj => 
+      obj.name === (editingObjective.name) ? editingObjective : obj
+    );
+    
+    await handleSaveObjectives(updatedObjectives);
+    setEditingObjective(null);
+  };
+
+  const handleDeleteObjective = async () => {
+    if (!objectiveToDelete) return;
+    
+    const updatedObjectives = objectives.filter(obj => obj.name !== objectiveToDelete.name);
+    
+    await handleSaveObjectives(updatedObjectives);
+    setObjectiveToDelete(null);
+    setShowDeleteModal(false);
+  };
+
+  const handleStatusChange = async (objective: StrategicObjective, status: "to be approved" | "approved") => {
+    const updatedObjectives = objectives.map(obj => 
+      obj.name === objective.name ? { ...obj, status } : obj
+    );
+    
+    await handleSaveObjectives(updatedObjectives);
+  };
+
+  const confirmDelete = (objective: StrategicObjective) => {
+    setObjectiveToDelete(objective);
+    setShowDeleteModal(true);
+  };
+
+  const handleGenerateObjectives = async () => {
+    try {
+      setIsGenerating(true);
+      setShowGenerateModal(false);
+      
+      const response = await fetch(
+        `/api/tenants/by-slug/workspaces/scans/generate-objectives`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tenant_slug: tenantSlug,
+            workspace_id: workspaceId,
+            scan_id: scanId
+          }),
+        }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate strategic objectives");
+      }
+      
+      await fetchObjectives();
+    } catch (err: any) {
+      setError(err.message || "An error occurred while generating objectives");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const confirmGenerate = () => {
+    if (objectives.length > 0) {
+      setShowGenerateModal(true);
+    } else {
+      handleGenerateObjectives();
+    }
+  };
+
   return (
     <div>
-      <h2 className="text-2xl font-semibold mb-4">Strategic Objectives</h2>
-      <p>This is the Strategic Objectives page content.</p>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-semibold">Strategic Objectives</h2>
+        <div className="flex space-x-2">
+          <Button
+            onClick={confirmGenerate}
+            disabled={isLoading || isGenerating}
+            icon={<Wand2 className="h-5 w-5" />}
+            variant="secondary"
+          >
+            {isGenerating ? "Generating..." : "Generate Objectives"}
+          </Button>
+          <Button
+            onClick={() => setIsAddingNew(true)}
+            disabled={isLoading || isGenerating}
+          >
+            + Strategic Objective
+          </Button>
+        </div>
+      </div>
+      
+      <p className="text-gray-600 mb-6">
+        Define and manage strategic objectives for this scan.
+      </p>
+      
+      {isLoading && (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      )}
+      
+      {error && (
+        <div className="p-4 bg-red-100 text-red-800 rounded-lg mb-4">
+          {error}
+        </div>
+      )}
+      
+      {isGenerating && (
+        <div className="p-4 bg-blue-100 text-blue-800 rounded-lg mb-4">
+          Generating strategic objectives based on company information and business lifecycles...
+        </div>
+      )}
+      
+      {!isLoading && !error && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {objectives.length ? (
+            objectives.map(objective => (
+              <div key={objective.name} className="bg-white rounded-lg shadow p-4 border">
+                {editingObjective?.name === objective.name ? (
+                  // Edit mode
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Title
+                      </label>
+                      <input
+                        type="text"
+                        value={editingObjective.name}
+                        onChange={(e) => setEditingObjective({
+                          ...editingObjective,
+                          name: e.target.value
+                        })}
+                        className={`w-full px-3 py-2 border ${nameError ? 'border-red-500' : 'border-gray-300'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      />
+                      {nameError && (
+                        <div className="mt-1 text-sm text-red-600 flex items-center">
+                          <AlertCircle className="h-4 w-4 mr-1" />
+                          {nameError}
+                        </div>
+                      )}
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Description
+                      </label>
+                      <textarea
+                        value={editingObjective.description}
+                        onChange={(e) => setEditingObjective({
+                          ...editingObjective,
+                          description: e.target.value
+                        })}
+                        rows={4}
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="flex justify-between mt-4">
+                      <Button
+                        variant="danger"
+                        onClick={() => confirmDelete(objective)}
+                        icon={<Trash className="h-5 w-5" />}
+                      >
+                        Delete
+                      </Button>
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="secondary"
+                          onClick={() => setEditingObjective(null)}
+                          icon={<X className="h-5 w-5" />}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleUpdateObjective}
+                          icon={<Check className="h-5 w-5" />}
+                        >
+                          Confirm
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  // View mode
+                  <>
+                    <h3 className="text-lg font-semibold mb-2">{objective.name}</h3>
+                    <p className="text-gray-600 mb-4">{objective.description}</p>
+                    <div className="flex justify-between items-center">
+                      <select
+                        value={objective.status}
+                        onChange={(e) => handleStatusChange(
+                          objective, 
+                          e.target.value as "to be approved" | "approved"
+                        )}
+                        className="border border-gray-300 rounded px-2 py-1 text-sm"
+                      >
+                        <option value="to be approved">To Be Approved</option>
+                        <option value="approved">Approved</option>
+                      </select>
+                      <Button
+                        onClick={() => setEditingObjective(objective)}
+                        icon={<Pencil className="h-5 w-5" />}
+                        iconOnly
+                        title="Edit Objective"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="col-span-2 p-6 bg-gray-50 rounded-lg text-center">
+              <p className="text-gray-500">No strategic objectives defined yet.</p>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Add New Objective Card */}
+      {isAddingNew && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-40">
+          <div className="bg-white rounded-lg shadow p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Add New Strategic Objective</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Title*
+              </label>
+              <input
+                type="text"
+                value={newObjective.name}
+                onChange={(e) => setNewObjective({
+                  ...newObjective,
+                  name: e.target.value
+                })}
+                className={`w-full px-3 py-2 border ${nameError ? 'border-red-500' : 'border-gray-300'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              />
+              {nameError && (
+                <div className="mt-1 text-sm text-red-600 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {nameError}
+                </div>
+              )}
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                value={newObjective.description}
+                onChange={(e) => setNewObjective({
+                  ...newObjective,
+                  description: e.target.value
+                })}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <select
+                value={newObjective.status}
+                onChange={(e) => setNewObjective({
+                  ...newObjective,
+                  status: e.target.value as "to be approved" | "approved"
+                })}
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="to be approved">To Be Approved</option>
+                <option value="approved">Approved</option>
+              </select>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setIsAddingNew(false);
+                  setNameError(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddObjective}
+                disabled={!!nameError || !newObjective.name}
+              >
+                Add Objective
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+      >
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Confirm Deletion
+        </h3>
+        <p className="text-gray-500 mb-4">
+          Are you sure you want to delete this strategic objective? This action cannot be undone.
+        </p>
+        <div className="flex justify-end space-x-3">
+          <Button
+            variant="secondary"
+            onClick={() => setShowDeleteModal(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleDeleteObjective}
+          >
+            Delete
+          </Button>
+        </div>
+      </Modal>
+      
+      {/* Generate Confirmation Modal */}
+      <Modal
+        isOpen={showGenerateModal}
+        onClose={() => setShowGenerateModal(false)}
+      >
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Generate New Objectives
+        </h3>
+        <p className="text-gray-500 mb-4">
+          This will replace all existing strategic objectives with AI-generated ones based on your company information and business lifecycles. This action cannot be undone.
+        </p>
+        <div className="flex justify-end space-x-3">
+          <Button
+            variant="secondary"
+            onClick={() => setShowGenerateModal(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleGenerateObjectives}
+          >
+            Generate
+          </Button>
+        </div>
+      </Modal>
+      
+      {editingObjective && nameError && (
+        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50 flex items-center">
+          <AlertCircle className="h-5 w-5 mr-2" />
+          {nameError}
+        </div>
+      )}
     </div>
   );
 } 

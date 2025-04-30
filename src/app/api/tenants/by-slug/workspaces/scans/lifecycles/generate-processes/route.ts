@@ -44,6 +44,40 @@ async function getCompanyInfoForScan(tenant_slug: string, workspace_id: string, 
   return resources.length > 0 ? resources[0] : null;
 }
 
+// Function to get employee data from HRIS Reports
+async function getEmployeeData(tenant_slug: string, workspace_id: string, scan_id: string): Promise<any[]> {
+  if (!container) {
+    throw new Error("Database connection not available");
+  }
+  
+  const query = `
+    SELECT * FROM c 
+    WHERE c.scan_id = @scan_id 
+    AND c.workspace_id = @workspace_id 
+    AND c.tenant_slug = @tenant_slug 
+    AND c.type = "document"
+    AND c.document_type = "HRIS Reports"
+    AND IS_DEFINED(c.employees)
+  `;
+  
+  const { resources } = await container.items
+    .query({
+      query,
+      parameters: [
+        { name: "@scan_id", value: scan_id },
+        { name: "@workspace_id", value: workspace_id },
+        { name: "@tenant_slug", value: tenant_slug },
+      ],
+    })
+    .fetchAll();
+
+  if (resources.length > 0 && Array.isArray(resources[0].employees) && resources[0].employees.length > 1) {
+    return resources[0].employees;
+  }
+  
+  return [];
+}
+
 // Function to generate process categories and process groups for a lifecycle
 async function generateProcesses(lifecycleName: string, lifecycleDescription: string, companyInfo: any = null) {
   if (!client) {
@@ -126,6 +160,103 @@ Ensure your response is ONLY the valid JSON object, nothing else.
   } catch (err) {
     console.error("Error parsing generated processes JSON:", err);
     throw new Error("Failed to parse generated processes data");
+  }
+}
+
+// Function to suggest stakeholders for a lifecycle based on generated processes
+async function suggestStakeholders(
+  lifecycleName: string, 
+  lifecycleDescription: string, 
+  processesData: any, 
+  employees: any[], 
+  companyInfo: any = null
+) {
+  if (!client) {
+    throw new Error("OpenAI client not initialized");
+  }
+
+  if (!employees || employees.length < 2) {
+    return []; // Not enough employees to suggest stakeholders
+  }
+
+  const companyInfoSection = companyInfo ? 
+    `Company Information:
+    Name: ${companyInfo.name || 'Not specified'}
+    Industry: ${companyInfo.industry || 'Not specified'}
+    Country: ${companyInfo.country || 'Not specified'}
+    Description: ${companyInfo.description || 'Not specified'}
+    Website: ${companyInfo.website || 'Not specified'}
+    Research: ${companyInfo.research || 'Not specified'}` : 
+    'No company information available';
+
+  // Format employees as JSON string but limit to relevant fields to avoid token limits
+  const employeesData = employees.map(emp => ({
+    id: emp.id,
+    name: emp.name,
+    role: emp.role || emp.title || emp.position || emp.job_title
+  }));
+
+  const stakeholderPrompt = `
+You are an organizational development expert with deep knowledge of business processes and roles.
+
+Your task is to identify the most relevant employees to serve as stakeholders for a particular business lifecycle, based on their roles and the processes involved.
+
+Lifecycle Name: ${lifecycleName}
+Lifecycle Description: ${lifecycleDescription}
+
+Company Context:
+${companyInfoSection}
+
+The lifecycle involves the following process categories and groups:
+${JSON.stringify(processesData.process_categories, null, 2)}
+
+Available Employees:
+${JSON.stringify(employeesData, null, 2)}
+
+Please follow these instructions:
+1. Review the lifecycle description and processes to understand the core functions and responsibilities.
+2. Analyze the employee roles to identify those most relevant to the lifecycle.
+3. Select 2-4 employees whose roles best align with the key processes in this lifecycle.
+4. Select employees with roles that complement each other, representing different aspects of the lifecycle.
+5. Output the result as a valid JSON array in the following structure:
+
+[
+  {
+    "id": "employee_id",
+    "name": "Employee Name",
+    "role": "Employee Role"
+  }
+]
+
+Ensure your response is ONLY the valid JSON array, nothing else.
+`;
+
+  const messages = [
+    { role: "system", content: "You are an organizational development expert specializing in matching roles with business processes." },
+    { role: "user", content: stakeholderPrompt }
+  ];
+
+  const result = await client.getChatCompletions(chatDeploymentName, messages);
+  
+  if (!result || !result.choices || result.choices.length === 0) {
+    throw new Error("No stakeholder suggestion result returned from Azure OpenAI");
+  }
+  
+  const response = result.choices[0].message?.content || "";
+  
+  try {
+    // Extract JSON from response
+    const jsonMatch = response.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      throw new Error("No valid JSON found in the stakeholder response");
+    }
+    
+    const stakeholdersJson = JSON.parse(jsonMatch[0]);
+    return stakeholdersJson;
+  } catch (err) {
+    console.error("Error parsing stakeholders JSON:", err);
+    // Return empty array instead of throwing, to avoid breaking the main process
+    return [];
   }
 }
 
@@ -246,6 +377,16 @@ export async function POST(req: NextRequest) {
       companyInfo = null;
     }
 
+    // Get employee data for this scan
+    let employees: any[] = [];
+    try {
+      employees = await getEmployeeData(tenant_slug, workspace_id, scan_id);
+      console.log(`Retrieved ${employees.length} employees from HRIS Reports for scan ${scan_id}`);
+    } catch (error) {
+      console.warn("Failed to retrieve employee data:", error);
+      // Continue even if employee data retrieval fails
+    }
+
     // Find the tenant ID from the tenant slug for partition key
     const tenantQuery = `
       SELECT * FROM c 
@@ -314,6 +455,28 @@ export async function POST(req: NextRequest) {
     // Update the lifecycle item with the generated processes
     const lifecycleItem = lifecycles[0];
     lifecycleItem.processes = processesData;
+    
+    // If we have enough employees, suggest stakeholders
+    if (employees.length > 1) {
+      try {
+        const stakeholders = await suggestStakeholders(
+          lifecycle_name, 
+          lifecycle_description || "", 
+          processesData, 
+          employees, 
+          companyInfo
+        );
+        
+        if (stakeholders && stakeholders.length > 0) {
+          lifecycleItem.stakeholders = stakeholders;
+          console.log(`Added ${stakeholders.length} stakeholders to lifecycle ${lifecycle_id}`);
+        }
+      } catch (error) {
+        console.warn("Failed to suggest stakeholders:", error);
+        // Continue even if stakeholder suggestion fails
+      }
+    }
+    
     lifecycleItem.updated_at = new Date().toISOString();
     
     // Update the item in Cosmos DB
@@ -323,7 +486,8 @@ export async function POST(req: NextRequest) {
       success: true,
       message: "Processes generated successfully",
       lifecycle_id: lifecycle_id,
-      processes: processesData
+      processes: processesData,
+      stakeholders: lifecycleItem.stakeholders || []
     });
   } catch (error: any) {
     console.error("POST /api/tenants/by-slug/workspaces/scans/lifecycles/generate-processes error:", error);

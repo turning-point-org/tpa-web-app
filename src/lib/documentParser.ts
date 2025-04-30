@@ -6,6 +6,8 @@
 
 // Import only the default function to avoid initialization issues
 const pdfParse = require('pdf-parse/lib/pdf-parse.js');
+// Import xlsx for Excel file parsing
+const XLSX = require('xlsx');
 
 export async function extractTextFromFile(
   fileBuffer: Buffer,
@@ -34,6 +36,46 @@ export async function extractTextFromFile(
       return result.text;
     } catch (error) {
       console.error('Error parsing PDF:', error);
+      return null;
+    }
+  }
+  
+  // For Excel files
+  if (contentType === 'application/vnd.ms-excel' || 
+      contentType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+    try {
+      console.log('Parsing Excel file...');
+      
+      // Read the workbook from buffer
+      const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+      
+      // Initialize text content
+      let textContent = '';
+      
+      // Process each worksheet
+      workbook.SheetNames.forEach((sheetName: string) => {
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Convert worksheet to JSON
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        // Add sheet name as heading
+        textContent += `Sheet: ${sheetName}\n\n`;
+        
+        // Convert to readable text format
+        jsonData.forEach((row: any) => {
+          if (row && row.length > 0) {
+            textContent += row.join('\t') + '\n';
+          }
+        });
+        
+        textContent += '\n\n';
+      });
+      
+      console.log(`Successfully extracted ${textContent.length} characters from Excel file`);
+      return textContent;
+    } catch (error) {
+      console.error('Error parsing Excel file:', error);
       return null;
     }
   }
