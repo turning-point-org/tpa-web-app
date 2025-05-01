@@ -127,6 +127,37 @@ export async function POST(req: NextRequest) {
       })
       .fetchAll();
 
+    // Get business strategy documents for this scan
+    let strategyDocs = [];
+    try {
+      const strategyDocsQuery = `
+        SELECT * FROM c 
+        WHERE c.scan_id = @scan_id 
+        AND c.workspace_id = @workspace_id 
+        AND c.tenant_slug = @tenant_slug 
+        AND c.type = "document"
+        AND c.document_type = "Business Strategy Documents"
+        AND IS_DEFINED(c.summarization)
+      `;
+      
+      const { resources: docs } = await container.items
+        .query({
+          query: strategyDocsQuery,
+          parameters: [
+            { name: "@scan_id", value: scan_id },
+            { name: "@workspace_id", value: workspace_id },
+            { name: "@tenant_slug", value: tenant_slug },
+          ],
+        })
+        .fetchAll();
+      
+      strategyDocs = docs;
+      console.log(`Found ${strategyDocs.length} business strategy documents for scan ${scan_id}`);
+    } catch (error) {
+      console.error("Error fetching business strategy documents:", error);
+      console.log("Continuing without business strategy documents");
+    }
+
     // Prepare context for the OpenAI prompt
     const companyInfoSection = companyInfo ? 
       `Company Information:
@@ -147,12 +178,24 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Prepare business strategy documents context
+    let strategyDocsSection = "No business strategy documents available";
+    if (strategyDocs && strategyDocs.length > 0) {
+      strategyDocsSection = "Business Strategy Documents:\n\n";
+      strategyDocs.forEach((doc, index) => {
+        strategyDocsSection += `Document ${index + 1}: ${doc.file_name || 'Unnamed document'}\n`;
+        strategyDocsSection += `Summary: ${doc.summarization}\n\n`;
+      });
+    }
+
     // Create the prompt for generating strategic objectives
-    const prompt = `You are an expert business consultant specializing in creating strategic objectives for organizations. Based on the company information and business lifecycles provided below, generate 4-8 strategic objectives for this organization.
+    const prompt = `You are an expert business consultant specializing in creating strategic objectives for organizations. Based on the company information, business lifecycles, and business strategy documents provided below, generate 4-8 strategic objectives for this organization.
 
 ${companyInfoSection}
 
 ${lifecyclesSection}
+
+${strategyDocsSection}
 
 For each strategic objective:
 1. Provide a clear, concise name that captures the essence of the objective
@@ -165,6 +208,7 @@ Your objectives should:
 - Consider industry-specific challenges and opportunities
 - Be appropriate for the company's size, location, and maturity level
 - Each objective MUST have a unique name that is clear and descriptive
+- Incorporate insights from the business strategy documents if available
 
 Respond in the following JSON format only:
 {
