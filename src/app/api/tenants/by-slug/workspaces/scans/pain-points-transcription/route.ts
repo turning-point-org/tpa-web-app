@@ -2,276 +2,320 @@ import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 import { v4 as uuidv4 } from "uuid";
 
-// GET: Retrieve a pain points transcription for a specific scan
+// Function to get tenant_id from tenant_slug
+async function getTenantIdFromSlug(tenantSlug: string): Promise<string> {
+  // Check if container is initialized
+  if (!container) {
+    throw new Error("Database connection not available");
+  }
+  
+  // Query for the tenant record using the provided slug
+  const query = `SELECT * FROM c WHERE LOWER(c.slug) = @slug AND c.id = c.tenant_id`;
+  const { resources } = await container.items
+    .query({
+      query,
+      parameters: [{ name: "@slug", value: tenantSlug.toLowerCase() }],
+    })
+    .fetchAll();
+
+  if (resources.length === 0) {
+    throw new Error("Tenant not found");
+  }
+
+  return resources[0].tenant_id;
+}
+
+// GET endpoint to fetch a transcription
 export async function GET(req: NextRequest) {
   try {
-    // Check if container is available
-    if (!container) {
-      console.error("Cosmos DB container not initialized");
-      return NextResponse.json(
-        { error: "Database connection not available" },
-        { status: 500 }
-      );
-    }
-    
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
     const workspaceId = searchParams.get("workspace_id");
     const scanId = searchParams.get("scan_id");
+    const lifecycleId = searchParams.get("lifecycle_id");
 
-    if (!tenantSlug || !workspaceId || !scanId) {
+    if (!tenantSlug || !workspaceId || !scanId || !lifecycleId) {
       return NextResponse.json(
-        { error: "Missing tenant slug, workspace id, or scan id" },
+        { error: "Missing required parameters" },
         { status: 400 }
       );
     }
 
-    // Query for the pain points transcription document
+    // Check if container is initialized
+    if (!container) {
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 503 }
+      );
+    }
+
+    // Query for the transcription record
     const query = `
       SELECT * FROM c 
-      WHERE c.type = "pain_points_transcription" 
-      AND c.scan_id = @scanId 
-      AND c.workspace_id = @workspaceId 
+      WHERE c.type = "pain_point_transcription" 
       AND c.tenant_slug = @tenantSlug
+      AND c.workspace_id = @workspaceId
+      AND c.scan_id = @scanId
+      AND c.lifecycle_id = @lifecycleId
     `;
-    
+
     const { resources } = await container.items
       .query({
         query,
         parameters: [
-          { name: "@scanId", value: scanId },
-          { name: "@workspaceId", value: workspaceId },
           { name: "@tenantSlug", value: tenantSlug },
-        ],
+          { name: "@workspaceId", value: workspaceId },
+          { name: "@scanId", value: scanId },
+          { name: "@lifecycleId", value: lifecycleId }
+        ]
       })
       .fetchAll();
 
     if (resources.length === 0) {
       return NextResponse.json(
-        { 
-          transcription: null,
-          speakers: {},
-          message: "No transcription found"
-        }
+        { message: "No transcription found for this lifecycle" },
+        { status: 404 }
       );
     }
 
-    return NextResponse.json({
-      transcription: resources[0].transcription,
-      speakers: resources[0].speakers || {},
-      updated_at: resources[0].updated_at
+    // Return the most recent transcription if multiple exist
+    const sortedResources = resources.sort((a, b) => {
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
-  } catch (error) {
-    console.error("GET /api/tenants/by-slug/workspaces/scans/pain-points-transcription error:", error);
+
+    // Add cache control headers to prevent caching
+    return NextResponse.json(sortedResources[0], {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+  } catch (error: any) {
+    console.error("Error fetching transcription:", error);
     return NextResponse.json(
-      { error: "Failed to fetch pain points transcription" },
+      { error: error.message || "Failed to fetch transcription" },
       { status: 500 }
     );
   }
 }
 
-// POST: Save a transcription
+// POST endpoint to create or update a transcription
 export async function POST(req: NextRequest) {
   try {
-    // Check if container is available
+    const body = await req.json();
+    const { transcription, tenantSlug, workspaceId, scanId, lifecycleId } = body;
+
+    if (!transcription || !tenantSlug || !workspaceId || !scanId || !lifecycleId) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    // Check if container is initialized
     if (!container) {
-      console.error("Cosmos DB container not initialized");
       return NextResponse.json(
         { error: "Database connection not available" },
-        { status: 500 }
+        { status: 503 }
       );
     }
-    
-    const body = await req.json();
-    const { transcription, speakers, tenantSlug, workspaceId, scanId } = body;
-    
-    if (!transcription || typeof transcription !== 'string') {
-      console.error('Invalid request body:', body);
-      return NextResponse.json(
-        { error: 'Invalid request body. "transcription" field is required and must be a string.' },
-        { status: 400 }
-      );
-    }
-    
-    // Validate required IDs for saving to Cosmos DB
-    if (!tenantSlug || !workspaceId || !scanId) {
-      console.error('Missing required IDs for saving to Cosmos DB:', { tenantSlug, workspaceId, scanId });
-      return NextResponse.json(
-        { error: 'Missing tenant slug, workspace ID, or scan ID.' },
-        { status: 400 }
-      );
-    }
-    
-    await saveTranscriptionToCosmosDB(transcription, speakers, tenantSlug, workspaceId, scanId);
-    
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error saving transcription:', error);
-    return NextResponse.json(
-      { error: 'Failed to save transcription' },
-      { status: 500 }
-    );
-  }
-}
 
-/**
- * Save the transcription to Cosmos DB
- * @param transcription The transcription text to save
- * @param speakers The speakers mapping object
- * @param tenantSlug The tenant slug
- * @param workspaceId The workspace ID
- * @param scanId The scan ID
- */
-async function saveTranscriptionToCosmosDB(
-  transcription: string,
-  speakers: Record<string, string> = {},
-  tenantSlug: string, 
-  workspaceId: string, 
-  scanId: string
-): Promise<void> {
-  try {
-    // Check if container is available
-    if (!container) {
-      throw new Error("Cosmos DB container not initialized");
+    // Get tenant_id from tenant_slug
+    let tenant_id;
+    try {
+      tenant_id = await getTenantIdFromSlug(tenantSlug);
+    } catch (error) {
+      return NextResponse.json(
+        { error: "Failed to find tenant" },
+        { status: 404 }
+      );
     }
-    
-    // First, fetch the tenant record to get the tenant_id for partitioning
-    const tenantQuery = `SELECT * FROM c WHERE LOWER(c.slug) = @slug AND c.id = c.tenant_id`;
-    const { resources: tenantResources } = await container.items
+
+    // Query for existing transcription
+    const query = `
+      SELECT * FROM c 
+      WHERE c.type = "pain_point_transcription" 
+      AND c.tenant_slug = @tenantSlug
+      AND c.workspace_id = @workspaceId
+      AND c.scan_id = @scanId
+      AND c.lifecycle_id = @lifecycleId
+    `;
+
+    const { resources } = await container.items
       .query({
-        query: tenantQuery,
-        parameters: [{ name: "@slug", value: tenantSlug.toLowerCase() }],
-      })
-      .fetchAll();
-    
-    if (tenantResources.length === 0) {
-      throw new Error(`Tenant not found with slug: ${tenantSlug}`);
-    }
-    
-    const tenantId = tenantResources[0].id;
-    
-    // Check if a transcription already exists for this scan
-    const transcriptionQuery = `SELECT * FROM c WHERE c.type = "pain_points_transcription" AND c.scan_id = @scanId AND c.workspace_id = @workspaceId AND c.tenant_slug = @tenantSlug`;
-    const { resources: existingTranscriptions } = await container.items
-      .query({
-        query: transcriptionQuery,
+        query,
         parameters: [
-          { name: "@scanId", value: scanId },
+          { name: "@tenantSlug", value: tenantSlug },
           { name: "@workspaceId", value: workspaceId },
-          { name: "@tenantSlug", value: tenantSlug }
-        ],
+          { name: "@scanId", value: scanId },
+          { name: "@lifecycleId", value: lifecycleId }
+        ]
       })
       .fetchAll();
-    
-    if (existingTranscriptions.length > 0) {
-      // Update the existing transcription
-      const existingTranscription = existingTranscriptions[0];
-      existingTranscription.transcription = transcription;
-      existingTranscription.speakers = speakers;
-      existingTranscription.updated_at = new Date().toISOString();
-      
-      await container
-        .item(existingTranscription.id, tenantId)
-        .replace(existingTranscription);
+
+    const timestamp = new Date().toISOString();
+
+    if (resources.length > 0) {
+      // Update existing record
+      const existingItem = resources[0];
+      existingItem.transcription = transcription;
+      existingItem.updated_at = timestamp;
+
+      await container.item(existingItem.id, tenant_id).replace(existingItem);
+      return NextResponse.json({ 
+        success: true, 
+        message: "Transcription updated successfully",
+        id: existingItem.id
+      }, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
     } else {
-      // Create a new transcription document
-      const transcriptionDocument = {
-        id: uuidv4(),
-        tenant_id: tenantId,
+      // Create new record
+      const newId = uuidv4();
+      const newItem = {
+        id: newId,
+        tenant_id,
+        type: "pain_point_transcription",
         tenant_slug: tenantSlug,
         workspace_id: workspaceId,
         scan_id: scanId,
-        type: "pain_points_transcription",
-        transcription: transcription,
-        speakers: speakers,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        lifecycle_id: lifecycleId,
+        transcription,
+        created_at: timestamp,
+        updated_at: timestamp
       };
-      
-      await container.items.create(transcriptionDocument);
+
+      await container.items.create(newItem);
+      return NextResponse.json({ 
+        success: true, 
+        message: "Transcription created successfully",
+        id: newId
+      }, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
     }
-  } catch (error) {
-    console.error('Error saving transcription to Cosmos DB:', error);
-    throw error;
+  } catch (error: any) {
+    console.error("Error saving transcription:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to save transcription" },
+      { status: 500 }
+    );
   }
 }
 
-// DELETE: Delete a transcription
+// DELETE endpoint to remove a transcription
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
     const workspaceId = searchParams.get("workspace_id");
     const scanId = searchParams.get("scan_id");
+    const lifecycleId = searchParams.get("lifecycle_id");
 
-    if (!tenantSlug || !workspaceId || !scanId) {
+    if (!tenantSlug || !workspaceId || !scanId || !lifecycleId) {
       return NextResponse.json(
-        { error: "Missing tenant slug, workspace id, or scan id" },
+        { error: "Missing required parameters" },
         { status: 400 }
       );
     }
 
-    // First, fetch the tenant record to get the tenant_id for partitioning
-    const tenantQuery = `SELECT * FROM c WHERE LOWER(c.slug) = @slug AND c.id = c.tenant_id`;
-    const { resources: tenantResources } = await container.items
+    // Check if container is initialized
+    if (!container) {
+      return NextResponse.json(
+        { error: "Database connection not available" },
+        { status: 503 }
+      );
+    }
+
+    // Get tenant_id from tenant_slug
+    let tenant_id;
+    try {
+      const tenantQuery = `
+        SELECT * FROM c 
+        WHERE c.type = "tenant" 
+        AND LOWER(c.slug) = @slug 
+        AND c.id = c.tenant_id
+      `;
+      
+      const { resources: tenantResources } = await container.items
+        .query({
+          query: tenantQuery,
+          parameters: [{ name: "@slug", value: tenantSlug.toLowerCase() }],
+        })
+        .fetchAll();
+      
+      if (tenantResources.length === 0) {
+        return NextResponse.json(
+          { error: "Tenant not found" },
+          { status: 404 }
+        );
+      }
+      
+      tenant_id = tenantResources[0].id;
+    } catch (error) {
+      return NextResponse.json(
+        { error: "Failed to find tenant" },
+        { status: 500 }
+      );
+    }
+
+    // Query for the transcription record
+    const query = `
+      SELECT * FROM c 
+      WHERE c.type = "pain_point_transcription" 
+      AND c.tenant_slug = @tenantSlug
+      AND c.workspace_id = @workspaceId
+      AND c.scan_id = @scanId
+      AND c.lifecycle_id = @lifecycleId
+    `;
+
+    const { resources } = await container.items
       .query({
-        query: tenantQuery,
-        parameters: [{ name: "@slug", value: tenantSlug.toLowerCase() }],
+        query,
+        parameters: [
+          { name: "@tenantSlug", value: tenantSlug },
+          { name: "@workspaceId", value: workspaceId },
+          { name: "@scanId", value: scanId },
+          { name: "@lifecycleId", value: lifecycleId }
+        ]
       })
       .fetchAll();
-    
-    if (tenantResources.length === 0) {
+
+    if (resources.length === 0) {
       return NextResponse.json(
-        { error: "Tenant not found" },
+        { message: "No transcription found to delete" },
         { status: 404 }
       );
     }
-    
-    const tenantId = tenantResources[0].id;
 
-    // Query for the transcription document
-    const transcriptionQuery = `
-      SELECT * FROM c 
-      WHERE c.type = "pain_points_transcription" 
-      AND c.scan_id = @scanId 
-      AND c.workspace_id = @workspaceId 
-      AND c.tenant_slug = @tenantSlug
-    `;
-    
-    const { resources: transcriptions } = await container.items
-      .query({
-        query: transcriptionQuery,
-        parameters: [
-          { name: "@scanId", value: scanId },
-          { name: "@workspaceId", value: workspaceId },
-          { name: "@tenantSlug", value: tenantSlug },
-        ],
-      })
-      .fetchAll();
-
-    if (transcriptions.length === 0) {
-      return NextResponse.json(
-        { 
-          success: true,
-          message: "No transcription found to delete"
-        }
-      );
+    // Delete all matching records
+    for (const item of resources) {
+      await container.item(item.id, tenant_id).delete();
     }
-
-    // Delete the transcription
-    const transcription = transcriptions[0];
-    await container.item(transcription.id, tenantId).delete();
-    
-    console.log(`Deleted transcription with ID: ${transcription.id}`);
 
     return NextResponse.json({
       success: true,
-      message: "Transcription deleted successfully"
+      message: `Successfully deleted ${resources.length} transcription record(s)`
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
     });
-  } catch (error) {
-    console.error("DELETE /api/tenants/by-slug/workspaces/scans/pain-points-transcription error:", error);
+  } catch (error: any) {
+    console.error("Error deleting transcription:", error);
     return NextResponse.json(
-      { error: "Failed to delete transcription", details: error instanceof Error ? error.message : String(error) },
+      { error: error.message || "Failed to delete transcription" },
       { status: 500 }
     );
   }

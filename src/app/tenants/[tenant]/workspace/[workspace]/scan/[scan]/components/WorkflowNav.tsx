@@ -4,6 +4,7 @@ import React from 'react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Button from '@/components/Button';
+import Image from "next/image";
 
 type WorkflowStep = {
   name: string;
@@ -16,8 +17,8 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
   { name: "Lifecycles", slug: "lifecycles" },
   { name: "Stakeholders", slug: "stakeholders" },
   { name: "Strategic Objectives", slug: "strategic-objectives" },
-  { name: "Lifecycle Cost", slug: "lifecycle-cost" },
   { name: "Pain Points", slug: "pain-points" },
+  { name: "Lifecycle Cost", slug: "lifecycle-cost" },
   { name: "Scenario Planning", slug: "scenario-planning" },
 ];
 
@@ -51,7 +52,13 @@ export function useWorkflowNavigation() {
   };
 }
 
-export default function WorkflowNav({ isSidebar = false, scanData = null }: { isSidebar?: boolean, scanData?: any }) {
+interface WorkflowNavProps {
+  isSidebar?: boolean;
+  scanData?: any;
+  isCollapsed?: boolean; 
+}
+
+export default function WorkflowNav({ isSidebar = false, scanData = null, isCollapsed = false }: WorkflowNavProps) {
   const { basePath } = useWorkflowNavigation();
   const pathname = usePathname();
   
@@ -59,7 +66,7 @@ export default function WorkflowNav({ isSidebar = false, scanData = null }: { is
 
   return (
     <div>
-      {isSidebar && scanData && (
+      {isSidebar && scanData && !isCollapsed && (
         <div className="mb-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold text-gray-700">
@@ -77,9 +84,9 @@ export default function WorkflowNav({ isSidebar = false, scanData = null }: { is
               {scanData.status}
             </span>
           </div>
-          <p className="mt-1 text-xs text-gray-500">
+          {/* <p className="mt-1 text-xs text-gray-500">
             Created: {new Date(scanData.created_at).toLocaleString()}
-          </p>
+          </p> */}
           {scanData.description && (
             <p className="mt-1 text-xs text-gray-500">
               {scanData.description}
@@ -89,7 +96,6 @@ export default function WorkflowNav({ isSidebar = false, scanData = null }: { is
       )}
       
       <nav className={`${isSidebar ? 'flex flex-col space-y-2' : 'flex overflow-x-auto pb-2'}`}>
-        {/* Remove the Overview link, only show workflow steps */}
         {WORKFLOW_STEPS.map((step) => {
           const href = `${basePath}/${step.slug}`;
           const isActive = pathname.includes(step.slug);
@@ -98,13 +104,36 @@ export default function WorkflowNav({ isSidebar = false, scanData = null }: { is
             <Link
               key={step.slug}
               href={href}
-              className={`px-4 py-2 ${isSidebar ? 'w-full' : 'mx-1'} whitespace-nowrap rounded-md text-sm font-medium transition-colors ${
+              className={`px-4 py-2 ${isSidebar ? 'w-full' : 'mx-1'} whitespace-nowrap rounded-md text-sm font-medium transition-colors flex items-center ${
                 isActive
                   ? "bg-blue-100 text-blue-800"
                   : "text-gray-600 hover:bg-gray-100"
-              }`}
+              } ${isCollapsed ? 'justify-center' : ''}`}
             >
-              {step.name}
+              <div className={`relative flex items-center justify-center ${isCollapsed ? '' : 'mr-2'}`}>
+                <div 
+                  className={`rounded-full p-2 flex items-center justify-center`} 
+                  style={{ 
+                    backgroundColor: isActive ? "#7A2BF7" : "#ffffff",
+                    border: "1px solid #E5E7EB",
+                    width: "32px",
+                    height: "32px"
+                  }}
+                >
+                  <Image 
+                    src={`/assets/icons/nav-icons/${step.slug}.svg`} 
+                    alt={step.name} 
+                    width={22} 
+                    height={22}
+                    style={{ 
+                      filter: isActive 
+                        ? "brightness(0) invert(1)"
+                        : "invert(27%) sepia(85%) saturate(3675%) hue-rotate(254deg) brightness(97%) contrast(93%)"
+                    }}
+                  />
+                </div>
+              </div>
+              {!isCollapsed && step.name}
             </Link>
           );
         })}
@@ -143,7 +172,29 @@ export function WorkflowNavButtons() {
                 <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             }
+            className="flex items-center"
           >
+            <div className="relative flex items-center justify-center mr-2 ml-2">
+              <div 
+                className="rounded-full flex items-center justify-center" 
+                style={{ 
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #E5E7EB",
+                  width: "32px",
+                  height: "32px"
+                }}
+              >
+                <Image 
+                  src={`/assets/icons/nav-icons/${WORKFLOW_STEPS[currentStep - 1].slug}.svg`} 
+                  alt={WORKFLOW_STEPS[currentStep - 1].name} 
+                  width={22} 
+                  height={22}
+                  style={{ 
+                    filter: "invert(27%) sepia(85%) saturate(3675%) hue-rotate(254deg) brightness(97%) contrast(93%)"
+                  }}
+                />
+              </div>
+            </div>
             {WORKFLOW_STEPS[currentStep - 1].name}
           </Button>
         </Link>
@@ -162,8 +213,29 @@ export function WorkflowNavButtons() {
                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
               </svg>
             }
-            className="flex flex-row-reverse"
+            className="flex flex-row-reverse items-center"
           >
+            <div className="relative flex items-center justify-center mr-2 ml-2">
+              <div 
+                className="rounded-full flex items-center justify-center" 
+                style={{ 
+                  backgroundColor: "#7A2BF7",
+                  border: "1px solid #7A2BF7",
+                  width: "32px",
+                  height: "32px"
+                }}
+              >
+                <Image 
+                  src={`/assets/icons/nav-icons/${WORKFLOW_STEPS[currentStep + 1].slug}.svg`} 
+                  alt={WORKFLOW_STEPS[currentStep + 1].name} 
+                  width={22} 
+                  height={22}
+                  style={{ 
+                    filter: "brightness(0) invert(1)"
+                  }}
+                />
+              </div>
+            </div>
             {WORKFLOW_STEPS[currentStep + 1].name}
           </Button>
         </Link>

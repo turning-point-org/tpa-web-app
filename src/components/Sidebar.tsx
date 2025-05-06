@@ -10,12 +10,17 @@ import WorkflowNav from "@/app/tenants/[tenant]/workspace/[workspace]/scan/[scan
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { AuthenticationError } from "@/utils/api";
 
-export default function Sidebar() {
+interface SidebarProps {
+  onCollapsedChange?: (collapsed: boolean) => void;
+}
+
+export default function Sidebar({ onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
   const isScanPage = pathname?.includes("/scan/");
   const [scanData, setScanData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useUser();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     async function fetchScanData() {
@@ -64,31 +69,56 @@ export default function Sidebar() {
     fetchScanData();
   }, [pathname, isScanPage, user]);
 
+  const toggleCollapse = () => {
+    const newCollapsedState = !isCollapsed;
+    setIsCollapsed(newCollapsedState);
+    // Notify parent component if callback exists
+    if (onCollapsedChange) {
+      onCollapsedChange(newCollapsedState);
+    }
+  };
+
   return (
-    <aside className="fixed top-0 left-0 w-80 h-screen flex flex-col bg-[var(--color-secondary)] border-r border-[var(--color-border)] p-6 shadow-sm z-[10]">
+    <aside className={`fixed top-0 left-0 ${isCollapsed ? 'w-20' : 'w-80'} h-screen flex flex-col bg-[var(--color-secondary)] border-r border-[var(--color-border)] ${isCollapsed ? 'p-2' : 'p-6'} shadow-sm z-[10] transition-all duration-300`}>
       <div className="flex-1 scrollable overflow-y-auto">
-        <Link href="/" className="block mb-10">
-          <Image
-            src="/turning-point-logo.svg"
-            alt="TurningPoint Logo"
-            width={150}
-            height={40}
-            priority
-          />
-        </Link>
+        {!isCollapsed && (
+          <Link href="/" className="block mb-10">
+            <Image
+              src="/turning-point-logo.svg"
+              alt="TurningPoint Logo"
+              width={150}
+              height={40}
+              priority
+            />
+          </Link>
+        )}
         <nav>
-          <TenantSwitcher />
+          {!isCollapsed && <TenantSwitcher />}
         </nav>
         {isScanPage && !isLoading && (
-          <div className="mt-8">
-            <h2 className="text-sm font-semibold text-gray-500 mb-4">Workflow Steps</h2>
-            <WorkflowNav isSidebar scanData={scanData} />
+          <div className={`${isCollapsed ? 'mt-4' : 'mt-8'}`}>
+            <WorkflowNav isSidebar scanData={scanData} isCollapsed={isCollapsed} />
           </div>
         )}
       </div>
       <div className="mt-4">
-        <UserProfile />
+        <UserProfile isCollapsed={isCollapsed} />
       </div>
+      
+      <button
+        onClick={toggleCollapse}
+        className="p-2 bg-white rounded-full hover:bg-gray-100 transition-colors flex-shrink-0 shadow-sm absolute top-1/2 -right-3 transform -translate-y-1/2 z-20"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className={`h-5 w-5 transform ${isCollapsed ? '' : 'rotate-180'}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="#291841"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
     </aside>
   );
 } 

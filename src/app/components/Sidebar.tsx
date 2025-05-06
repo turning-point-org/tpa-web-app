@@ -29,7 +29,7 @@ export default function Sidebar() {
       </div>
       {isScanPage && (
         <div className="mt-8">
-          <h2 className="text-sm font-semibold text-gray-500 mb-4">Workflow Steps</h2>
+          {/* <h2 className="text-sm font-semibold text-gray-500 mb-4">Workflow Steps</h2> */}
           <WorkflowNav isSidebar />
         </div>
       )}

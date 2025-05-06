@@ -214,6 +214,7 @@ export async function POST(req: NextRequest) {
         name: name,
         description: description || "",
         position: nextPosition,
+        interview_status: "required",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -479,13 +480,77 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        // Get the old group name before updating
+        const oldGroupName = lifecycle.processes.process_categories[category_index].process_groups[group_index].name;
+        const newGroupName = group.name;
+
         // Update the group
-        lifecycle.processes.process_categories[category_index].process_groups[group_index].name = group.name;
+        lifecycle.processes.process_categories[category_index].process_groups[group_index].name = newGroupName;
         lifecycle.processes.process_categories[category_index].process_groups[group_index].description = group.description || "";
         
         // Update the lifecycle in the database
         lifecycle.updated_at = new Date().toISOString();
         await container.item(lifecycle.id, tenant_id).replace(lifecycle);
+
+        // Only update pain point summary if the group name has changed
+        if (oldGroupName !== newGroupName) {
+          try {
+            // Query for the pain point summary record
+            const painPointSummaryQuery = `
+              SELECT * FROM c 
+              WHERE c.type = "pain_point_summary" 
+              AND c.tenant_slug = @tenant_slug
+              AND c.workspace_id = @workspace_id
+              AND c.scan_id = @scan_id
+              AND c.lifecycle_id = @lifecycle_id
+            `;
+            
+            const { resources: painPointSummaries } = await container.items
+              .query({
+                query: painPointSummaryQuery,
+                parameters: [
+                  { name: "@tenant_slug", value: tenant_slug },
+                  { name: "@workspace_id", value: workspace_id },
+                  { name: "@scan_id", value: scan_id },
+                  { name: "@lifecycle_id", value: lifecycle_id }
+                ]
+              })
+              .fetchAll();
+            
+            // If pain point summary exists, update any references to the old group name
+            if (painPointSummaries && painPointSummaries.length > 0) {
+              const painPointSummary = painPointSummaries[0];
+              let updated = false;
+              
+              // Check for both old and new property names
+              if (painPointSummary.pain_points && Array.isArray(painPointSummary.pain_points)) {
+                for (const painPoint of painPointSummary.pain_points) {
+                  if (painPoint.assigned_process_group === oldGroupName) {
+                    painPoint.assigned_process_group = newGroupName;
+                    updated = true;
+                  }
+                }
+              } else if (painPointSummary.painPoints && Array.isArray(painPointSummary.painPoints)) {
+                for (const painPoint of painPointSummary.painPoints) {
+                  if (painPoint.assigned_process_group === oldGroupName) {
+                    painPoint.assigned_process_group = newGroupName;
+                    updated = true;
+                  }
+                }
+              }
+              
+              // If any pain points were updated, save the changes
+              if (updated) {
+                painPointSummary.updated_at = new Date().toISOString();
+                await container.item(painPointSummary.id, tenant_id).replace(painPointSummary);
+                console.log(`Updated ${oldGroupName} to ${newGroupName} in pain point summary for lifecycle ${lifecycle_id}`);
+              }
+            }
+          } catch (error) {
+            console.error(`Error updating process group name in pain points: ${error}`);
+            // Continue with the response, don't fail the main operation if this part fails
+          }
+        }
 
         return NextResponse.json({
           success: true,
@@ -814,11 +879,12 @@ export async function PUT(req: NextRequest) {
 
     const existingLifecycle = lifecycles[0];
     
-    // Update the lifecycle
+    // Update the lifecycle, preserving interview_status
     const updatedLifecycle = {
       ...existingLifecycle,
       name,
       description: description || existingLifecycle.description,
+      interview_status: existingLifecycle.interview_status || "required",
       updated_at: new Date().toISOString()
     };
     
@@ -834,15 +900,23 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// New endpoint to update positions
+// New endpoint to update positions OR other specific fields via actions
 export async function PATCH(req: NextRequest) {
   try {
     const requestBody = await req.json();
-    const { tenant_slug, workspace_id, scan_id, positions } = requestBody;
+    const { 
+      tenant_slug, 
+      workspace_id, 
+      scan_id, 
+      positions, 
+      action, 
+      lifecycle_id 
+    } = requestBody;
 
-    if (!tenant_slug || !workspace_id || !scan_id || !positions || !Array.isArray(positions)) {
+    // Basic validation
+    if (!tenant_slug || !workspace_id || !scan_id) {
       return NextResponse.json(
-        { error: "Missing required fields or positions is not an array" },
+        { error: "Missing tenant_slug, workspace_id, or scan_id" },
         { status: 400 }
       );
     }
@@ -855,7 +929,7 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // Find the tenant ID from the tenant slug for partition key
+    // Find the tenant ID from the tenant slug for partition key (fetch early for both branches)
     const tenantQuery = `
       SELECT * FROM c 
       WHERE LOWER(c.slug) = @tenant_slug 
@@ -878,20 +952,23 @@ export async function PATCH(req: NextRequest) {
 
     const tenant_id = tenants[0].id;
 
-    // Update position for each lifecycle
-    const updatedLifecycles = [];
-    for (const posItem of positions) {
-      // Check if container is still available (defensive programming)
-      if (!container) {
-        throw new Error("Database connection not available");
+    // Handle different PATCH scenarios based on presence of 'action'
+    if (action) {
+      // --- Action-based update (e.g., interview status) ---
+      if (!lifecycle_id) {
+        return NextResponse.json(
+          { error: "Missing lifecycle_id for action-based update" },
+          { status: 400 }
+        );
       }
-      
+
+      // Find the specific lifecycle
       const lifecycleQuery = `
         SELECT * FROM c 
         WHERE c.id = @lifecycle_id 
         AND c.type = "lifecycle"
-        AND c.scan_id = @scan_id 
-        AND c.workspace_id = @workspace_id 
+        AND c.scan_id = @scan_id
+        AND c.workspace_id = @workspace_id
         AND c.tenant_slug = @tenant_slug
       `;
       
@@ -899,7 +976,7 @@ export async function PATCH(req: NextRequest) {
         .query({
           query: lifecycleQuery,
           parameters: [
-            { name: "@lifecycle_id", value: posItem.id },
+            { name: "@lifecycle_id", value: lifecycle_id },
             { name: "@scan_id", value: scan_id },
             { name: "@workspace_id", value: workspace_id },
             { name: "@tenant_slug", value: tenant_slug },
@@ -907,33 +984,110 @@ export async function PATCH(req: NextRequest) {
         })
         .fetchAll();
 
-      if (lifecycles && lifecycles.length > 0) {
-        const lifecycle = lifecycles[0];
-        
-        // Only update if position actually changed
-        if (lifecycle.position !== posItem.position) {
-          lifecycle.position = posItem.position;
-          lifecycle.updated_at = new Date().toISOString();
-          
-          // Check if container is still available (defensive programming)
-          if (!container) {
-            throw new Error("Database connection not available");
+      if (!lifecycles || lifecycles.length === 0) {
+        return NextResponse.json(
+          { error: "Lifecycle not found for update" },
+          { status: 404 }
+        );
+      }
+      const lifecycle = lifecycles[0];
+
+      switch (action) {
+        case 'update_interview_status': {
+          const { status } = requestBody;
+          if (!status || (status !== 'required' && status !== 'complete')) {
+            return NextResponse.json(
+              { error: "Invalid interview status. Must be 'required' or 'complete'." },
+              { status: 400 }
+            );
           }
+          lifecycle.interview_status = status;
+          lifecycle.updated_at = new Date().toISOString();
+          await container.item(lifecycle.id, tenant_id).replace(lifecycle);
+          return NextResponse.json({
+            success: true,
+            message: "Interview status updated successfully",
+            interview_status: status
+          });
+        }
+        // Add other PATCH actions here if needed in the future
+        default:
+          return NextResponse.json(
+            { error: `Unsupported action: ${action}` },
+            { status: 400 }
+          );
+      }
+    } else if (positions) {
+      // --- Position update (original PATCH logic) ---
+      if (!Array.isArray(positions)) {
+        return NextResponse.json(
+          { error: "Positions field must be an array for reordering" },
+          { status: 400 }
+        );
+      }
+
+      // Update position for each lifecycle in the positions array
+      const updatedLifecycles: any[] = [];
+      for (const posItem of positions) {
+        // Check if container is still available (defensive programming)
+        if (!container) {
+          throw new Error("Database connection not available");
+        }
+        
+        const lifecycleQuery = `
+          SELECT * FROM c 
+          WHERE c.id = @lifecycle_id 
+          AND c.type = "lifecycle"
+          AND c.scan_id = @scan_id 
+          AND c.workspace_id = @workspace_id 
+          AND c.tenant_slug = @tenant_slug
+        `;
+        
+        const { resources: lifecycles } = await container.items
+          .query({
+            query: lifecycleQuery,
+            parameters: [
+              { name: "@lifecycle_id", value: posItem.id },
+              { name: "@scan_id", value: scan_id },
+              { name: "@workspace_id", value: workspace_id },
+              { name: "@tenant_slug", value: tenant_slug },
+            ],
+          })
+          .fetchAll();
+
+        if (lifecycles && lifecycles.length > 0) {
+          const lifecycle = lifecycles[0];
           
-          const { resource: updatedLifecycle } = await container.item(lifecycle.id, tenant_id).replace(lifecycle);
-          updatedLifecycles.push(updatedLifecycle);
-        } else {
-          updatedLifecycles.push(lifecycle);
+          // Only update if position actually changed
+          if (lifecycle.position !== posItem.position) {
+            lifecycle.position = posItem.position;
+            lifecycle.updated_at = new Date().toISOString();
+            
+            // Check if container is still available (defensive programming)
+            if (!container) {
+              throw new Error("Database connection not available");
+            }
+            
+            const { resource: updatedLifecycle } = await container.item(lifecycle.id, tenant_id).replace(lifecycle);
+            updatedLifecycles.push(updatedLifecycle);
+          } else {
+            updatedLifecycles.push(lifecycle);
+          }
         }
       }
-    }
 
-    // Return success with the IDs of updated items but not the full items
-    // to avoid triggering more position normalization
-    return NextResponse.json({
-      success: true,
-      updated: updatedLifecycles.map(lc => lc.id)
-    });
+      // Return success for position updates
+      return NextResponse.json({
+        success: true,
+        updated: updatedLifecycles.map(lc => lc.id)
+      });
+    } else {
+      // --- Invalid PATCH request (neither action nor positions provided) --- 
+      return NextResponse.json(
+        { error: "Invalid PATCH request. Provide either 'positions' array or an 'action' with 'lifecycle_id'." },
+        { status: 400 }
+      );
+    }
   } catch (error: any) {
     console.error("PATCH /api/tenants/by-slug/workspaces/scans/lifecycles error:", error);
     return NextResponse.json(

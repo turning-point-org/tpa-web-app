@@ -7,9 +7,10 @@ interface ModalProps {
   onClose: () => void;
   children: React.ReactNode;
   maxWidth?: string;
+  title?: string;
 }
 
-export default function Modal({ isOpen, onClose, children, maxWidth = "md" }: ModalProps) {
+export default function Modal({ isOpen, onClose, children, maxWidth = "md", title }: ModalProps) {
   if (!isOpen) return null;
   
   // Map maxWidth to appropriate Tailwind classes
@@ -36,8 +37,26 @@ export default function Modal({ isOpen, onClose, children, maxWidth = "md" }: Mo
         className="fixed inset-0 bg-black opacity-50" 
         onClick={onClose}
       ></div>
-      <div className={`relative z-10 bg-white p-6 rounded shadow-lg ${maxWidthClass} w-full max-h-[90vh] overflow-y-auto`}>
-        {children}
+      <div className={`relative z-10 bg-white p-6 rounded-lg shadow-xl ${maxWidthClass} w-full max-h-[90vh] flex flex-col`}>
+        {/* Optional Title and Close Button */}
+        {title && (
+          <div className="flex justify-between items-center pb-3 mb-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+            <button 
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+              aria-label="Close modal"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+        {/* Modal Content */}
+        <div className="flex-grow overflow-auto max-h-[90vh] p-1">
+          {children}
+        </div>
       </div>
     </div>
   );

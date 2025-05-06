@@ -42,10 +42,13 @@ const WORKFLOW_STEPS = [
   { name: "Lifecycles", slug: "lifecycles" },
   { name: "Stakeholders", slug: "stakeholders" },
   { name: "Strategic Objectives", slug: "strategic-objectives" },
-  { name: "Lifecycle Cost", slug: "lifecycle-cost" },
   { name: "Pain Points", slug: "pain-points" },
+  { name: "Lifecycle Cost", slug: "lifecycle-cost" },
   { name: "Scenario Planning", slug: "scenario-planning" },
 ];
+
+// Add a type for the active page state
+type ActivePage = 'dashboard' | 'tenant' | 'workspace' | 'scan' | 'scanStep' | 'lifecycle' | 'painPointInterview';
 
 export default function Breadcrumbs() {
   const pathname = usePathname();
@@ -54,7 +57,7 @@ export default function Breadcrumbs() {
   const [scan, setScan] = useState<Scan | null>(null);
   const [scanStep, setScanStep] = useState<string | null>(null);
   const [lifecycle, setLifecycle] = useState<Lifecycle | null>(null);
-  const [activePage, setActivePage] = useState<'dashboard' | 'tenant' | 'workspace' | 'scan' | 'scanStep' | 'lifecycle'>('dashboard');
+  const [activePage, setActivePage] = useState<ActivePage>('dashboard');
   const { user } = useUser();
 
   const fetchTenant = async (slug: string): Promise<Tenant | null> => {
@@ -158,8 +161,11 @@ export default function Breadcrumbs() {
       } else if (pathParts.length === 6 && pathParts[0] === 'tenants' && pathParts[4] === 'scan') {
         setActivePage('scan');
       } else if (pathParts.length === 8 && pathParts[0] === 'tenants' && pathParts[6] === 'lifecycles') {
-        // This is a specific lifecycle page
+        // This is a specific lifecycle page (from /lifecycles/ path)
         setActivePage('lifecycle');
+      } else if (pathParts.length === 8 && pathParts[0] === 'tenants' && pathParts[6] === 'pain-points') {
+        // This is a specific pain point interview page
+        setActivePage('painPointInterview');
       } else if (pathParts.length >= 7 && pathParts[0] === 'tenants' && pathParts[4] === 'scan') {
         setActivePage('scanStep');
       }
@@ -185,8 +191,8 @@ export default function Breadcrumbs() {
               setScan(scanData);
             }
             
-            // Check if we're on a lifecycle detail page
-            if (pathParts.length >= 8 && pathParts[6] === 'lifecycles') {
+            // Check if we're on a lifecycle detail page (from /lifecycles/ path)
+            if (pathParts.length === 8 && pathParts[6] === 'lifecycles') {
               const lifecycleId = pathParts[7];
               const lifecycleData = await fetchLifecycle(tenantSlug, workspaceId, scanId, lifecycleId);
               if (lifecycleData) {
@@ -194,6 +200,16 @@ export default function Breadcrumbs() {
               }
               // Set scanStep to "Lifecycles" to show it in the breadcrumb
               setScanStep("Lifecycles");
+            }
+            // Check if we're on a pain point interview page (from /pain-points/ path)
+            else if (pathParts.length === 8 && pathParts[6] === 'pain-points') {
+              const lifecycleId = pathParts[7];
+              const lifecycleData = await fetchLifecycle(tenantSlug, workspaceId, scanId, lifecycleId);
+              if (lifecycleData) {
+                setLifecycle(lifecycleData);
+              }
+              // Set scanStep to "Pain Points" to show it in the breadcrumb
+              setScanStep("Pain Points");
             }
             // Check if there's a scan step in the URL (pathParts[6])
             else if (pathParts.length >= 7) {
@@ -282,7 +298,7 @@ export default function Breadcrumbs() {
           <>
             <li className="mx-2">/</li>
             <li>
-              {activePage === 'scanStep' || (activePage !== 'lifecycle' && scanStep !== 'Lifecycles') ? (
+              {activePage === 'scanStep' || (activePage !== 'lifecycle' && activePage !== 'painPointInterview') ? (
                 <span className="text-gray-500">
                   {scanStep}
                 </span>
@@ -297,7 +313,7 @@ export default function Breadcrumbs() {
             </li>
           </>
         )}
-        {lifecycle && scanStep === "Lifecycles" && (
+        {lifecycle && (scanStep === "Lifecycles" || scanStep === "Pain Points") && (
           <>
             <li className="mx-2">/</li>
             <li>
