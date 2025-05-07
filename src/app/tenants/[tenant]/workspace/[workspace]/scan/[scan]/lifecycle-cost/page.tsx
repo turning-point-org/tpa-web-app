@@ -7,7 +7,7 @@ import Button from "@/components/Button";
 interface CostMetrics {
   processes: number;
   painPoints: number;
-  scoring: number;
+  points: number; // Renamed from scoring
   costToServe: number;
   industryBenchmark: number;
   delta: number;
@@ -21,6 +21,21 @@ interface Lifecycle {
   costMetrics: CostMetrics;
 }
 
+interface ProcessCategory {
+  name: string;
+  description?: string;
+  process_groups?: any[];
+}
+
+interface PainPoint {
+  id: string;
+  name: string;
+  description: string;
+  assigned_process_group?: string;
+  cost_to_serve?: number;
+  [key: string]: any; // For strategic objective properties (so_*)
+}
+
 export default function LifecycleCostPage() {
   const [lifecycles, setLifecycles] = useState<Lifecycle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +44,7 @@ export default function LifecycleCostPage() {
   const router = useRouter();
 
   useEffect(() => {
-    async function fetchLifecycleCosts() {
+    async function fetchLifecycleData() {
       try {
         const tenantSlug = params.tenant as string;
         const workspaceId = params.workspace as string;
@@ -39,25 +54,110 @@ export default function LifecycleCostPage() {
           throw new Error("Missing required parameters");
         }
 
-        const response = await fetch(
-          `/api/tenants/by-slug/workspaces/scans/lifecycle-costs?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`
+        // Fetch all lifecycles first
+        const lifecyclesResponse = await fetch(
+          `/api/tenants/by-slug/workspaces/scans/lifecycles?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`
         );
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch lifecycle costs");
+        if (!lifecyclesResponse.ok) {
+          throw new Error("Failed to fetch lifecycles");
         }
 
-        const data = await response.json();
-        setLifecycles(data);
+        const lifecyclesData = await lifecyclesResponse.json();
+        
+        // For each lifecycle, fetch detailed data and pain points
+        const enhancedLifecycles = await Promise.all(
+          lifecyclesData.map(async (lifecycle: any) => {
+            // Fetch detailed lifecycle data for process groups
+            const lifecycleDetailResponse = await fetch(
+              `/api/tenants/by-slug/workspaces/scans/lifecycles?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycle.id}`
+            );
+            
+            let processCount = 0;
+            let processCategories: ProcessCategory[] = [];
+            
+            if (lifecycleDetailResponse.ok) {
+              const data = await lifecycleDetailResponse.json();
+              const lifecycleData = Array.isArray(data) ? data.find(lc => lc.id === lifecycle.id) : data;
+              
+              if (lifecycleData?.processes?.process_categories) {
+                processCategories = lifecycleData.processes.process_categories;
+                
+                // Count process groups
+                processCount = processCategories.reduce((count, category) => {
+                  return count + (category.process_groups?.length || 0);
+                }, 0);
+              }
+            }
+            
+            // Fetch pain points for this lifecycle
+            const painPointsResponse = await fetch(
+              `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycle.id}`
+            );
+            
+            let painPoints: PainPoint[] = [];
+            let costToServe = 0;
+            let totalPoints = 0;
+            
+            if (painPointsResponse.ok) {
+              const painPointsData = await painPointsResponse.json();
+              painPoints = painPointsData.pain_points || [];
+              
+              // Filter out pain points with "Unassigned" process group
+              const assignedPainPoints = painPoints.filter(
+                point => point.assigned_process_group && point.assigned_process_group !== "Unassigned"
+              );
+              
+              // Calculate cost to serve
+              costToServe = assignedPainPoints.reduce((sum, point) => {
+                return sum + (point.cost_to_serve || 0);
+              }, 0);
+              
+              // Calculate total points from strategic objectives
+              totalPoints = assignedPainPoints.reduce((sum, point) => {
+                let pointScore = 0;
+                Object.entries(point).forEach(([key, value]) => {
+                  if (key.startsWith('so_') && typeof value === 'number') {
+                    pointScore += value;
+                  }
+                });
+                return sum + pointScore;
+              }, 0);
+            }
+            
+            // Use hardcoded industry benchmark
+            const industryBenchmark = 300000;
+            
+            // Calculate delta (difference between cost to serve and industry benchmark)
+            const delta = industryBenchmark - costToServe;
+            
+            return {
+              id: lifecycle.id,
+              name: lifecycle.name,
+              description: lifecycle.description,
+              position: lifecycle.position || 0,
+              costMetrics: {
+                processes: processCount,
+                painPoints: painPoints.filter(p => p.assigned_process_group && p.assigned_process_group !== "Unassigned").length,
+                points: totalPoints,
+                costToServe: costToServe,
+                industryBenchmark: industryBenchmark,
+                delta: delta
+              }
+            };
+          })
+        );
+        
+        setLifecycles(enhancedLifecycles);
       } catch (err) {
-        console.error("Error fetching lifecycle costs:", err);
+        console.error("Error fetching lifecycle data:", err);
         setError(err instanceof Error ? err.message : "An unknown error occurred");
       } finally {
         setLoading(false);
       }
     }
 
-    fetchLifecycleCosts();
+    fetchLifecycleData();
   }, [params]);
 
   // Helper function to format currency
@@ -108,7 +208,7 @@ export default function LifecycleCostPage() {
                         <th className="py-3 px-2 text-left">Lifecycle</th>
                         <th className="py-3 px-2 text-center">Processes</th>
                         <th className="py-3 px-2 text-center">Pain Points</th>
-                        <th className="py-3 px-2 text-center">Scoring</th>
+                        <th className="py-3 px-2 text-center">Points</th>
                         <th className="py-3 px-2 text-center">Cost to Serve</th>
                         <th className="py-3 px-2 text-center">Industry Benchmark</th>
                         <th className="py-3 px-2 text-center">Delta</th>
@@ -119,10 +219,10 @@ export default function LifecycleCostPage() {
                         <td className="py-4 px-2 text-left font-medium">{lifecycle.name}</td>
                         <td className="py-4 px-2 text-center">{lifecycle.costMetrics.processes}</td>
                         <td className="py-4 px-2 text-center">{lifecycle.costMetrics.painPoints}</td>
-                        <td className="py-4 px-2 text-center">{lifecycle.costMetrics.scoring}</td>
+                        <td className="py-4 px-2 text-center">{lifecycle.costMetrics.points}</td>
                         <td className="py-4 px-2 text-center text-gray-800">-{formatCurrency(lifecycle.costMetrics.costToServe)}</td>
                         <td className="py-4 px-2 text-center text-gray-800">-{formatCurrency(lifecycle.costMetrics.industryBenchmark)}</td>
-                        <td className={`py-4 px-2 text-center font-medium ${lifecycle.costMetrics.delta > 0 ? 'text-purple-600' : 'text-green-600'}`}>
+                        <td className={`py-4 px-2 text-center font-medium ${lifecycle.costMetrics.delta > 0 ? 'text-green-600' : 'text-purple-600'}`}>
                           {lifecycle.costMetrics.delta > 0 ? '+' : ''}{formatCurrency(lifecycle.costMetrics.delta)}
                         </td>
                       </tr>
