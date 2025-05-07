@@ -118,12 +118,10 @@ Please follow these instructions:
     {
       "name": "Category Name",
       "description": "Brief description of this category",
-      "score": 0,
       "process_groups": [
         {
           "name": "Process Group Name",
-          "description": "Description of what this process group entails",
-          "score": 0
+          "description": "Description of what this process group entails"
         }
       ]
     }
@@ -131,7 +129,6 @@ Please follow these instructions:
 }
 
 Generate between 5-7 process categories, each containing 3-7 process groups that make the most sense for this lifecycle.
-Each category and process group should include a "score" attribute initialized to 0.
 Ensure your response is ONLY the valid JSON object, nothing else.
 `;
 
@@ -288,11 +285,6 @@ function validateProcessesJson(data: any): { valid: boolean; error?: string } {
         };
       }
 
-      if (typeof category.score !== 'number') {
-        // Initialize score to 0 if missing
-        category.score = 0;
-      }
-
       if (!Array.isArray(category.process_groups)) {
         return { 
           valid: false, 
@@ -314,11 +306,6 @@ function validateProcessesJson(data: any): { valid: boolean; error?: string } {
             valid: false, 
             error: "Process group missing valid description property" 
           };
-        }
-
-        if (typeof group.score !== 'number') {
-          // Initialize score to 0 if missing
-          group.score = 0;
         }
       }
     }

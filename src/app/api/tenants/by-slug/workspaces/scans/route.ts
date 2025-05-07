@@ -263,6 +263,7 @@ export async function DELETE(req: NextRequest) {
     const tenantSlug = searchParams.get("slug");
     const workspaceId = searchParams.get("workspace_id");
     const scanId = searchParams.get("id");
+    const deleteRelatedItems = searchParams.get("delete_related_items") === "true";
 
     if (!tenantSlug || !workspaceId || !scanId) {
       return NextResponse.json(
@@ -301,42 +302,50 @@ export async function DELETE(req: NextRequest) {
     
     const scan = resources[0];
     
-    // First, delete all related items that have this scan_id
-    const relatedItemsQuery = `SELECT * FROM c WHERE c.scan_id = @scan_id AND c.workspace_id = @workspace_id AND c.tenant_slug = @tenant_slug`;
-    const { resources: relatedItems } = await container.items
-      .query({
-        query: relatedItemsQuery,
-        parameters: [
-          { name: "@scan_id", value: scanId },
-          { name: "@workspace_id", value: workspaceId },
-          { name: "@tenant_slug", value: tenantSlug },
-        ],
-      })
-      .fetchAll();
-    
-    // Delete all related items
-    const deletionPromises = relatedItems.map(item => 
-      container?.item(item.id, item.tenant_id).delete()
-    );
-    
-    await Promise.all(deletionPromises);
-    
-    // Also delete all chunks from the vector database (RAG container)
+    let relatedItemsCount = 0;
     let vectorDbDeleteSuccess = false;
-    try {
-      await deleteAllScanChunks(scanId);
-      vectorDbDeleteSuccess = true;
-    } catch (vectorDbError) {
-      console.error("Error deleting vector database chunks:", vectorDbError);
-      // Continue with deleting the scan even if vector DB deletion fails
+    
+    // Delete all related items if requested or by default
+    if (deleteRelatedItems) {
+      // First, delete all related items that have this scan_id in the main container
+      const relatedItemsQuery = `SELECT * FROM c WHERE c.scan_id = @scan_id AND c.workspace_id = @workspace_id AND c.tenant_slug = @tenant_slug`;
+      const { resources: relatedItems } = await container.items
+        .query({
+          query: relatedItemsQuery,
+          parameters: [
+            { name: "@scan_id", value: scanId },
+            { name: "@workspace_id", value: workspaceId },
+            { name: "@tenant_slug", value: tenantSlug },
+          ],
+        })
+        .fetchAll();
+      
+      // Delete all related items
+      const deletionPromises = relatedItems.map(item => 
+        container?.item(item.id, item.tenant_id).delete()
+      );
+      
+      await Promise.all(deletionPromises);
+      relatedItemsCount = relatedItems.length;
+      
+      // Also delete all chunks from the vector database (RAG container)
+      try {
+        await deleteAllScanChunks(scanId);
+        vectorDbDeleteSuccess = true;
+      } catch (vectorDbError) {
+        console.error("Error deleting vector database chunks:", vectorDbError);
+        // Continue with deleting the scan even if vector DB deletion fails
+      }
     }
     
-    // Then delete the scan itself
+    // Always delete the scan itself
     await container.item(scan.id, scan.tenant_id).delete();
     
     return NextResponse.json({ 
       success: true,
-      message: `Deleted scan, ${relatedItems.length} related items, and ${vectorDbDeleteSuccess ? 'all vector embeddings' : 'failed to delete vector embeddings'}`
+      message: deleteRelatedItems 
+        ? `Deleted scan, ${relatedItemsCount} related items, and ${vectorDbDeleteSuccess ? 'all vector embeddings' : 'failed to delete vector embeddings'}`
+        : `Deleted scan only. Related items and vector embeddings were preserved.`
     });
   } catch (error) {
     console.error("DELETE /api/tenants/by-slug/workspaces/scans error:", error);

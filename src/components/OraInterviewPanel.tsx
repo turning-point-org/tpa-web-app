@@ -58,8 +58,9 @@ interface PainPoint {
   name: string;
   description: string;
   assigned_process_group?: string;
-  score?: number;
   cost_to_serve?: number;
+  // Remove the score property and add strategic objectives type
+  [key: string]: any; // Allow for strategic objective properties (so_*)
 }
 
 // Define Summary interface
@@ -107,13 +108,81 @@ const PainPointCard = ({
   onPainPointUpdate: (updatedPainPoint: PainPoint) => void;
 }) => {
   // Add state to track which field is being edited
-  const [editingField, setEditingField] = useState<'score' | 'cost_to_serve' | null>(null);
+  const [editingField, setEditingField] = useState<'cost_to_serve' | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
+  // Add state to track if strategic objectives are expanded
+  const [objectivesExpanded, setObjectivesExpanded] = useState(false);
 
   const handleProcessGroupChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onProcessGroupChange(painPoint.id, e.target.value);
   };
+
+  // Add handler for strategic objective score change
+  const handleStratObjScoreChange = async (objKey: string, newScore: number) => {
+    try {
+      // Create updated pain point with the new strategic objective score
+      const updatedPainPoint = { ...painPoint };
+      updatedPainPoint[objKey] = newScore;
+      
+      // First immediately update the UI via parent's state
+      onPainPointUpdate(updatedPainPoint);
+      
+      // Then update database
+      const response = await fetch(
+        `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
+          body: JSON.stringify({
+            summary: {
+              ...painPointSummaryData,
+              pain_points: painPointSummaryData.pain_points.map((point: PainPoint) => 
+                point.id === painPoint.id ? updatedPainPoint : point
+              )
+            },
+            tenantSlug,
+            workspaceId,
+            scanId,
+            lifecycleId
+          })
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update strategic objective score: ${response.status}`);
+      }
+      
+      // Notify the parent component that pain points have changed
+      dispatchLifecycleUpdateEvent();
+      
+    } catch (error) {
+      console.error('Error updating strategic objective score:', error);
+    }
+  };
+
+  // Add function to calculate total score from strategic objectives
+  const calculateTotalScore = (): number => {
+    let totalScore = 0;
+    
+    // Loop through all properties of the pain point
+    Object.entries(painPoint).forEach(([key, value]) => {
+      // Check if the key starts with "so_" (strategic objective) and value is a number
+      if (key.startsWith('so_') && typeof value === 'number') {
+        totalScore += value;
+      }
+    });
+    
+    return totalScore;
+  };
+
+  // Calculate the total score
+  const totalScore = calculateTotalScore();
 
   // Add a function to format currency like in LifecycleViewer
   const formatCurrency = (amount: number): string => {
@@ -125,13 +194,11 @@ const PainPointCard = ({
     }).format(amount);
   };
 
-  // Handle clicking on a tag to edit
-  const handleTagClick = (field: 'score' | 'cost_to_serve') => {
+  // Handle clicking on a tag to edit - only for cost_to_serve now
+  const handleTagClick = (field: 'cost_to_serve') => {
     setEditingField(field);
     // Set initial value
-    if (field === 'score') {
-      setEditValue(painPoint.score?.toString() || '');
-    } else if (field === 'cost_to_serve') {
+    if (field === 'cost_to_serve') {
       setEditValue(painPoint.cost_to_serve?.toString() || '');
     }
     // Focus the input after rendering
@@ -157,9 +224,7 @@ const PainPointCard = ({
       
       // Create updated pain point with new value
       const updatedPainPoint = { ...painPoint };
-      if (editingField === 'score') {
-        updatedPainPoint.score = numValue;
-      } else if (editingField === 'cost_to_serve') {
+      if (editingField === 'cost_to_serve') {
         updatedPainPoint.cost_to_serve = numValue;
       }
       
@@ -221,6 +286,25 @@ const PainPointCard = ({
     }
   };
 
+  // Get a list of strategic objectives for display
+  const getStrategicObjectives = () => {
+    return Object.entries(painPoint)
+      .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number' && value >= 0)
+      .map(([key, value]) => ({
+        name: key.replace('so_', '').split('_').map(word => 
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' '),
+        score: value
+      }));
+  };
+
+  const strategicObjectives = getStrategicObjectives();
+
+  // Add toggle handler
+  const toggleObjectives = () => {
+    setObjectivesExpanded(prev => !prev);
+  };
+
   return (
     <div className="bg-gray-700 rounded-md p-3 mb-3 shadow-sm border border-gray-600 relative">
       {/* Delete button */}
@@ -237,33 +321,12 @@ const PainPointCard = ({
       
       {/* Score and Cost display - use flex to show them horizontally */}
       <div className="mb-1.5 flex flex-wrap gap-2">
-        {/* Show score first (switched order) */}
-        {painPoint.score !== undefined && (
-          editingField === 'score' ? (
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type="number"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                className="text-xs px-2 py-0.5 rounded-md bg-gray-900 text-white border border-[#0EA394] w-16"
-                min="0"
-              />
-            </div>
-          ) : (
-            <span 
-              className="text-xs px-2 py-0.5 rounded-md bg-[#0EA394] text-white cursor-pointer hover:bg-[#0C9285] transition-colors"
-              onClick={() => handleTagClick('score')}
-              title="Click to edit score"
-            >
-              {painPoint.score} {painPoint.score === 1 ? 'point' : 'points'}
-            </span>
-          )
-        )}
+        {/* Show total strategic objective score (not editable) */}
+        <span className="text-xs px-2 py-0.5 rounded-md bg-[#0EA394] text-white">
+          {totalScore} {totalScore === 1 ? 'point' : 'points'}
+        </span>
         
-        {/* Then show cost */}
+        {/* Show cost to serve (editable) */}
         {painPoint.cost_to_serve !== undefined && (
           editingField === 'cost_to_serve' ? (
             <div className="relative">
@@ -295,8 +358,53 @@ const PainPointCard = ({
       
       <p className="text-gray-300 text-xs mb-2">{painPoint.description}</p>
       
+      {/* Show strategic objectives that contribute to the score */}
+      {strategicObjectives.length > 0 && (
+        <div className="mt-2 mb-2">
+          <div 
+            className="text-xs text-gray-400 mb-1 flex items-center cursor-pointer" 
+            onClick={toggleObjectives}
+          >
+            <span className="mr-1 transform transition-transform duration-200" style={{ display: 'inline-block', transform: objectivesExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+              ▶
+            </span>
+            Strategic Objective Applicability:
+          </div>
+          {objectivesExpanded && (
+            <div className="flex flex-wrap gap-1">
+              {strategicObjectives.map(obj => {
+                // Get the original key by converting back to so_ format
+                const objKey = 'so_' + obj.name.toLowerCase().replace(/ /g, '_');
+                
+                return (
+                  <span 
+                    key={obj.name} 
+                    className="text-xs px-1.5 py-0.5 rounded bg-gray-600 text-gray-300 flex items-center"
+                    title={`${obj.name}`}
+                  >
+                    <select
+                      value={obj.score}
+                      onChange={(e) => handleStratObjScoreChange(objKey, parseInt(e.target.value))}
+                      className="mr-1.5 bg-gray-500 rounded text-xs border-none text-white py-0.5 px-1"
+                      aria-label={`Set priority for ${obj.name}`}
+                    >
+                      <option value="0">N/A (0)</option>
+                      <option value="1">Low (1)</option>
+                      <option value="2">Med (2)</option>
+                      <option value="3">High (3)</option>
+                    </select>
+                    {obj.name}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+      
       {/* Process Group Select Dropdown */}
       <div className="mt-2">
+        <div className="text-xs text-gray-400 mb-1">Assigned Process:</div>
         <select 
           value={painPoint.assigned_process_group || "Unassigned"}
           onChange={handleProcessGroupChange}
@@ -961,6 +1069,67 @@ Let's start by discussing the main challenges you see in this lifecycle.`
     };
     
     loadExistingData();
+  }, [tenantSlug, workspaceId, scanId, lifecycleId]);
+  
+  // Add specific event listener for pain point updates from LifecycleViewer
+  useEffect(() => {
+    // Function to load pain point summary data
+    const fetchPainPointsData = async () => {
+      if (!lifecycleId) return;
+      
+      try {
+        setIsLoadingSummary(true);
+        
+        const response = await fetch(
+          `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`,
+          {
+            method: 'GET',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.pain_points) {
+            setPainPointSummaryData(data);
+            setPainPointSummaryRaw(JSON.stringify(data, null, 2));
+            
+            if (data.updated_at) {
+              const updatedDate = new Date(data.updated_at);
+              setLastSummaryUpdate(updatedDate.toLocaleTimeString());
+            }
+            
+            console.log('Successfully refreshed pain points data after update from LifecycleViewer');
+          }
+        }
+      } catch (err) {
+        console.error('Error refreshing pain points after update:', err);
+      } finally {
+        setIsLoadingSummary(false);
+      }
+    };
+    
+    // Handler for pain point updates from LifecycleViewer
+    const handlePainPointsUpdated = (event: CustomEvent) => {
+      // Check if this update is for the current lifecycle
+      if (event.detail.lifecycleId === lifecycleId) {
+        console.log('Received pain-points-updated event, reloading pain points data');
+        fetchPainPointsData();
+      }
+    };
+    
+    // Add event listener with type assertion
+    window.addEventListener('pain-points-updated', handlePainPointsUpdated as EventListener);
+    
+    // Clean up event listener when component unmounts
+    return () => {
+      window.removeEventListener('pain-points-updated', handlePainPointsUpdated as EventListener);
+    };
   }, [tenantSlug, workspaceId, scanId, lifecycleId]);
   
   // Update the ref whenever isRecording changes
@@ -1885,7 +2054,7 @@ Let's start by discussing the main challenges you see in this lifecycle.`
         
         {/* Transcript Panel (formerly Interview) */}
         {activeModes.interview && (
-          <div className="w-[300px] h-full bg-gray-800 border-r border-gray-700 overflow-y-auto flex flex-col">
+          <div className="w-[400px] h-full bg-gray-800 border-r border-gray-700 overflow-y-auto flex flex-col">
             <div className="p-4 border-b border-gray-700 flex-shrink-0 bg-gray-800 flex justify-between items-center h-16">
               <h2 className="text-lg font-semibold text-gray-100">Transcript</h2>
               <div className="flex items-center space-x-2">
@@ -1967,7 +2136,7 @@ Let's start by discussing the main challenges you see in this lifecycle.`
         
         {/* Pain Points Panel */}
         {activeModes.painpoint && (
-          <div className="w-[300px] h-full bg-gray-800 border-r border-gray-700 overflow-y-auto flex flex-col">
+          <div className="w-[400px] h-full bg-gray-800 border-r border-gray-700 overflow-y-auto flex flex-col">
             <div className="p-4 border-b border-gray-700 flex-shrink-0 bg-gray-800 h-16 flex flex-col justify-center">
               <div className="flex justify-between items-center w-full">
                 <div>

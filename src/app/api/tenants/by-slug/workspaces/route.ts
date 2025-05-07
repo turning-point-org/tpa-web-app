@@ -277,9 +277,26 @@ export async function DELETE(req: NextRequest) {
       })
       .fetchAll();
 
-    // Delete each scan
+    // Delete each scan with their related items
     for (const scan of scans) {
-      await container.item(scan.id, scan.tenant_id).delete();
+      // Use the new API endpoint that supports deleting related items
+      const scanDeleteUrl = `/api/tenants/by-slug/workspaces/scans?slug=${tenantSlug}&workspace_id=${workspaceId}&id=${scan.id}&delete_related_items=true`;
+      
+      // Create a request to send to our own API
+      const scanDeleteRequest = new Request(new URL(scanDeleteUrl, process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'), {
+        method: 'DELETE',
+      });
+      
+      try {
+        // Call our own API to delete each scan with its related items
+        const scanDeleteResponse = await fetch(scanDeleteRequest);
+        if (!scanDeleteResponse.ok) {
+          console.error(`Failed to delete scan ${scan.id}:`, await scanDeleteResponse.text());
+        }
+      } catch (scanDeleteError) {
+        console.error(`Error calling scan delete API for scan ${scan.id}:`, scanDeleteError);
+        // Continue with deleting other scans even if one fails
+      }
     }
 
     // Finally, delete the workspace itself

@@ -44,6 +44,25 @@ interface ProcessGroup {
   description?: string;
   score?: number;
   processes?: any[];
+  strategicObjectives?: { name: string; score: number }[];
+  costToServe?: number;
+}
+
+// Define interface for pain points
+interface PainPoint {
+  id: string;
+  name: string;
+  description: string;
+  assigned_process_group?: string;
+  cost_to_serve?: number;
+  // Strategic objective properties are prefixed with so_
+  [key: string]: any; // To allow strategic objective properties (so_*)
+}
+
+interface PainPointSummary {
+  id: string;
+  pain_points: PainPoint[];
+  overallSummary: string;
 }
 
 // Modal Component for Process Category Details
@@ -62,12 +81,18 @@ const DetailsModal = ({
 }) => {
   if (!isOpen) return null;
 
+  // Calculate total cost_to_serve for all process groups
+  const totalCost = processGroups.reduce((total, group) => total + (group.costToServe || 0), 0);
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} maxWidth="6xl" title={categoryName}>
       <div className="py-2">
-        <div className="mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <span className="bg-[#5319A5] text-white text-xs px-2 py-1 rounded">
             {lifecycleName}
+          </span>
+          <span className="bg-[#7A2BF7] text-white text-xs px-2 py-1 rounded">
+            Total Cost: ${formatCurrency(totalCost)}
           </span>
         </div>
         
@@ -89,6 +114,9 @@ const DetailsModal = ({
               const b = Math.round(startColor.b + colorRatio * (endColor.b - startColor.b));
               const backgroundColor = `rgb(${r}, ${g}, ${b})`;
               
+              // Get strategic objectives from the group if available
+              const strategicObjectives = group.strategicObjectives || [];
+              
               return (
                 <div 
                   key={index} 
@@ -96,13 +124,38 @@ const DetailsModal = ({
                 >
                   <div className="p-4 flex items-center">
                     <div className="flex-grow">
-                      <h3 className="text-lg font-medium">{group.name}</h3>
+                      <div className="flex justify-between items-center mb-1">
+                        <h3 className="text-lg font-medium">{group.name}</h3>
+                        <span className="bg-[#7A2BF7] text-white text-xs px-2 py-1 rounded">
+                          ${formatCurrency(group.costToServe || 0)}
+                        </span>
+                      </div>
                       {group.description && (
                         <p className="text-sm text-gray-500 mt-1">{group.description}</p>
                       )}
+                      
+                      {/* Strategic Objectives section */}
+                      {strategicObjectives && strategicObjectives.length > 0 && (
+                        <div className="mt-3">
+                          <h4 className="text-sm font-medium text-gray-600 mb-1.5">Strategic Objectives Impact</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {strategicObjectives.map((obj, idx) => (
+                              <div 
+                                key={idx} 
+                                className="flex items-center bg-gray-100 rounded px-2 py-1"
+                              >
+                                <span className="text-xs text-gray-700">{obj.name}</span>
+                                <span className="ml-1.5 inline-block px-1.5 py-0.5 bg-[#0EA394] text-white text-xs rounded-full">
+                                  {obj.score}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div 
-                      className="flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center"
+                      className="flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center ml-4"
                       style={{ backgroundColor }}
                     >
                       <span className="text-white font-bold">{score}pts</span>
@@ -302,6 +355,10 @@ const OpportunityExplorer = () => {
     categoryName: '',
     processGroups: [] as ProcessGroup[]
   });
+  
+  // Add state for pain points data
+  const [painPointsData, setPainPointsData] = useState<Record<string, PainPointSummary>>({});
+  const [isLoadingPainPoints, setIsLoadingPainPoints] = useState(false);
 
   useEffect(() => {
     const fetchLifecycles = async () => {
@@ -328,6 +385,53 @@ const OpportunityExplorer = () => {
     fetchLifecycles();
   }, [params]);
 
+  // Add function to fetch pain points for a lifecycle
+  const fetchPainPointsForLifecycle = async (lifecycleId: string) => {
+    try {
+      setIsLoadingPainPoints(true);
+      const tenant = params.tenant as string;
+      const workspace = params.workspace as string;
+      const scanId = params.scan as string;
+      
+      const response = await fetch(
+        `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}&lifecycle_id=${lifecycleId}`
+      );
+      
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`Failed to fetch pain points data for lifecycle ${lifecycleId}`);
+      }
+      
+      // If 404, it's fine - just no pain points yet
+      if (response.status === 404) {
+        return {
+          id: "",
+          pain_points: [],
+          overallSummary: ""
+        };
+      }
+      
+      const data = await response.json();
+      
+      // Handle both possible property names (pain_points and painPoints)
+      const painPoints = data.pain_points || data.painPoints || [];
+      
+      return {
+        id: data.id || "",
+        pain_points: painPoints,
+        overallSummary: data.overallSummary || ""
+      };
+    } catch (error) {
+      console.error(`Error fetching pain points for lifecycle ${lifecycleId}:`, error);
+      return {
+        id: "",
+        pain_points: [],
+        overallSummary: ""
+      };
+    } finally {
+      setIsLoadingPainPoints(false);
+    }
+  };
+
   // Fetch detailed data for all lifecycles or a specific lifecycle
   useEffect(() => {
     const fetchLifecyclesData = async () => {
@@ -351,7 +455,19 @@ const OpportunityExplorer = () => {
           );
           
           const detailedData = await Promise.all(detailedDataPromises);
-          setAllLifecyclesData(detailedData.filter(Boolean));
+          const filteredData = detailedData.filter(Boolean);
+          setAllLifecyclesData(filteredData);
+          
+          // Also fetch pain points data for all lifecycles
+          const painPointsPromises = filteredData.map(lifecycle => 
+            fetchPainPointsForLifecycle(lifecycle.id)
+              .then(painPointsData => [lifecycle.id, painPointsData])
+          );
+          
+          const painPointsResults = await Promise.all(painPointsPromises);
+          const painPointsMap = Object.fromEntries(painPointsResults);
+          setPainPointsData(painPointsMap);
+          
           setSelectedLifecycleData(null);
         } else {
           // Find the lifecycle in the already loaded data first
@@ -360,6 +476,11 @@ const OpportunityExplorer = () => {
           // If we have all the data we need, use it directly
           if (existingLifecycle && existingLifecycle.processes && existingLifecycle.processes.process_categories) {
             setSelectedLifecycleData(existingLifecycle);
+            
+            // Still need to fetch pain points data for this lifecycle
+            const painPointsSummary = await fetchPainPointsForLifecycle(selectedLifecycle);
+            setPainPointsData({ [selectedLifecycle]: painPointsSummary });
+            
             setIsLoading(false);
             return;
           }
@@ -375,6 +496,10 @@ const OpportunityExplorer = () => {
           // The API might return an array, so we need to find the specific lifecycle
           const lifecycleData = Array.isArray(data) ? data.find(lc => lc.id === selectedLifecycle) : data;
           setSelectedLifecycleData(lifecycleData);
+          
+          // Fetch pain points for this lifecycle
+          const painPointsSummary = await fetchPainPointsForLifecycle(selectedLifecycle);
+          setPainPointsData({ [selectedLifecycle]: painPointsSummary });
         }
       } catch (error) {
         console.error('Error fetching lifecycle data:', error);
@@ -393,21 +518,123 @@ const OpportunityExplorer = () => {
     setSelectedLifecycle(e.target.value);
   };
 
-  // Calculate total points for a process category
-  const calculateCategoryTotalPoints = (category: ProcessCategory) => {
+  // Calculate score for a process group based on strategic objectives
+  const calculateProcessGroupScore = (lifecycleId: string, groupName: string): number => {
+    if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return 0;
+    
+    // Calculate total score from pain points assigned to this process group
+    return painPointsData[lifecycleId].pain_points
+      .filter(point => point.assigned_process_group === groupName)
+      .reduce((total, point) => {
+        // Calculate sum of all strategic objective scores (properties starting with "so_")
+        let pointScore = 0;
+        Object.entries(point).forEach(([key, value]) => {
+          if (key.startsWith('so_') && typeof value === 'number') {
+            pointScore += value;
+          }
+        });
+        return total + pointScore;
+      }, 0);
+  };
+  
+  // Calculate cost to serve for a process group based on pain points
+  const calculateProcessGroupCost = (lifecycleId: string, groupName: string): number => {
+    if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return 0;
+    
+    // Calculate total cost from pain points assigned to this process group
+    return painPointsData[lifecycleId].pain_points
+      .filter(point => point.assigned_process_group === groupName)
+      .reduce((total, point) => total + (point.cost_to_serve || 0), 0);
+  };
+  
+  // Get strategic objectives for a process group
+  const getStrategicObjectivesForGroup = (lifecycleId: string, groupName: string): { name: string, score: number }[] => {
+    if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return [];
+    
+    // Get pain points assigned to this group
+    const groupPainPoints = painPointsData[lifecycleId].pain_points
+      .filter(point => point.assigned_process_group === groupName);
+      
+    // Create a map to track totals for each strategic objective
+    const soTotals = new Map<string, number>();
+    
+    // Process each pain point to extract and sum strategic objectives
+    groupPainPoints.forEach(point => {
+      Object.entries(point).forEach(([key, value]) => {
+        if (key.startsWith('so_') && typeof value === 'number' && value > 0) {
+          // Format the objective name: convert so_objective_name to Objective Name
+          const objName = key.replace('so_', '')
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+          
+          // Add to the running total
+          soTotals.set(objName, (soTotals.get(objName) || 0) + value);
+        }
+      });
+    });
+    
+    // Convert map to array of objects for easier rendering
+    return Array.from(soTotals.entries()).map(([name, score]) => ({
+      name,
+      score
+    })).sort((a, b) => b.score - a.score); // Sort by highest total first
+  };
+
+  // Calculate total points for a process category based on strategic objectives
+  const calculateCategoryTotalPoints = (lifecycleId: string, category: ProcessCategory) => {
     if (!category.process_groups) return 0;
     
     return category.process_groups.reduce((total, group) => {
-      return total + (group.score || 0);
+      return total + calculateProcessGroupScore(lifecycleId, group.name);
+    }, 0);
+  };
+
+  // Calculate total cost to serve for a process category based on pain points
+  const calculateCategoryTotalCost = (lifecycleId: string, category: ProcessCategory) => {
+    if (!category.process_groups) return 0;
+    
+    return category.process_groups.reduce((total, group) => {
+      return total + calculateProcessGroupCost(lifecycleId, group.name);
+    }, 0);
+  };
+
+  // Calculate total cost to serve for an entire lifecycle
+  const calculateLifecycleTotalCost = (lifecycleId: string) => {
+    const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
+    if (!lifecycle || !lifecycle.processes || !lifecycle.processes.process_categories) return 0;
+    
+    return lifecycle.processes.process_categories.reduce((total, category) => {
+      return total + calculateCategoryTotalCost(lifecycleId, category);
     }, 0);
   };
 
   // Handle opening the modal with category details
-  const handleCategoryClick = (lifecycleName: string, category: ProcessCategory) => {
+  const handleCategoryClick = (lifecycleName: string, lifecycleId: string, category: ProcessCategory) => {
+    // Update process groups with calculated scores based on strategic objectives
+    const updatedProcessGroups = category.process_groups ? 
+      category.process_groups.map(group => {
+        // Calculate score
+        const score = calculateProcessGroupScore(lifecycleId, group.name);
+        
+        // Calculate cost to serve
+        const costToServe = calculateProcessGroupCost(lifecycleId, group.name);
+        
+        // Get strategic objectives breakdown
+        const strategicObjectives = getStrategicObjectivesForGroup(lifecycleId, group.name);
+        
+        return {
+          ...group,
+          score,
+          costToServe,
+          strategicObjectives
+        };
+      }) : [];
+      
     setModalContent({
       lifecycleName,
       categoryName: category.name,
-      processGroups: category.process_groups || []
+      processGroups: updatedProcessGroups
     });
     setModalOpen(true);
   };
@@ -442,7 +669,7 @@ const OpportunityExplorer = () => {
                 <div className="bg-white p-3 border-b border-gray-200 group-hover:bg-[#f9f5ff] transition-colors duration-200">
                   <div className="flex items-center justify-center">
                     <span className="bg-[#7A2BF7] text-white font-bold px-3 py-1 rounded-md text-xs group-hover:bg-[#5319A5] transition-colors duration-200">
-                      ${formatCurrency(totalCostToServe)}
+                      ${formatCurrency(calculateLifecycleTotalCost(lifecycle.id))}
                     </span>
                   </div>
                 </div>
@@ -450,9 +677,9 @@ const OpportunityExplorer = () => {
                 {/* Main content area with stacked bars */}
                 <div className="flex-grow flex flex-col justify-end px-4">
                   {categories
-                    .sort((a, b) => calculateCategoryTotalPoints(a) - calculateCategoryTotalPoints(b))
+                    .sort((a, b) => calculateCategoryTotalPoints(lifecycle.id, a) - calculateCategoryTotalPoints(lifecycle.id, b))
                     .map((category, idx) => {
-                      const totalPoints = calculateCategoryTotalPoints(category);
+                      const totalPoints = calculateCategoryTotalPoints(lifecycle.id, category);
                       // Height calculation (min 20px for 0 score)
                       const height = totalPoints === 0 ? 20 : Math.max(20, Math.min(100, totalPoints * 3));
                       const isTopCard = idx === 0;
@@ -478,7 +705,7 @@ const OpportunityExplorer = () => {
                           title={`${category.name}: ${category.description || 'No description'}`}
                           onClick={(e) => {
                             e.stopPropagation(); // Prevent lifecycle from being selected
-                            handleCategoryClick(lifecycle.name, category);
+                            handleCategoryClick(lifecycle.name, lifecycle.id, category);
                           }}
                         >
                           <div className="flex flex-col items-center">
@@ -514,6 +741,7 @@ const OpportunityExplorer = () => {
       return <p className="text-gray-500">No categories available for this lifecycle.</p>;
     }
 
+    const lifecycleId = selectedLifecycleData.id;
     const categoryCount = selectedLifecycleData.processes.process_categories.length;
 
     return (
@@ -523,7 +751,7 @@ const OpportunityExplorer = () => {
             key={index} 
             className="flex-1 min-w-0 flex flex-col h-[450px] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg hover:border-[#5319A5] hover:scale-[1.01] transition-all duration-200 transform cursor-pointer group"
             style={{ minWidth: '0' }}
-            onClick={() => handleCategoryClick(selectedLifecycleData.name, category)}
+            onClick={() => handleCategoryClick(selectedLifecycleData.name, lifecycleId, category)}
             title={`Click to view details for ${category.name}`}
           >
             <div className="flex flex-col h-full">
@@ -531,7 +759,7 @@ const OpportunityExplorer = () => {
               <div className="bg-white p-3 border-b border-gray-200 group-hover:bg-[#f9f5ff] transition-colors duration-200">
                 <div className="flex items-center justify-center">
                   <span className="bg-[#7A2BF7] text-white font-bold px-3 py-1 rounded-md text-xs group-hover:bg-[#5319A5] transition-colors duration-200">
-                    ${formatCurrency(category.cost_to_serve || 100000)}
+                    ${formatCurrency(calculateCategoryTotalCost(lifecycleId, category))}
                   </span>
                 </div>
               </div>
@@ -539,11 +767,16 @@ const OpportunityExplorer = () => {
               {/* Main content area with stacked bars */}
               <div className="flex-grow flex flex-col justify-end px-4">
                 {category.process_groups && [...category.process_groups]
-                  .sort((a, b) => (a.score || 0) - (b.score || 0)) // Sort by score ascending so highest is at the bottom
+                  .map(group => {
+                    // Calculate score from strategic objectives
+                    const calculatedScore = calculateProcessGroupScore(lifecycleId, group.name);
+                    return { ...group, calculatedScore };
+                  })
+                  .sort((a, b) => a.calculatedScore - b.calculatedScore) // Sort by score ascending
                   .map((group, idx, array) => {
-                    const score = typeof group.score === 'number' ? group.score : 0;
+                    const score = group.calculatedScore;
                     // Smaller height calculation (min 20px for 0 score)
-                    const height = score === 0 ? 20 : Math.max(20, Math.min(100, score * 10));
+                    const height = score === 0 ? 20 : Math.max(20, Math.min(100, score * 5));
                     // Determine if this is the top card in the stack (visually at the top, with least points)
                     const isTopCard = idx === 0;
                     
@@ -586,9 +819,9 @@ const OpportunityExplorer = () => {
                 <h3 className="text-base font-medium text-center line-clamp-2 overflow-hidden group-hover:text-[#5319A5] transition-colors duration-200">
                   {category.name.length > 30 ? `${category.name.substring(0, 30)}...` : category.name}
                 </h3>
-                {typeof category.score === 'number' && (
-                  <p className="text-xs text-gray-500 text-center mt-1">{category.score}pts</p>
-                )}
+                <p className="text-xs text-gray-500 text-center mt-1">
+                  {calculateCategoryTotalPoints(lifecycleId, category)}pts
+                </p>
               </div>
             </div>
           </div>
@@ -629,7 +862,7 @@ const OpportunityExplorer = () => {
         </div>
       </div>
       <div className="max-w-[1200px] mx-auto overflow-x-auto">
-        {isLoading ? (
+        {isLoading || isLoadingPainPoints ? (
           <p className="text-gray-500">Loading opportunities...</p>
         ) : selectedLifecycle === "all" ? (
           renderAllLifecycles()

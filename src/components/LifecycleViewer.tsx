@@ -17,8 +17,9 @@ interface PainPoint {
   name: string;
   description: string;
   assigned_process_group?: string;
-  score?: number;
   cost_to_serve?: number;
+  // Strategic objective properties are prefixed with so_
+  [key: string]: any; // To allow strategic objective properties (so_*)
 }
 
 interface PainPointSummary {
@@ -129,6 +130,82 @@ export default function LifecycleViewer({
   const [isLoadingPainPoints, setIsLoadingPainPoints] = useState(false);
   const [painPointsError, setPainPointsError] = useState("");
   
+  // Add a state to track expanded pain points
+  const [expandedPainPoints, setExpandedPainPoints] = useState<{[key: string]: boolean}>({});
+  
+  // Add function to update strategic objective scores for pain points
+  const handlePainPointObjScoreChange = async (painPointId: string, objKey: string, newScore: number) => {
+    try {
+      if (!painPointSummary) return;
+      
+      // Create a deep copy of the pain point summary
+      const updatedSummary = JSON.parse(JSON.stringify(painPointSummary));
+      
+      // Find and update the specific pain point
+      const painPointIndex = updatedSummary.pain_points.findIndex((p: PainPoint) => p.id === painPointId);
+      if (painPointIndex === -1) return;
+      
+      // Update the specific strategic objective score
+      updatedSummary.pain_points[painPointIndex][objKey] = newScore;
+      
+      // Update state immediately for responsive UI
+      setPainPointSummary(updatedSummary);
+      
+      // Save to the database
+      const response = await fetch(
+        `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
+          body: JSON.stringify({
+            summary: updatedSummary,
+            tenantSlug,
+            workspaceId,
+            scanId,
+            lifecycleId
+          })
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update strategic objective score: ${response.status}`);
+      }
+      
+      // Dispatch event to notify OraInterviewPanel to refresh its data
+      dispatchLifecycleUpdateEvent();
+      
+      // Note: OraInterviewPanel listens for the 'lifecycle-data-updated' custom event
+      // and will automatically reload its pain points data to stay in sync
+      
+      // Trigger a re-fetch of lifecycle data to update scores
+      loadLifecycleData();
+      
+      // Force refresh pain points in OraInterviewPanel with a stronger signal
+      // This creates a more specific event that will trigger an immediate refresh
+      const refreshEvent = new CustomEvent('pain-points-updated', {
+        detail: {
+          lifecycleId,
+          painPointId,
+          objKey,
+          newScore,
+          timestamp: Date.now()
+        }
+      });
+      window.dispatchEvent(refreshEvent);
+      console.log(`Dispatched pain-points-updated event for ${painPointId}`);
+      
+      console.log(`Updated ${objKey} score to ${newScore} for pain point ${painPointId}`);
+    } catch (error) {
+      console.error('Error updating strategic objective score:', error);
+      setPainPointsError(error instanceof Error ? error.message : 'Failed to update score');
+    }
+  };
+  
   // Use useCallback to memoize the loadLifecycleData function
   const loadLifecycleData = useCallback(async () => {
     try {
@@ -219,6 +296,19 @@ export default function LifecycleViewer({
       setIsLoadingPainPoints(false);
     }
   }, [tenantSlug, workspaceId, scanId, lifecycleId]);
+  
+  // Add function to dispatch lifecycle data update event
+  const dispatchLifecycleUpdateEvent = useCallback(() => {
+    // Create and dispatch custom event to notify other components that lifecycle data has changed
+    const event = new CustomEvent('lifecycle-data-updated', {
+      detail: {
+        lifecycleId,
+        timestamp: Date.now()
+      }
+    });
+    window.dispatchEvent(event);
+    console.log('Dispatched lifecycle-data-updated event from LifecycleViewer');
+  }, [lifecycleId]);
   
   useEffect(() => {
     loadLifecycleData();
@@ -352,6 +442,8 @@ export default function LifecycleViewer({
     if (!lifecycle?.processes?.process_categories?.[categoryIndex]?.process_groups?.[groupIndex]) return;
     
     const group = lifecycle.processes.process_categories[categoryIndex].process_groups[groupIndex];
+    setPainPointsError(""); // Reset error when opening modal
+    setExpandedPainPoints({}); // Reset expanded pain points when opening a new group
     setEditingGroup({
       categoryIndex,
       groupIndex,
@@ -639,7 +731,16 @@ export default function LifecycleViewer({
     // Calculate total score from pain points assigned to this process group
     return painPointSummary.pain_points
       .filter(point => point.assigned_process_group === groupName)
-      .reduce((total, point) => total + (point.score || 0), 0);
+      .reduce((total, point) => {
+        // Calculate sum of all strategic objective scores (properties starting with "so_")
+        let pointScore = 0;
+        Object.entries(point).forEach(([key, value]) => {
+          if (key.startsWith('so_') && typeof value === 'number') {
+            pointScore += value;
+          }
+        });
+        return total + pointScore;
+      }, 0);
   };
   
   // Add function to calculate total score for a process category
@@ -682,6 +783,49 @@ export default function LifecycleViewer({
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
+  };
+  
+  // Add new function to get strategic objectives for a process group
+  const getStrategicObjectivesForGroup = (groupName: string): { name: string, totalValue: number }[] => {
+    if (!painPointSummary || !painPointSummary.pain_points) return [];
+    
+    // Get all pain points assigned to this group
+    const groupPainPoints = painPointSummary.pain_points.filter(point => 
+      point.assigned_process_group === groupName
+    );
+    
+    // Create a map to track totals for each strategic objective
+    const soTotals = new Map<string, number>();
+    
+    // Process each pain point to extract and sum strategic objectives
+    groupPainPoints.forEach(point => {
+      Object.entries(point).forEach(([key, value]) => {
+        if (key.startsWith('so_') && typeof value === 'number' && value > 0) {
+          // Format the objective name: convert so_objective_name to Objective Name
+          const objName = key.replace('so_', '')
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+          
+          // Add to the running total
+          soTotals.set(objName, (soTotals.get(objName) || 0) + value);
+        }
+      });
+    });
+    
+    // Convert map to array of objects for easier rendering
+    return Array.from(soTotals.entries()).map(([name, totalValue]) => ({
+      name,
+      totalValue
+    })).sort((a, b) => b.totalValue - a.totalValue); // Sort by highest total first
+  };
+  
+  // Function to toggle pain point expansion
+  const togglePainPoint = (painPointId: string) => {
+    setExpandedPainPoints(prev => ({
+      ...prev,
+      [painPointId]: !prev[painPointId]
+    }));
   };
   
   if (isLoading) {
@@ -971,7 +1115,7 @@ export default function LifecycleViewer({
                                      <span 
                                          className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
                                          style={{ backgroundColor: '#0EA394' }}
-                                         title={`Category Score: ${calculateCategoryScore(category)} (Sum of group scores from pain points)`}
+                                         title={`Category Score: ${calculateCategoryScore(category)} (Sum of strategic objective points from pain points)`}
                                      >
                                          {calculateCategoryScore(category)} pts
                                      </span>
@@ -1013,7 +1157,7 @@ export default function LifecycleViewer({
                                              <span 
                                                  className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
                                                  style={{ backgroundColor: '#0EA394' }}
-                                                 title={`Score: ${calculateProcessGroupScore(group.name)} (Calculated from pain points)`}
+                                                 title={`Score: ${calculateProcessGroupScore(group.name)} (Sum of strategic objective points from pain points)`}
                                              >
                                                  {calculateProcessGroupScore(group.name)} pts
                                              </span>
@@ -1130,7 +1274,7 @@ export default function LifecycleViewer({
                       <span 
                         className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
                         style={{ backgroundColor: '#0EA394' }}
-                        title={`Category Score: ${calculateCategoryScore(lifecycle.processes.process_categories[editingCategory.index])} (Sum of group scores from pain points)`}
+                        title={`Category Score: ${calculateCategoryScore(lifecycle.processes.process_categories[editingCategory.index])} (Sum of strategic objective points from pain points)`}
                       >
                         {calculateCategoryScore(lifecycle.processes.process_categories[editingCategory.index])} pts
                       </span>
@@ -1184,7 +1328,10 @@ export default function LifecycleViewer({
                   {/* Cancel/Save Buttons */}
                   <div className="flex space-x-3">
                     <Button
-                      onClick={() => setEditingCategory(null)}
+                      onClick={() => {
+                        setPainPointsError(""); // Reset error when closing modal
+                        setEditingCategory(null);
+                      }}
                       variant="secondary"
                       className="text-sm font-medium"
                       disabled={isSubmitting}
@@ -1217,7 +1364,7 @@ export default function LifecycleViewer({
                       <span 
                         className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
                         style={{ backgroundColor: '#0EA394' }}
-                        title={`Category Score: ${calculateCategoryScore(lifecycle.processes.process_categories[editingCategory.index])} (Sum of group scores from pain points)`}
+                        title={`Category Score: ${calculateCategoryScore(lifecycle.processes.process_categories[editingCategory.index])} (Sum of strategic objective points from pain points)`}
                       >
                         {calculateCategoryScore(lifecycle.processes.process_categories[editingCategory.index])} pts
                       </span>
@@ -1275,7 +1422,10 @@ export default function LifecycleViewer({
                 
                 <div className="flex justify-end pt-4 border-t border-gray-200">
                   <Button
-                    onClick={() => setEditingCategory(null)}
+                    onClick={() => {
+                      setPainPointsError(""); // Reset error when closing modal
+                      setEditingCategory(null);
+                    }}
                     variant="secondary"
                     className="text-sm font-medium"
                   >
@@ -1291,8 +1441,12 @@ export default function LifecycleViewer({
       {/* Process Group Editing Modal */}
       <Modal
         isOpen={editingGroup !== null}
-        onClose={() => setEditingGroup(null)}
-        title={toggles.editMode ? "Edit Process Group" : "Process Group Details"}
+        onClose={() => {
+          setPainPointsError(""); // Reset error when closing modal
+          setEditingGroup(null);
+        }}
+        title={toggles.editMode ? "Edit Process Group" : editingGroup?.name || "Process Group Details"}
+        maxWidth="3xl" // Increase modal width
       >
         {editingGroup && (
           <div>
@@ -1317,7 +1471,7 @@ export default function LifecycleViewer({
                       <span 
                         className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
                         style={{ backgroundColor: '#0EA394' }}
-                        title={`Score: ${calculateProcessGroupScore(lifecycle.processes.process_categories[editingGroup.categoryIndex].process_groups[editingGroup.groupIndex].name)} (Calculated from pain points)`}
+                        title={`Score: ${calculateProcessGroupScore(lifecycle.processes.process_categories[editingGroup.categoryIndex].process_groups[editingGroup.groupIndex].name)} (Sum of strategic objective points from pain points)`}
                       >
                         {calculateProcessGroupScore(lifecycle.processes.process_categories[editingGroup.categoryIndex].process_groups[editingGroup.groupIndex].name)} pts
                       </span>
@@ -1372,7 +1526,10 @@ export default function LifecycleViewer({
                   {/* Cancel/Save Buttons */}
                   <div className="flex space-x-3">
                     <Button
-                      onClick={() => setEditingGroup(null)}
+                      onClick={() => {
+                        setPainPointsError(""); // Reset error when closing modal
+                        setEditingGroup(null);
+                      }}
                       variant="secondary"
                       className="text-sm font-medium"
                       disabled={isSubmitting}
@@ -1398,14 +1555,14 @@ export default function LifecycleViewer({
             ) : (
               // Edit Mode OFF - Show read-only view
               <>
-                <div className="mb-5">
-                  <h3 className="text-lg font-semibold text-gray-800">{editingGroup.name || ''}</h3>
+                <div className="mb-3">
+                  {/* Remove the redundant header title */}
                   {toggles.scores && lifecycle?.processes?.process_categories?.[editingGroup.categoryIndex]?.process_groups?.[editingGroup.groupIndex] && (
-                    <div className="mt-1 flex space-x-2">
+                    <div className="flex space-x-2">
                       <span 
                         className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
                         style={{ backgroundColor: '#0EA394' }}
-                        title={`Score: ${calculateProcessGroupScore(lifecycle?.processes?.process_categories?.[editingGroup.categoryIndex]?.process_groups?.[editingGroup.groupIndex]?.name)} (Calculated from pain points)`}
+                        title={`Score: ${calculateProcessGroupScore(lifecycle?.processes?.process_categories?.[editingGroup.categoryIndex]?.process_groups?.[editingGroup.groupIndex]?.name)} (Sum of strategic objective points from pain points)`}
                       >
                         {calculateProcessGroupScore(lifecycle?.processes?.process_categories?.[editingGroup.categoryIndex]?.process_groups?.[editingGroup.groupIndex]?.name)} pts
                       </span>
@@ -1470,15 +1627,160 @@ export default function LifecycleViewer({
                   );
                 })()}
                 
-                <div className="flex justify-end pt-4 border-t border-gray-200">
-                  <Button
-                    onClick={() => setEditingGroup(null)}
-                    variant="secondary"
-                    className="text-sm font-medium"
-                  >
-                    Close
-                  </Button>
-                </div>
+                {/* Strategic Objectives Breakdown */}
+                {toggles.scores && editingGroup && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-medium text-gray-500 mb-2">Strategic Objectives Impact</h4>
+                    {(() => {
+                      const strategicObjectives = getStrategicObjectivesForGroup(editingGroup.name);
+                      
+                      if (strategicObjectives.length === 0) {
+                        return (
+                          <p className="text-gray-400 italic bg-gray-50 p-3 rounded-md border border-gray-200 text-sm">
+                            No strategic objectives data available for this process group.
+                          </p>
+                        );
+                      }
+                      
+                      return (
+                        <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                          <ul className="space-y-2">
+                            {strategicObjectives.map((objective, idx) => (
+                              <li key={`obj-${idx}`} className="flex justify-between items-center text-sm bg-white p-2 rounded border border-gray-200">
+                                <span className="font-medium text-gray-700">{objective.name}</span>
+                                <span className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold bg-[#0EA394]">
+                                  {objective.totalValue} pts
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                
+                {/* Pain Points Section */}
+                {editingGroup && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-medium text-gray-500 mb-2">
+                      Assigned Pain Points
+                    </h4>
+                    
+                    {/* Show error message if any */}
+                    {painPointsError && (
+                      <div className="bg-red-50 border border-red-300 text-red-800 px-3 py-2 rounded-md text-sm mb-3 flex items-center justify-between">
+                        <span>{painPointsError}</span>
+                        <button 
+                          onClick={() => setPainPointsError("")}
+                          className="text-red-700 hover:text-red-900"
+                          title="Dismiss"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                    
+                    {(() => {
+                      // Get pain points assigned to this process group
+                      const assignedPainPoints = painPointSummary?.pain_points?.filter(
+                        point => point.assigned_process_group === editingGroup.name
+                      ) || [];
+                      
+                      if (assignedPainPoints.length === 0) {
+                        return (
+                          <p className="text-gray-400 italic bg-gray-50 p-3 rounded-md border border-gray-200 text-sm">
+                            No pain points assigned to this process group.
+                          </p>
+                        );
+                      }
+                      
+                      return (
+                        <div className="bg-gray-50 p-3 rounded-md border border-gray-200 space-y-3">
+                          {assignedPainPoints.map((painPoint, idx) => (
+                            <div key={`pain-${idx}`} className="bg-white rounded-md border border-gray-100 overflow-hidden">
+                              {/* Collapsible header */}
+                              <div 
+                                className="p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+                                onClick={() => togglePainPoint(painPoint.id)}
+                              >
+                                <div className="flex items-center">
+                                  <span className={`mr-2 transform transition-transform duration-200 ${expandedPainPoints[painPoint.id] ? 'rotate-90' : ''}`}>
+                                    ▶
+                                  </span>
+                                  <h5 className="font-medium text-gray-800">{painPoint.name}</h5>
+                                </div>
+                                
+                                <div className="flex items-center space-x-2">
+                                  {/* Show total strategic objectives points */}
+                                  <span className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold bg-[#0EA394]">
+                                    {Object.entries(painPoint)
+                                      .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number')
+                                      .reduce((total, [_, value]) => total + (value as number), 0)} pts
+                                  </span>
+                                  
+                                  {painPoint.cost_to_serve !== undefined && (
+                                    <span className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold bg-[#7A2BF7]">
+                                      {formatCurrency(painPoint.cost_to_serve)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Collapsible content */}
+                              {expandedPainPoints[painPoint.id] && (
+                                <div className="p-3 pt-0 border-t border-gray-100">
+                                  <p className="text-sm text-gray-600 mb-3 pt-3">{painPoint.description}</p>
+                                  
+                                  {/* Strategic Objectives for this Pain Point */}
+                                  <div className="mt-2">
+                                    <h6 className="text-xs font-medium text-gray-500 mb-1">Strategic Objective Applicability:</h6>
+                                    <div className="flex flex-wrap gap-1">
+                                      {Object.entries(painPoint)
+                                        .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number' && value >= 0)
+                                        .map(([key, value]) => {
+                                          // Format the objective name
+                                          const objName = key.replace('so_', '')
+                                            .split('_')
+                                            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                            .join(' ');
+                                            
+                                          return (
+                                            <span 
+                                              key={key} 
+                                              className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 flex items-center border border-gray-200"
+                                              title={`${objName}`}
+                                            >
+                                              <select
+                                                value={value as number}
+                                                onChange={(e) => handlePainPointObjScoreChange(painPoint.id, key, parseInt(e.target.value))}
+                                                className="mr-1.5 bg-white rounded text-xs border border-gray-200 text-gray-700 py-0.5 px-1"
+                                                aria-label={`Set priority for ${objName}`}
+                                              >
+                                                <option value="0">N/A (0)</option>
+                                                <option value="1">Low (1)</option>
+                                                <option value="2">Med (2)</option>
+                                                <option value="3">High (3)</option>
+                                              </select>
+                                              {objName}
+                                            </span>
+                                          );
+                                        })}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                
+                {/* Remove the close button and entire div */}
               </>
             )}
           </div>

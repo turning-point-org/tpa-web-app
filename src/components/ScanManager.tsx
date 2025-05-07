@@ -164,7 +164,7 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
   const handleDeleteScan = async (scanId: string) => {
     try {
       const res = await fetchWithAuth(
-        `/api/tenants/by-slug/workspaces/scans?slug=${tenantSlug}&workspace_id=${workspaceId}&id=${scanId}`,
+        `/api/tenants/by-slug/workspaces/scans?slug=${tenantSlug}&workspace_id=${workspaceId}&id=${scanId}&delete_related_items=true`,
         user?.accessToken as string | undefined,
         {
           method: "DELETE",
@@ -378,8 +378,8 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
                 variant="primary"
                 iconOnly
                 className="p-2.5 rounded-full flex items-center justify-center shadow-md"
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={(e?: React.MouseEvent<HTMLButtonElement>) => {
+                  if (e) e.stopPropagation();
                   openEditModal(scan);
                 }}
                 icon={<PencilIcon className="h-4 w-4" />}

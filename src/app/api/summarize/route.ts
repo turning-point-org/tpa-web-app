@@ -132,6 +132,62 @@ export async function POST(req: Request) {
       // Continue with empty array if fetching fails
     }
 
+    // Get strategic objectives from company info
+    let strategicObjectives: Array<{name: string, normalized_name: string}> = [];
+    
+    try {
+      // Fetch company info if container is available
+      if (container) {
+        const companyInfoQuery = `
+          SELECT c.strategic_objectives
+          FROM c 
+          WHERE c.type = "company_info" 
+          AND c.tenant_slug = @tenantSlug
+          AND c.workspace_id = @workspaceId
+          AND c.scan_id = @scanId
+        `;
+        
+        const { resources: companyInfoResources } = await container.items
+          .query({
+            query: companyInfoQuery,
+            parameters: [
+              { name: "@tenantSlug", value: tenantSlug },
+              { name: "@workspaceId", value: workspaceId },
+              { name: "@scanId", value: scanId }
+            ]
+          })
+          .fetchAll();
+        
+        if (companyInfoResources.length > 0 && companyInfoResources[0].strategic_objectives) {
+          strategicObjectives = companyInfoResources[0].strategic_objectives.map((objective: any) => ({
+            name: objective.name,
+            normalized_name: objective.name.toLowerCase().replace(/\s+/g, '_')
+          }));
+          console.log(`Found ${strategicObjectives.length} strategic objectives`);
+        }
+      } else {
+        console.warn('Cosmos DB container is not initialized, cannot fetch strategic objectives');
+      }
+    } catch (error) {
+      console.warn('Failed to fetch strategic objectives:', error);
+      // Continue with empty array if fetching fails
+    }
+    
+    // Generate strategic objectives scoring text
+    const strategicObjectivesText = strategicObjectives.length > 0 
+      ? `\nPlease score each pain point against the following strategic objectives on a scale of 0-3 (where 3 indicates high impact/relevance to the objective, and 0 indicates no impact/relevance):\n\n${strategicObjectives.map(obj => `- ${obj.name}`).join('\n')}` 
+      : '\nNo strategic objectives are available for this company.';
+    
+    // Create dynamic JSON structure for strategic objectives
+    const strategicObjectivesJsonExample = strategicObjectives.reduce((acc, obj) => {
+      acc[`so_${obj.normalized_name}`] = "0-3 (where 3 indicates high impact on this objective)";
+      return acc;
+    }, {} as Record<string, string>);
+    
+    const strategicObjectivesJsonStructure = strategicObjectives.length > 0
+      ? JSON.stringify(strategicObjectivesJsonExample, null, 2).replace(/"/g, '')
+      : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)"';
+
     // Generate a flat list of all available process groups
     const processGroupsText = (() => {
       // Check if we have categories with process groups
@@ -173,15 +229,14 @@ ${JSON.stringify(existingPainPoints, null, 2)}
 
 Your task is to MAINTAIN these existing pain points while adding any new ones identified in the transcript, with these special instructions:
 
-1. If you see any requests in the transcript to DELETE a specific pain point (like "please delete pain point X" or "remove the pain point about Y"), remove that pain point from the pain_points JSON list
-2. If you see requests to MODIFY a pain point (like "change the score of pain point X"), update that pain point accordingly
-3. If you see requests to ADD a new pain point explicitly (like "add a pain point about X"), make sure to add it
-4. For any other pain points mentioned in the conversation, maintain the existing ones and add any new ones identified
+1. If you see requests to ADD a new pain point explicitly (like "add a pain point about X"), make sure to add it
+2. For any other pain points mentioned in the conversation, maintain the existing ones and add any new ones identified
 
 Assign new IDs to new pain points (use a consistent format like 'pp-N' where N is a number greater than the highest existing ID).
 `: 'No existing pain points have been identified yet. Extract them from the conversation.'}
 
 ${processGroupsText}
+${strategicObjectivesText}
 
 Please structure your response as a valid JSON object with this structure:
 {
@@ -191,7 +246,7 @@ Please structure your response as a valid JSON object with this structure:
       "name": "Brief name of the pain point (5-10 words)",
       "description": "Detailed description of the pain point (1-3 sentences)",
       "assigned_process_group": "Name of most relevant process group (must be an exact process group name from the list above)",
-      "score": 0-3 (where 3 is most painful/severe, and 0 is not applicable),
+      ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'},
       "cost_to_serve": 10000
     },
     {
@@ -199,7 +254,7 @@ Please structure your response as a valid JSON object with this structure:
       "name": "Brief name of another pain point",
       "description": "Detailed description of this pain point",
       "assigned_process_group": "Unassigned",
-      "score": 7,
+      ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'},
       "cost_to_serve": 30000
     }
   ],
@@ -220,7 +275,9 @@ Rules:
 8. The response MUST be valid JSON that can be parsed with JSON.parse()
 9. Do not include any explanatory text outside the JSON object
 10. Ensure each pain point has at least a name and description
-11. Score pain points on a scale of 0-3, where 3 indicates the most severe/painful issues, and 0 is not applicable.
+${strategicObjectives.length > 0 
+  ? '11. Score each pain point against EACH strategic objective on a scale of 0-3, where 3 indicates high impact/relevance to that objective'
+  : '11. Score pain points on a scale of 0-3, where 3 indicates the most severe/painful issues, and 0 is not applicable.'}
 12. Provide a cost_to_serve estimate for each pain point based on industry standards and the complexity of the issue. Use integer values representing the estimated cost in dollars (e.g., 5000, 25000, 100000, 300000).
 
 Make sure your response is ONLY the JSON object, nothing else.`;
@@ -257,14 +314,24 @@ Make sure your response is ONLY the JSON object, nothing else.`;
         
         // Ensure each pain point has the required fields
         const normalizedPainPoints = painPoints.map((point: any, index: number) => {
-          return {
+          const normalizedPoint: any = {
             id: point.id || `pp-${index + 1}`,
             name: point.name || 'Untitled Pain Point',
             description: point.description || 'No description provided',
             assigned_process_group: point.assigned_process_group || 'Unassigned',  // Default to Unassigned if not provided
-            score: point.score || 5,
             cost_to_serve: point.cost_to_serve || 30000 // Default cost estimate if not provided
           };
+          
+          // Add strategic objective scores if they exist in response, otherwise use default score
+          if (strategicObjectives.length > 0) {
+            strategicObjectives.forEach(obj => {
+              normalizedPoint[`so_${obj.normalized_name}`] = point[`so_${obj.normalized_name}`] !== undefined ? point[`so_${obj.normalized_name}`] : 0;
+            });
+          } else {
+            normalizedPoint.score = point.score || 5;
+          }
+          
+          return normalizedPoint;
         });
         
         summaryData = {
@@ -314,31 +381,6 @@ Make sure your response is ONLY the JSON object, nothing else.`;
         console.log('Saving structured pain points to database');
         await saveSummaryToCosmosDB(summaryData, tenantSlug, workspaceId, scanId, lifecycleId);
         console.log('Pain points saved successfully');
-        
-        // Update the lifecycle process group scores based on pain points
-        try {
-          // Call the dedicated API endpoint to sync scores
-          const syncResponse = await fetch(
-            `${process.env.NEXTAUTH_URL || ''}/api/tenants/by-slug/workspaces/scans/pain-points/sync-scores?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-              }
-            }
-          );
-          
-          if (syncResponse.ok) {
-            console.log('Lifecycle scores updated successfully via API');
-          } else {
-            console.warn('Failed to update lifecycle scores via API:', await syncResponse.text());
-          }
-        } catch (scoreError) {
-          console.warn('Failed to update lifecycle scores:', scoreError);
-        }
       } catch (error) {
         console.warn('Failed to save generated pain points to database:', error);
       }
