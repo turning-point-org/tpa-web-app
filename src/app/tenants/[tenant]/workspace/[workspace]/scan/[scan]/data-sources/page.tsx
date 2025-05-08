@@ -322,7 +322,7 @@ export default function DataSourcesPage() {
   ).length;
 
   return (
-    <div>
+    <div className="max-w-[1200px] mx-auto">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <h2 className="text-2xl font-semibold mb-2">Data Sources</h2>

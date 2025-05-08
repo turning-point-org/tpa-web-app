@@ -17,7 +17,7 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
   { name: "Lifecycles", slug: "lifecycles" },
   { name: "Stakeholders", slug: "stakeholders" },
   { name: "Strategic Objectives", slug: "strategic-objectives" },
-  { name: "Pain Points", slug: "pain-points" },
+  { name: "Interview Copilot", slug: "interview-copilot" },
   { name: "Lifecycle Cost", slug: "lifecycle-cost" },
   { name: "Scenario Planning", slug: "scenario-planning" },
 ];
@@ -112,20 +112,21 @@ export default function WorkflowNav({ isSidebar = false, scanData = null, isColl
             >
               <div className={`relative flex items-center justify-center ${isCollapsed ? '' : 'mr-2'}`}>
                 <div 
-                  className={`rounded-full p-2 flex items-center justify-center`} 
+                  className={`rounded-full p-2 flex items-center justify-center relative`} 
                   style={{ 
                     backgroundColor: isActive ? "#7A2BF7" : "#ffffff",
                     border: "1px solid #E5E7EB",
-                    width: "32px",
-                    height: "32px"
+                    width: "40px",
+                    height: "40px"
                   }}
                 >
                   <Image 
                     src={`/assets/icons/nav-icons/${step.slug}.svg`} 
                     alt={step.name} 
-                    width={22} 
-                    height={22}
+                    fill
                     style={{ 
+                      padding: "20%",
+                      objectFit: "contain",
                       filter: isActive 
                         ? "brightness(0) invert(1)"
                         : "invert(27%) sepia(85%) saturate(3675%) hue-rotate(254deg) brightness(97%) contrast(93%)"
@@ -176,20 +177,21 @@ export function WorkflowNavButtons() {
           >
             <div className="relative flex items-center justify-center mr-2 ml-2">
               <div 
-                className="rounded-full flex items-center justify-center" 
+                className="rounded-full flex items-center justify-center relative" 
                 style={{ 
                   backgroundColor: "#ffffff",
                   border: "1px solid #E5E7EB",
-                  width: "32px",
-                  height: "32px"
+                  width: "40px",
+                  height: "40px"
                 }}
               >
                 <Image 
                   src={`/assets/icons/nav-icons/${WORKFLOW_STEPS[currentStep - 1].slug}.svg`} 
                   alt={WORKFLOW_STEPS[currentStep - 1].name} 
-                  width={22} 
-                  height={22}
+                  fill
                   style={{ 
+                    padding: "20%",
+                    objectFit: "contain",
                     filter: "invert(27%) sepia(85%) saturate(3675%) hue-rotate(254deg) brightness(97%) contrast(93%)"
                   }}
                 />
@@ -217,20 +219,21 @@ export function WorkflowNavButtons() {
           >
             <div className="relative flex items-center justify-center mr-2 ml-2">
               <div 
-                className="rounded-full flex items-center justify-center" 
+                className="rounded-full flex items-center justify-center relative" 
                 style={{ 
                   backgroundColor: "#7A2BF7",
                   border: "1px solid #7A2BF7",
-                  width: "32px",
-                  height: "32px"
+                  width: "40px",
+                  height: "40px"
                 }}
               >
                 <Image 
                   src={`/assets/icons/nav-icons/${WORKFLOW_STEPS[currentStep + 1].slug}.svg`} 
                   alt={WORKFLOW_STEPS[currentStep + 1].name} 
-                  width={22} 
-                  height={22}
+                  fill
                   style={{ 
+                    padding: "20%",
+                    objectFit: "contain",
                     filter: "brightness(0) invert(1)"
                   }}
                 />

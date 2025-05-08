@@ -33,6 +33,8 @@ export default function StrategicObjectivesPage() {
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [originalObjectiveName, setOriginalObjectiveName] = useState<string | null>(null);
 
   const fetchObjectives = async () => {
     try {
@@ -141,20 +143,22 @@ export default function StrategicObjectivesPage() {
   };
 
   const handleUpdateObjective = async () => {
-    if (!editingObjective || !editingObjective.name) return;
+    if (!editingObjective || !editingObjective.name || !originalObjectiveName) return;
     
     // Check for duplicates
-    if (isDuplicateName(editingObjective.name, editingObjective.name)) {
+    if (isDuplicateName(editingObjective.name, originalObjectiveName)) {
       setError("An objective with this name already exists");
       return;
     }
     
     const updatedObjectives = objectives.map(obj => 
-      obj.name === (editingObjective.name) ? editingObjective : obj
+      obj.name === originalObjectiveName ? editingObjective : obj
     );
     
     await handleSaveObjectives(updatedObjectives);
     setEditingObjective(null);
+    setOriginalObjectiveName(null);
+    setShowEditModal(false);
   };
 
   const handleDeleteObjective = async () => {
@@ -178,6 +182,12 @@ export default function StrategicObjectivesPage() {
   const confirmDelete = (objective: StrategicObjective) => {
     setObjectiveToDelete(objective);
     setShowDeleteModal(true);
+  };
+
+  const openEditModal = (objective: StrategicObjective) => {
+    setEditingObjective(objective);
+    setOriginalObjectiveName(objective.name);
+    setShowEditModal(true);
   };
 
   const handleGenerateObjectives = async () => {
@@ -222,7 +232,7 @@ export default function StrategicObjectivesPage() {
   };
 
   return (
-    <div>
+    <div className="max-w-[1200px] mx-auto">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-semibold">Strategic Objectives</h2>
         <div className="flex space-x-2">
@@ -269,95 +279,29 @@ export default function StrategicObjectivesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {objectives.length ? (
             objectives.map(objective => (
-              <div key={objective.name} className="bg-white rounded-lg shadow p-4 border">
-                {editingObjective?.name === objective.name ? (
-                  // Edit mode
-                  <>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Title
-                      </label>
-                      <input
-                        type="text"
-                        value={editingObjective.name}
-                        onChange={(e) => setEditingObjective({
-                          ...editingObjective,
-                          name: e.target.value
-                        })}
-                        className={`w-full px-3 py-2 border ${nameError ? 'border-red-500' : 'border-gray-300'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                      />
-                      {nameError && (
-                        <div className="mt-1 text-sm text-red-600 flex items-center">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          {nameError}
-                        </div>
-                      )}
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Description
-                      </label>
-                      <textarea
-                        value={editingObjective.description}
-                        onChange={(e) => setEditingObjective({
-                          ...editingObjective,
-                          description: e.target.value
-                        })}
-                        rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="flex justify-between mt-4">
-                      <Button
-                        variant="danger"
-                        onClick={() => confirmDelete(objective)}
-                        icon={<Trash className="h-5 w-5" />}
-                      >
-                        Delete
-                      </Button>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="secondary"
-                          onClick={() => setEditingObjective(null)}
-                          icon={<X className="h-5 w-5" />}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={handleUpdateObjective}
-                          icon={<Check className="h-5 w-5" />}
-                        >
-                          Confirm
-                        </Button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  // View mode
-                  <>
-                    <h3 className="text-lg font-semibold mb-2">{objective.name}</h3>
-                    <p className="text-gray-600 mb-4">{objective.description}</p>
-                    <div className="flex justify-between items-center">
-                      <select
-                        value={objective.status}
-                        onChange={(e) => handleStatusChange(
-                          objective, 
-                          e.target.value as "to be approved" | "approved"
-                        )}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm"
-                      >
-                        <option value="to be approved">To Be Approved</option>
-                        <option value="approved">Approved</option>
-                      </select>
-                      <Button
-                        onClick={() => setEditingObjective(objective)}
-                        icon={<Pencil className="h-5 w-5" />}
-                        iconOnly
-                        title="Edit Objective"
-                      />
-                    </div>
-                  </>
-                )}
+              <div key={objective.name} className="border border-gray-200 rounded-lg shadow-sm bg-white p-6 flex flex-col justify-between">
+                <h3 className="text-lg font-semibold mb-2">{objective.name}</h3>
+                <p className="text-gray-600 mb-4">{objective.description}</p>
+                <div className="flex justify-between items-center">
+                  <select
+                    value={objective.status}
+                    onChange={(e) => handleStatusChange(
+                      objective, 
+                      e.target.value as "to be approved" | "approved"
+                    )}
+                    className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  >
+                    <option value="to be approved">To Be Approved</option>
+                    <option value="approved">Approved</option>
+                  </select>
+                  <Button
+                    onClick={() => openEditModal(objective)}
+                    icon={<Pencil className="h-5 w-5" />}
+                    iconOnly
+                    title="Edit Objective"
+                    variant="secondary"
+                  />
+                </div>
               </div>
             ))
           ) : (
@@ -498,7 +442,93 @@ export default function StrategicObjectivesPage() {
         </div>
       </Modal>
       
-      {editingObjective && nameError && (
+      {/* Edit Objective Modal */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingObjective(null);
+          setOriginalObjectiveName(null);
+          setNameError(null);
+        }}
+        maxWidth="2xl"
+      >
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Edit Strategic Objective
+        </h3>
+        
+        {editingObjective && (
+          <>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Title
+              </label>
+              <input
+                type="text"
+                value={editingObjective.name}
+                onChange={(e) => setEditingObjective({
+                  ...editingObjective,
+                  name: e.target.value
+                })}
+                className={`w-full px-3 py-2 border ${nameError ? 'border-red-500' : 'border-gray-300'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              />
+              {nameError && (
+                <div className="mt-1 text-sm text-red-600 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {nameError}
+                </div>
+              )}
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                value={editingObjective.description}
+                onChange={(e) => setEditingObjective({
+                  ...editingObjective,
+                  description: e.target.value
+                })}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex justify-between mt-4">
+              <Button
+                variant="danger"
+                onClick={() => {
+                  setShowEditModal(false);
+                  confirmDelete(editingObjective);
+                }}
+                icon={<Trash className="h-5 w-5" />}
+              >
+                Delete
+              </Button>
+              <div className="flex space-x-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingObjective(null);
+                    setOriginalObjectiveName(null);
+                  }}
+                  icon={<X className="h-5 w-5" />}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpdateObjective}
+                  icon={<Check className="h-5 w-5" />}
+                >
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </Modal>
+      
+      {nameError && !showEditModal && (
         <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50 flex items-center">
           <AlertCircle className="h-5 w-5 mr-2" />
           {nameError}

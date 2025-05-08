@@ -29,7 +29,7 @@ const Button: React.FC<ButtonProps> = ({
   // Classes specific to each variant
   const variantClasses = {
     primary: "border-transparent text-white bg-[#5319A5] hover:bg-[#4A1694] focus:ring-[#5319A5] disabled:bg-[#5319A5]/50",
-    secondary: "border-[#5319A5] text-[#5319A5] bg-transparent hover:bg-white focus:ring-[#5319A5]",
+    secondary: "border-[#5319A5] text-[#5319A5] bg-white hover:bg-white focus:ring-[#5319A5]",
     danger: "border-transparent text-white bg-red-600 hover:bg-red-700 focus:ring-red-500 disabled:bg-red-600/50",
     "danger-secondary": "border-red-600 text-red-600 bg-transparent hover:bg-white focus:ring-red-500"
   };

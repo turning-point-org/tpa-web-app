@@ -26,14 +26,30 @@ export default function LifecyclesPage() {
   const [lifecycles, setLifecycles] = useState<Lifecycle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [isEditing, setIsEditing] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{ name: string; description: string }>({ name: "", description: "" });
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [newLifecycle, setNewLifecycle] = useState<{ name: string; description: string }>({ name: "", description: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [generatingProcesses, setGeneratingProcesses] = useState<string | null>(null);
   const [showRegenerateModal, setShowRegenerateModal] = useState<string | null>(null);
+  
+  // New state for modal-based editing
+  const [editModal, setEditModal] = useState<{
+    isOpen: boolean;
+    lifecycle: Lifecycle | null;
+    name: string;
+    description: string;
+  }>({
+    isOpen: false,
+    lifecycle: null,
+    name: "",
+    description: ""
+  });
+  
+  // New state for new lifecycle modal
+  const [newLifecycleModal, setNewLifecycleModal] = useState({
+    isOpen: false,
+    name: "",
+    description: ""
+  });
 
   useEffect(() => {
     loadLifecycles();
@@ -164,36 +180,42 @@ export default function LifecyclesPage() {
     }
   }
 
-  const handleEditClick = useCallback((lifecycle: Lifecycle) => {
-    setIsEditing(lifecycle.id);
-    setEditForm({
+  // New modal-based editing functions
+  const openEditModal = (lifecycle: Lifecycle) => {
+    setEditModal({
+      isOpen: true,
+      lifecycle,
       name: lifecycle.name,
       description: lifecycle.description
     });
-  }, []);
+  };
 
-  const handleEditCancel = useCallback(() => {
-    setIsEditing(null);
-    setEditForm({ name: "", description: "" });
-  }, []);
+  const closeEditModal = () => {
+    setEditModal({
+      isOpen: false,
+      lifecycle: null,
+      name: "",
+      description: ""
+    });
+  };
 
-  const handleEditChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setEditForm(prev => ({ ...prev, [name]: value }));
-  }, []);
+  const handleEditNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditModal(prev => ({
+      ...prev,
+      name: e.target.value
+    }));
+  };
 
-  const handleDeleteClick = useCallback((lifecycleId: string) => {
-    setDeleteConfirm(lifecycleId);
-    setIsEditing(null);
-  }, []);
+  const handleEditDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setEditModal(prev => ({
+      ...prev,
+      description: e.target.value
+    }));
+  };
 
-  const handleDeleteCancel = useCallback(() => {
-    setDeleteConfirm(null);
-  }, []);
-
-  const handleEditSubmit = async (e: React.FormEvent, lifecycleId: string) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editForm.name.trim()) return;
+    if (!editModal.lifecycle || !editModal.name.trim()) return;
     
     try {
       setIsSubmitting(true);
@@ -206,37 +228,37 @@ export default function LifecyclesPage() {
           tenant_slug: tenantSlug,
           workspace_id: workspaceId,
           scan_id: scanId,
-          lifecycle_id: lifecycleId,
-          name: editForm.name,
-          description: editForm.description
+          lifecycle_id: editModal.lifecycle.id,
+          name: editModal.name,
+          description: editModal.description
         }),
       });
 
       if (response.ok) {
         const updatedLifecycle = await response.json();
-        const currentLifecycle = lifecycles.find(lc => lc.id === lifecycleId);
+        const currentLifecycle = lifecycles.find(lc => lc.id === editModal.lifecycle?.id);
         const updatedLifecycleWithCurrentProcesses = {
           ...updatedLifecycle,
           processes: currentLifecycle?.processes
         };
         
         setLifecycles(prevLifecycles => 
-          prevLifecycles.map(lc => lc.id === lifecycleId ? updatedLifecycleWithCurrentProcesses : lc)
+          prevLifecycles.map(lc => lc.id === editModal.lifecycle?.id ? updatedLifecycleWithCurrentProcesses : lc)
         );
         
         // After saving, generate/regenerate processes
         if (currentLifecycle?.processes) {
           // If processes already exist, ask for confirmation
-          setIsEditing(null);
-          setShowRegenerateModal(lifecycleId);
+          closeEditModal();
+          setShowRegenerateModal(editModal.lifecycle.id);
         } else {
           // If no processes, generate them right away
           await handleGenerateProcesses({
             ...updatedLifecycleWithCurrentProcesses,
-            name: editForm.name,
-            description: editForm.description
+            name: editModal.name,
+            description: editModal.description
           });
-          setIsEditing(null);
+          closeEditModal();
         }
       } else {
         const errorData = await response.json();
@@ -248,6 +270,91 @@ export default function LifecyclesPage() {
       setIsSubmitting(false);
     }
   };
+
+  // New lifecycle modal functions
+  const openNewLifecycleModal = () => {
+    setNewLifecycleModal({
+      isOpen: true,
+      name: "",
+      description: ""
+    });
+  };
+
+  const closeNewLifecycleModal = () => {
+    setNewLifecycleModal({
+      isOpen: false,
+      name: "",
+      description: ""
+    });
+  };
+
+  const handleNewLifecycleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewLifecycleModal(prev => ({
+      ...prev,
+      name: e.target.value
+    }));
+  };
+
+  const handleNewLifecycleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewLifecycleModal(prev => ({
+      ...prev,
+      description: e.target.value
+    }));
+  };
+
+  const handleNewLifecycleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Enhanced validation
+    if (!newLifecycleModal.name.trim()) {
+      setError("Lifecycle name is required");
+      return;
+    }
+    
+    if (!newLifecycleModal.description.trim()) {
+      setError("Lifecycle description is required");
+      return;
+    }
+    
+    try {
+      setError(""); // Clear any previous errors
+      setIsSubmitting(true);
+      const response = await fetch('/api/tenants/by-slug/workspaces/scans/lifecycles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tenant_slug: tenantSlug,
+          workspace_id: workspaceId,
+          scan_id: scanId,
+          name: newLifecycleModal.name.trim(),
+          description: newLifecycleModal.description.trim()
+        }),
+      });
+
+      if (response.ok) {
+        const createdLifecycle = await response.json();
+        setLifecycles(prevLifecycles => [...prevLifecycles, createdLifecycle]);
+        closeNewLifecycleModal();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to create lifecycle");
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred while creating a new lifecycle");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteClick = useCallback((lifecycleId: string) => {
+    setDeleteConfirm(lifecycleId);
+  }, []);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteConfirm(null);
+  }, []);
 
   const handleDeleteConfirm = async (lifecycleId: string) => {
     try {
@@ -270,68 +377,6 @@ export default function LifecyclesPage() {
       }
     } catch (err: any) {
       setError(err.message || "An error occurred while deleting the lifecycle");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleAddNewClick = () => {
-    setIsAddingNew(true);
-    setNewLifecycle({ name: "", description: "" });
-  };
-
-  const handleAddNewCancel = () => {
-    setIsAddingNew(false);
-    setNewLifecycle({ name: "", description: "" });
-  };
-
-  const handleNewLifecycleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setNewLifecycle(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleAddNewSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Enhanced validation
-    if (!newLifecycle.name.trim()) {
-      setError("Lifecycle name is required");
-      return;
-    }
-    
-    if (!newLifecycle.description.trim()) {
-      setError("Lifecycle description is required");
-      return;
-    }
-    
-    try {
-      setError(""); // Clear any previous errors
-      setIsSubmitting(true);
-      const response = await fetch('/api/tenants/by-slug/workspaces/scans/lifecycles', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tenant_slug: tenantSlug,
-          workspace_id: workspaceId,
-          scan_id: scanId,
-          name: newLifecycle.name.trim(),
-          description: newLifecycle.description.trim()
-        }),
-      });
-
-      if (response.ok) {
-        const createdLifecycle = await response.json();
-        setLifecycles(prevLifecycles => [...prevLifecycles, createdLifecycle]);
-        setIsAddingNew(false);
-        setNewLifecycle({ name: "", description: "" });
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || "Failed to create lifecycle");
-      }
-    } catch (err: any) {
-      setError(err.message || "An error occurred while creating a new lifecycle");
     } finally {
       setIsSubmitting(false);
     }
@@ -376,7 +421,6 @@ export default function LifecyclesPage() {
       if (!response.ok) {
         const errorData = await response.json();
         setError(errorData.error || "Failed to update lifecycle positions");
-        // No need to reload, we've already updated the UI optimistically
       }
     } catch (err: any) {
       setError(err.message || "An error occurred while updating lifecycle positions");
@@ -422,7 +466,6 @@ export default function LifecyclesPage() {
       if (!response.ok) {
         const errorData = await response.json();
         setError(errorData.error || "Failed to update lifecycle positions");
-        // No need to reload, we've already updated the UI optimistically
       }
     } catch (err: any) {
       setError(err.message || "An error occurred while updating lifecycle positions");
@@ -472,108 +515,30 @@ export default function LifecyclesPage() {
     }
   };
 
-  // LifecycleCard component that handles both view and edit modes
+  // LifecycleCard component that handles view mode only (edit is in modal)
   const LifecycleCard = ({ lifecycle, index }: { lifecycle: Lifecycle, index: number }) => {
-    const isEditingThis = isEditing === lifecycle.id;
     const isConfirmingDeleteThis = deleteConfirm === lifecycle.id;
     const isGeneratingThis = generatingProcesses === lifecycle.id;
     
     return (
       <div className="rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        {!isEditingThis && (
-          <div className="p-4 bg-gray-50 flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-800">{lifecycle.name}</h3>
-            <Button 
-              variant={lifecycle.processes ? 'primary' : 'secondary'}
-              iconOnly
-              title={lifecycle.processes ? "Expand" : "Generate processes first"}
-              onClick={() => lifecycle.processes && router.push(`/tenants/${tenantSlug}/workspace/${workspaceId}/scan/${scanId}/lifecycles/${lifecycle.id}`)}
-              disabled={!lifecycle.processes}
-              className="p-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-              </svg>
-            </Button>
-          </div>
-        )}
+        <div className="p-4 bg-gray-50 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-800">{lifecycle.name}</h3>
+          <Button 
+            variant={lifecycle.processes ? 'primary' : 'secondary'}
+            iconOnly
+            title={lifecycle.processes ? "Expand" : "Generate processes first"}
+            onClick={() => lifecycle.processes && router.push(`/tenants/${tenantSlug}/workspace/${workspaceId}/scan/${scanId}/lifecycles/${lifecycle.id}`)}
+            disabled={!lifecycle.processes}
+            className="p-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+            </svg>
+          </Button>
+        </div>
         
-        {isEditingThis ? (
-          <div className="p-6 bg-white h-full flex flex-col">
-            <form onSubmit={(e) => handleEditSubmit(e, lifecycle.id)} className="flex flex-col h-full">
-              <div className="mb-4 flex-grow">
-                <label htmlFor={`name-${lifecycle.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
-                </label>
-                <input
-                  id={`name-${lifecycle.id}`}
-                  name="name"
-                  type="text"
-                  value={editForm.name}
-                  onChange={handleEditChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  required
-                  autoFocus
-                  key={`name-${lifecycle.id}`}
-                />
-              </div>
-              <div className="mb-6 flex-grow">
-                <label htmlFor={`description-${lifecycle.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  id={`description-${lifecycle.id}`}
-                  name="description"
-                  value={editForm.description}
-                  onChange={handleEditChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md h-32"
-                  rows={6}
-                  key={`description-${lifecycle.id}`}
-                />
-              </div>
-              <div className="flex justify-between mt-6">
-                <div className="space-x-2">
-                  <Button
-                    variant="danger"
-                    type="button"
-                    onClick={() => handleDeleteClick(lifecycle.id)}
-                    disabled={isSubmitting}
-                  >
-                    Delete
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    onClick={handleEditCancel}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-                <div className="space-x-2">
-                  <Button
-                    type="submit"
-                    variant={lifecycle.processes ? 'secondary' : 'primary'}
-                    disabled={isSubmitting || generatingProcesses !== null}
-                  >
-                    {isSubmitting ? 'Saving...' : 
-                     isGeneratingThis ? (
-                      <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Generating...
-                      </span>
-                    ) : (
-                      lifecycle.processes ? "Save & Regenerate Processes" : "Save & Generate Processes"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </div>
-        ) : isConfirmingDeleteThis ? (
+        {isConfirmingDeleteThis ? (
           <div className="m-4 p-4 bg-white border border-gray-200 rounded-md">
             <p className="mb-4 text-red-600 font-medium">Are you sure you want to delete this lifecycle?</p>
             <div className="flex justify-end space-x-3">
@@ -594,30 +559,33 @@ export default function LifecyclesPage() {
             </div>
           </div>
         ) : (
-          <div className="p-4 bg-white relative h-[350px] overflow-x-auto overflow-y-hidden">
+          <div className="p-4 bg-white relative h-[350px] overflow-x-auto overflow-y-hidden flex flex-col">
             {/* Process visualization */}
             {lifecycle.processes?.process_categories && (
-              <div className="flex flex-row overflow-x-auto space-x-2 pb-5">
+              <div className="flex flex-row overflow-x-auto space-x-2 pb-5 flex-grow">
                 {lifecycle.processes.process_categories.map((category: any, catIndex: number) => (
                   <div 
                     key={catIndex} 
-                    className="flex-shrink-0 w-32 border border-gray-300 rounded bg-gray-50"
+                    className="flex-shrink-0 w-20 border border-gray-300 rounded bg-gray-50"
                   >
-                    <div className="p-1 bg-gray-600 text-white text-center">
-                      <p className="text-xs font-medium truncate" title={category.name}>
+                    <div className="p-1 bg-[#31115E] text-white text-center rounded-t">
+                      <p className="text-[10px] font-medium truncate" title={category.name}>
                         {category.name}
                       </p>
                     </div>
-                    <div className="p-1">
+                    <div className="p-1 max-h-[200px] overflow-hidden relative">
                       {category.process_groups?.map((group: any, groupIndex: number) => (
                         <div 
                           key={groupIndex} 
-                          className="mb-1 p-1 bg-gray-100 border border-gray-200 rounded text-xs"
+                          className="mb-1 p-1 bg-gray-100 border border-gray-200 rounded text-[10px]"
                           title={group.description}
                         >
                           {group.name}
                         </div>
                       ))}
+                      {category.process_groups?.length > 6 && (
+                        <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-gray-50 to-transparent pointer-events-none"></div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -626,19 +594,21 @@ export default function LifecyclesPage() {
             
             {/* Show message if no processes */}
             {!lifecycle.processes?.process_categories && !isGeneratingThis && (
-              <div className="flex items-center justify-center h-full pb-10">
+              <div className="flex items-center justify-center flex-grow pb-10">
                 <p className="text-gray-400 text-sm">No processes generated</p>
               </div>
             )}
 
-            {/* Edit gear icon in bottom right */}
-            <Button
-              variant="secondary"
-              iconOnly
-              onClick={() => handleEditClick(lifecycle)}
-              className="absolute bottom-2 right-2"
-              icon={<GearIcon />}
-            />
+            {/* Edit gear icon in footer */}
+            <div className="w-full border-t border-gray-200 py-2 mt-auto flex justify-end">
+              <Button
+                variant="secondary"
+                iconOnly
+                onClick={() => openEditModal(lifecycle)}
+                className="mr-2"
+                icon={<GearIcon />}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -646,22 +616,20 @@ export default function LifecyclesPage() {
   };
 
   return (
-    <div>
+    <div className="max-w-[1200px] mx-auto">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-semibold">Business Lifecycles</h2>
-        {!isAddingNew && (
-          <Button
-            onClick={handleAddNewClick}
-            disabled={isAddingNew || isSubmitting}
-            icon={(
-              <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            )}
-          >
-            New Lifecycle
-          </Button>
-        )}
+        <Button
+          onClick={openNewLifecycleModal}
+          disabled={isSubmitting}
+          icon={(
+            <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          )}
+        >
+          New Lifecycle
+        </Button>
       </div>
       <p className="text-gray-600 mb-6">
         Business lifecycles represent the core operational processes of the organization.
@@ -684,11 +652,11 @@ export default function LifecyclesPage() {
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
-      ) : lifecycles.length === 0 && !isAddingNew ? (
+      ) : lifecycles.length === 0 ? (
         <div className="p-6 text-center bg-gray-50 rounded-lg border border-gray-200">
           <p className="text-gray-600 mb-4">No lifecycles have been created yet.</p>
           <Button
-            onClick={handleAddNewClick}
+            onClick={openNewLifecycleModal}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
           >
             Create Your First Lifecycle
@@ -696,78 +664,147 @@ export default function LifecyclesPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 gap-6">
             {lifecycles.map((lifecycle, index) => (
               <LifecycleCard key={lifecycle.id} lifecycle={lifecycle} index={index} />
             ))}
-            
-            {isAddingNew && (
-              <div className="rounded-lg border border-blue-300 shadow-sm overflow-hidden">
-                <div className="p-4 bg-gray-50">
-                  <h3 className="text-lg font-semibold text-gray-800">New Lifecycle</h3>
-                </div>
-                <div className="m-4 p-4 bg-white border border-gray-200 rounded-md">
-                  <form onSubmit={handleAddNewSubmit}>
-                    <div className="mb-4">
-                      <label htmlFor="new-name" className="block text-sm font-medium text-gray-700 mb-1">
-                        Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="new-name"
-                        name="name"
-                        type="text"
-                        value={newLifecycle.name}
-                        onChange={handleNewLifecycleChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        required
-                        placeholder="Enter lifecycle name"
-                      />
-                    </div>
-                    <div className="mb-4">
-                      <label htmlFor="new-description" className="block text-sm font-medium text-gray-700 mb-1">
-                        Description <span className="text-red-500">*</span>
-                      </label>
-                      <textarea
-                        id="new-description"
-                        name="description"
-                        value={newLifecycle.description}
-                        onChange={handleNewLifecycleChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        rows={3}
-                        required
-                        placeholder="Enter lifecycle description"
-                      />
-                    </div>
-                    <div className="flex justify-end space-x-3">
-                      <Button
-                        variant="secondary"
-                        type="button"
-                        onClick={handleAddNewCancel}
-                        disabled={isSubmitting}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        disabled={isSubmitting}
-                      >
-                        {isSubmitting ? 'Saving...' : 'Save'}
-                      </Button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
           </div>
         </>
       )}
+      
+      {/* Edit Lifecycle Modal */}
+      <Modal
+        isOpen={editModal.isOpen}
+        onClose={closeEditModal}
+        title="Edit Lifecycle"
+        maxWidth="4xl"
+      >
+        {editModal.lifecycle && (
+          <form onSubmit={handleEditSubmit}>
+            <div className="mb-4">
+              <label htmlFor="edit-name" className="block text-sm font-medium text-gray-700 mb-1">
+                Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="edit-name"
+                value={editModal.name}
+                onChange={handleEditNameChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                required
+                placeholder="Enter lifecycle name"
+              />
+            </div>
+            <div className="mb-6">
+              <label htmlFor="edit-description" className="block text-sm font-medium text-gray-700 mb-1">
+                Description <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                id="edit-description"
+                value={editModal.description}
+                onChange={handleEditDescriptionChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                rows={6}
+                required
+                placeholder="Enter lifecycle description"
+              />
+            </div>
+            <div className="flex justify-between">
+              <Button
+                variant="danger"
+                type="button"
+                onClick={() => {
+                  closeEditModal();
+                  handleDeleteClick(editModal.lifecycle!.id);
+                }}
+                disabled={isSubmitting}
+              >
+                Delete
+              </Button>
+              <div className="space-x-3">
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={closeEditModal}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Saving...' : 
+                   (editModal.lifecycle.processes ? 'Save & Regenerate Processes' : 'Save & Generate Processes')}
+                </Button>
+              </div>
+            </div>
+          </form>
+        )}
+      </Modal>
+      
+      {/* New Lifecycle Modal */}
+      <Modal
+        isOpen={newLifecycleModal.isOpen}
+        onClose={closeNewLifecycleModal}
+        title="Create New Lifecycle"
+        maxWidth="4xl"
+      >
+        <form onSubmit={handleNewLifecycleSubmit}>
+          <div className="mb-4">
+            <label htmlFor="new-name" className="block text-sm font-medium text-gray-700 mb-1">
+              Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="new-name"
+              value={newLifecycleModal.name}
+              onChange={handleNewLifecycleNameChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              required
+              placeholder="Enter lifecycle name"
+            />
+          </div>
+          <div className="mb-6">
+            <label htmlFor="new-description" className="block text-sm font-medium text-gray-700 mb-1">
+              Description <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="new-description"
+              value={newLifecycleModal.description}
+              onChange={handleNewLifecycleDescriptionChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              rows={6}
+              required
+              placeholder="Enter lifecycle description"
+            />
+          </div>
+          <div className="flex justify-end space-x-3">
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={closeNewLifecycleModal}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Creating...' : 'Create Lifecycle'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
       
       {/* Regenerate confirmation modal */}
       <Modal 
         isOpen={showRegenerateModal !== null} 
         onClose={() => setShowRegenerateModal(null)}
+        maxWidth="4xl"
+        title="Confirm Regeneration"
       >
-        <h3 className="text-lg font-bold mb-4">Confirm Regeneration</h3>
         <div className="mb-6">
           <p className="text-red-600 font-semibold mb-2">Warning</p>
           <p className="text-gray-600">

@@ -107,8 +107,7 @@ const PainPointCard = ({
   dispatchLifecycleUpdateEvent: () => void;
   onPainPointUpdate: (updatedPainPoint: PainPoint) => void;
 }) => {
-  // Add state to track which field is being edited
-  const [editingField, setEditingField] = useState<'cost_to_serve' | null>(null);
+  // Remove editingField state that was used for cost_to_serve
   const [editValue, setEditValue] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
   // Add state to track if strategic objectives are expanded
@@ -194,98 +193,6 @@ const PainPointCard = ({
     }).format(amount);
   };
 
-  // Handle clicking on a tag to edit - only for cost_to_serve now
-  const handleTagClick = (field: 'cost_to_serve') => {
-    setEditingField(field);
-    // Set initial value
-    if (field === 'cost_to_serve') {
-      setEditValue(painPoint.cost_to_serve?.toString() || '');
-    }
-    // Focus the input after rendering
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
-    }, 10);
-  };
-
-  // Handle saving the edited value
-  const handleSaveEdit = async () => {
-    if (!editingField) return;
-    
-    try {
-      // Convert to number and validate
-      const numValue = parseInt(editValue, 10);
-      if (isNaN(numValue)) {
-        console.error('Invalid number:', editValue);
-        setEditingField(null);
-        return;
-      }
-      
-      // Create updated pain point with new value
-      const updatedPainPoint = { ...painPoint };
-      if (editingField === 'cost_to_serve') {
-        updatedPainPoint.cost_to_serve = numValue;
-      }
-      
-      // First immediately update the UI via parent's state
-      onPainPointUpdate(updatedPainPoint);
-      
-      // Then update database using same API endpoint as process group changes
-      const response = await fetch(
-        `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          },
-          body: JSON.stringify({
-            summary: {
-              ...painPointSummaryData,
-              pain_points: painPointSummaryData.pain_points.map((point: PainPoint) => 
-                point.id === painPoint.id ? updatedPainPoint : point
-              )
-            },
-            tenantSlug,
-            workspaceId,
-            scanId,
-            lifecycleId
-          })
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Failed to update ${editingField}: ${response.status}`);
-      }
-      
-      // Notify the parent component that pain points have changed
-      dispatchLifecycleUpdateEvent();
-      
-    } catch (error) {
-      console.error(`Error updating ${editingField}:`, error);
-    } finally {
-      // Exit edit mode regardless of success/failure
-      setEditingField(null);
-    }
-  };
-
-  // Handle input blur (clicking outside)
-  const handleBlur = () => {
-    handleSaveEdit();
-  };
-
-  // Handle Enter key press to save
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSaveEdit();
-    } else if (e.key === 'Escape') {
-      setEditingField(null);
-    }
-  };
-
   // Get a list of strategic objectives for display
   const getStrategicObjectives = () => {
     return Object.entries(painPoint)
@@ -320,38 +227,13 @@ const PainPointCard = ({
       </button>
       
       {/* Score and Cost display - use flex to show them horizontally */}
-      <div className="mb-1.5 flex flex-wrap gap-2">
+      <div className="mb-1.5">
         {/* Show total strategic objective score (not editable) */}
         <span className="text-xs px-2 py-0.5 rounded-md bg-[#0EA394] text-white">
           {totalScore} {totalScore === 1 ? 'point' : 'points'}
         </span>
         
-        {/* Show cost to serve (editable) */}
-        {painPoint.cost_to_serve !== undefined && (
-          editingField === 'cost_to_serve' ? (
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type="number"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                className="text-xs px-2 py-0.5 rounded-md bg-gray-900 text-white border border-[#7A2BF7] w-24"
-                min="0"
-                step="1000"
-              />
-            </div>
-          ) : (
-            <span 
-              className="text-xs px-2 py-0.5 rounded-md bg-[#7A2BF7] text-white cursor-pointer hover:bg-[#6A1BE7] transition-colors"
-              onClick={() => handleTagClick('cost_to_serve')}
-              title="Click to edit cost"
-            >
-              {formatCurrency(painPoint.cost_to_serve)}
-            </span>
-          )
-        )}
+        {/* Remove cost to serve section */}
       </div>
       
       <h3 className="font-medium text-white text-sm mb-1.5 pr-7">{painPoint.name}</h3>
@@ -525,7 +407,7 @@ export default function OraInterviewPanel({ scanId, tenantSlug, workspaceId, lif
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
-      content: `Hello! I'm Ora, your pain point interview assistant. ${lifecycleName ? `I'll help you identify and document pain points for the **${lifecycleName}** lifecycle.` : `I'll help you identify and document pain points in this business lifecycle.`} Let's start by exploring the processes and uncovering challenges.`
+      content: `Hello! I'm Ora, your interview copilot. ${lifecycleName ? `I'll help you explore the **${lifecycleName}** lifecycle and identify opportunities for improvement.` : `I'll help you analyze this business lifecycle and identify opportunities for improvement.`} Let's collaborate on understanding the current processes and challenges.`
     }
   ]);
   const [input, setInput] = useState('');
@@ -638,17 +520,17 @@ export default function OraInterviewPanel({ scanId, tenantSlug, workspaceId, lif
             setMessages([
               {
                 role: 'assistant',
-                content: `# Pain Point Interview: ${lifecycleName}
+                content: `# ${lifecycleName}
                 
-Welcome! I'll help you identify pain points in the **${lifecycleName}** lifecycle. Let's explore what's working well and what needs improvement.
+I'll collaborate with you to identify opportunities and challenges in the **${lifecycleName}** lifecycle. As your copilot, I'm here to guide our conversation about process improvement.
 
-Some good questions to consider:
-- What challenges do you face in this process?
-- Where do you see bottlenecks or inefficiencies?
-- What would make this process better?
-- How do these issues impact the business?
+Let's explore together:
+- What specific challenges are you experiencing in this process?
+- Where do bottlenecks or inefficiencies occur?
+- What improvements would have the greatest impact?
+- How do these issues affect stakeholders and business outcomes?
 
-Let's start by discussing the main challenges you see in this lifecycle.`
+Let's begin by discussing what aspects of this lifecycle you'd like to explore first.`
               }
             ]);
           }
@@ -687,17 +569,17 @@ Let's start by discussing the main challenges you see in this lifecycle.`
             setMessages([
               {
                 role: 'assistant',
-                content: `# Pain Point Interview: ${data.name}
+                content: `# ${data.name}
                 
-Welcome! I'll help you identify pain points in the **${data.name}** lifecycle. Let's explore what's working well and what needs improvement.
+I'll collaborate with you to identify opportunities and challenges in the **${data.name}** lifecycle. As your copilot, I'm here to guide our conversation about process improvement.
 
-Some good questions to consider:
-- What challenges do you face in this process?
-- Where do you see bottlenecks or inefficiencies?
-- What would make this process better?
-- How do these issues impact the business?
+Let's explore together:
+- What specific challenges are you experiencing in this process?
+- Where do bottlenecks or inefficiencies occur?
+- What improvements would have the greatest impact?
+- How do these issues affect stakeholders and business outcomes?
 
-Let's start by discussing the main challenges you see in this lifecycle.`
+Let's begin by discussing what aspects of this lifecycle you'd like to explore first.`
               }
             ]);
           }
@@ -1883,7 +1765,7 @@ Let's start by discussing the main challenges you see in this lifecycle.`
                 viewBox="0 0 24 24"
                 stroke="currentColor"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
           )}
@@ -1904,7 +1786,7 @@ Let's start by discussing the main challenges you see in this lifecycle.`
                 <div className="p-4 border-b border-gray-700 flex-shrink-0 bg-gray-800 flex justify-between items-center h-16">
                   <div className="flex items-center">
                     <OraIcon className="w-10 h-10 mr-3" />
-                    <h2 className="text-lg font-semibold text-gray-100">Ora Pain Point Interview</h2>
+                    <h2 className="text-lg font-semibold text-gray-100">Interview Copilot</h2>
                   </div>
                   
                   {/* Mode buttons - horizontal alignment in chat header */}
@@ -1991,7 +1873,7 @@ Let's start by discussing the main challenges you see in this lifecycle.`
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 transform rotate-180"
+                        className="h-5 w-5"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"

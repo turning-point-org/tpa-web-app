@@ -42,7 +42,7 @@ const WORKFLOW_STEPS = [
   { name: "Lifecycles", slug: "lifecycles" },
   { name: "Stakeholders", slug: "stakeholders" },
   { name: "Strategic Objectives", slug: "strategic-objectives" },
-  { name: "Pain Points", slug: "pain-points" },
+  { name: "Interview Copilot", slug: "interview-copilot" },
   { name: "Lifecycle Cost", slug: "lifecycle-cost" },
   { name: "Scenario Planning", slug: "scenario-planning" },
 ];
@@ -163,7 +163,7 @@ export default function Breadcrumbs() {
       } else if (pathParts.length === 8 && pathParts[0] === 'tenants' && pathParts[6] === 'lifecycles') {
         // This is a specific lifecycle page (from /lifecycles/ path)
         setActivePage('lifecycle');
-      } else if (pathParts.length === 8 && pathParts[0] === 'tenants' && pathParts[6] === 'pain-points') {
+      } else if (pathParts.length === 8 && pathParts[0] === 'tenants' && pathParts[6] === 'interview-copilot') {
         // This is a specific pain point interview page
         setActivePage('painPointInterview');
       } else if (pathParts.length >= 7 && pathParts[0] === 'tenants' && pathParts[4] === 'scan') {
@@ -202,14 +202,14 @@ export default function Breadcrumbs() {
               setScanStep("Lifecycles");
             }
             // Check if we're on a pain point interview page (from /pain-points/ path)
-            else if (pathParts.length === 8 && pathParts[6] === 'pain-points') {
+            else if (pathParts.length === 8 && pathParts[6] === 'interview-copilot') {
               const lifecycleId = pathParts[7];
               const lifecycleData = await fetchLifecycle(tenantSlug, workspaceId, scanId, lifecycleId);
               if (lifecycleData) {
                 setLifecycle(lifecycleData);
               }
-              // Set scanStep to "Pain Points" to show it in the breadcrumb
-              setScanStep("Pain Points");
+              // Set scanStep to "Interview Copilot" to show it in the breadcrumb
+              setScanStep("Interview Copilot");
             }
             // Check if there's a scan step in the URL (pathParts[6])
             else if (pathParts.length >= 7) {
@@ -232,13 +232,13 @@ export default function Breadcrumbs() {
   }, [pathname, user?.accessToken]);
 
   return (
-    <nav className="text-sm text-gray-600 pt-5 pb-5 border-b border-gray-200 pl-6">
+    <nav className="text-sm text-gray-600 pt-5 pb-5 border-b border-gray-200 pl-6 bg-white">
       <ol className="list-reset flex items-center">
         <li>
           {activePage === 'dashboard' ? (
             <span className="text-gray-500">Dashboard</span>
           ) : (
-            <Link href="/" className="text-blue-500 hover:text-blue-700">
+            <Link href="/" className="text-black hover:text-gray-700">
               Dashboard
             </Link>
           )}
@@ -252,7 +252,7 @@ export default function Breadcrumbs() {
               ) : (
                 <Link
                   href={`/tenants/${tenant.slug}`}
-                  className="text-blue-500 hover:text-blue-700"
+                  className="text-black hover:text-gray-700"
                 >
                   {tenant.name}
                 </Link>
@@ -269,7 +269,7 @@ export default function Breadcrumbs() {
               ) : (
                 <Link
                   href={`/tenants/${tenant.slug}/workspace/${workspace.id}`}
-                  className="text-blue-500 hover:text-blue-700"
+                  className="text-black hover:text-gray-700"
                 >
                   {workspace.name}
                 </Link>
@@ -286,7 +286,7 @@ export default function Breadcrumbs() {
               ) : (
                 <Link
                   href={`/tenants/${tenant.slug}/workspace/${workspace.id}/scan/${scan.id}`}
-                  className="text-blue-500 hover:text-blue-700"
+                  className="text-black hover:text-gray-700"
                 >
                   {scan.name}
                 </Link>
@@ -305,7 +305,7 @@ export default function Breadcrumbs() {
               ) : (
                 <Link
                   href={`/tenants/${tenant.slug}/workspace/${workspace.id}/scan/${scan.id}/${scanStep.toLowerCase().replace(/ /g, '-')}`}
-                  className="text-blue-500 hover:text-blue-700"
+                  className="text-black hover:text-gray-700"
                 >
                   {scanStep}
                 </Link>
@@ -313,7 +313,7 @@ export default function Breadcrumbs() {
             </li>
           </>
         )}
-        {lifecycle && (scanStep === "Lifecycles" || scanStep === "Pain Points") && (
+        {lifecycle && (scanStep === "Lifecycles" || scanStep === "Interview Copilot") && (
           <>
             <li className="mx-2">/</li>
             <li>

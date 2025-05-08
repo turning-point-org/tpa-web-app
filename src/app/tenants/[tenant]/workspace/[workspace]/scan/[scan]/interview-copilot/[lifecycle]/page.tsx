@@ -15,8 +15,8 @@ export default function InterviewCopilotLifecyclePage() {
   const lifecycleId = params.lifecycle as string; // Get lifecycle ID from dynamic route segment
 
   // Handler for the back button within LifecycleViewer
-  const handleBackToPainPoints = () => {
-    router.push(`/tenants/${tenantSlug}/workspace/${workspaceId}/scan/${scanId}/pain-points`);
+  const handleBackToInterviews = () => {
+    router.push(`/tenants/${tenantSlug}/workspace/${workspaceId}/scan/${scanId}/interview-copilot`);
   };
 
   // Basic check to ensure all required parameters are present
@@ -42,7 +42,7 @@ export default function InterviewCopilotLifecyclePage() {
         workspaceId={workspaceId}
         scanId={scanId}
         lifecycleId={lifecycleId}
-        onBackClick={handleBackToPainPoints}
+        onBackClick={handleBackToInterviews}
         initialHeight="calc(100vh - 100px)"
         isPainPointContext={true}
       />

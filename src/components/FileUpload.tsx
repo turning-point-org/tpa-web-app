@@ -112,6 +112,19 @@ export default function FileUpload({
   // Add state for prompt save errors
   const [promptSaveError, setPromptSaveError] = useState("");
   
+  // Add markdown styles
+  const markdownStyles = {
+    h1: 'text-2xl font-bold mt-4 mb-2',
+    h2: 'text-xl font-bold mt-4 mb-2',
+    h3: 'text-lg font-bold mt-3 mb-1',
+    p: 'mt-2 mb-2',
+    ul: 'list-disc pl-5 mt-2 mb-2',
+    ol: 'list-decimal pl-5 mt-2 mb-2',
+    li: 'mt-1',
+    strong: 'font-bold',
+    em: 'italic',
+  };
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Remove polling states
@@ -887,7 +900,7 @@ export default function FileUpload({
             
             {/* Tab Navigation as a toggle switch */}
             <div className="mb-6 w-full">
-              <div className="flex bg-gray-200 p-1 rounded-lg w-full">
+              <div className="flex space-x-4">
                 <Button
                   variant={activeTab === 'summary' ? 'primary' : 'secondary'}
                   onClick={() => setActiveTab('summary')}
@@ -942,42 +955,98 @@ export default function FileUpload({
             
             {/* Summary Tab Content */}
             {activeTab === 'summary' && (
-              <div className="flex-1 overflow-auto">
-                <textarea
-                  rows={12}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 overflow-y-auto resize-none"
-                  style={{ minHeight: "400px" }}
-                  value={summary}
-                  onChange={(e) => setSummary(e.target.value)}
-                  placeholder={isSummaryLoading ? "Loading latest summary..." : "Enter summary for this document..."}
-                  disabled={isSummaryLoading}
-                />
-                <div className="flex justify-end mt-4">
-                  <button 
-                    className="bg-[#5319A5] text-white py-2 px-4 rounded hover:bg-[#4A1694] flex items-center disabled:bg-[#5319A5]/50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#5319A5]"
-                    onClick={handleSaveSummary}
-                    disabled={isSavingSummary || summary === originalSummary || isSummaryLoading}
+              <div className="flex-1 overflow-visible">
+                {isEditingSummary ? (
+                  <textarea
+                    rows={12}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    style={{ minHeight: "400px" }}
+                    value={summary}
+                    onChange={(e) => setSummary(e.target.value)}
+                    placeholder={isSummaryLoading ? "Loading latest summary..." : "Enter summary for this document..."}
+                    disabled={isSummaryLoading}
+                  />
+                ) : (
+                  <div 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm overflow-y-auto"
+                    style={{ minHeight: "400px", maxHeight: "500px" }}
                   >
-                    {isSavingSummary ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                        <span>Saving...</span>
-                      </>
+                    {isSummaryLoading ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                      </div>
                     ) : (
-                      <span>Save Summary</span>
+                      <div className="prose prose-sm max-w-none">
+                        <ReactMarkdown
+                          components={{
+                            h1: ({node, ...props}) => <h1 className={markdownStyles.h1} {...props} />,
+                            h2: ({node, ...props}) => <h2 className={markdownStyles.h2} {...props} />,
+                            h3: ({node, ...props}) => <h3 className={markdownStyles.h3} {...props} />,
+                            p: ({node, ...props}) => <p className={markdownStyles.p} {...props} />,
+                            ul: ({node, ...props}) => <ul className={markdownStyles.ul} {...props} />,
+                            ol: ({node, ...props}) => <ol className={markdownStyles.ol} {...props} />,
+                            li: ({node, ...props}) => <li className={markdownStyles.li} {...props} />,
+                            strong: ({node, ...props}) => <strong className={markdownStyles.strong} {...props} />,
+                            em: ({node, ...props}) => <em className={markdownStyles.em} {...props} />,
+                          }}
+                        >
+                          {summary}
+                        </ReactMarkdown>
+                      </div>
                     )}
-                  </button>
+                  </div>
+                )}
+                <div className="flex justify-between mt-4 p-1">
+                  <Button 
+                    variant="secondary"
+                    onClick={() => setIsEditingSummary(!isEditingSummary)}
+                    disabled={isSummaryLoading}
+                    icon={
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                        {isEditingSummary ? (
+                          <>
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                          </>
+                        ) : (
+                          <>
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                          </>
+                        )}
+                      </svg>
+                    }
+                  >
+                    {isEditingSummary ? 'View Formatted' : 'Edit Summary'}
+                  </Button>
+                  
+                  {isEditingSummary && (
+                    <Button 
+                      onClick={handleSaveSummary}
+                      disabled={isSavingSummary || summary === originalSummary || isSummaryLoading}
+                      className="focus:outline-none"
+                    >
+                      {isSavingSummary ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        <span>Save Summary</span>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
             
             {/* Prompt Tab Content */}
             {activeTab === 'prompt' && (
-              <div className="flex-1">               
+              <div className="flex-1 overflow-visible">               
                 <div className="mb-4">
                   <textarea
                     id="summarization-prompt"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 overflow-y-auto resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 resize-none"
                     style={{ minHeight: "400px" }}
                     value={summarizationPrompt}
                     onChange={(e) => setSummarizationPrompt(e.target.value)}
@@ -985,15 +1054,16 @@ export default function FileUpload({
                   />
                 </div>
                 
-                <div className="flex justify-end space-x-2">
-                  <button 
-                    className="border border-[#5319A5] bg-white text-[#5319A5] py-2 px-4 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#5319A5]"
+                <div className="flex justify-end space-x-2 p-1">
+                  <Button
+                    variant="secondary"
                     onClick={() => setActiveTab('summary')}
+                    className="focus:outline-none"
                   >
                     Cancel
-                  </button>
-                  <button 
-                    className="bg-[#5319A5] text-white py-2 px-4 rounded hover:bg-[#4A1694] flex items-center disabled:bg-[#5319A5]/50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#5319A5]"
+                  </Button>
+                  <Button
+                    disabled={isSavingPrompt}
                     onClick={async () => {
                       setIsSavingPrompt(true);
                       setError("");
@@ -1048,10 +1118,6 @@ export default function FileUpload({
                             }, 1000);
                             return;
                           }
-                          
-                          // The regenerate-summary endpoint doesn't exist, so let's use a different approach:
-                          // 1. First, we'll update the UI optimistically
-                          // 2. Then, we'll fetch the document to check if a summary is available
                           
                           // Switch to summary tab with a loading indicator
                           setTimeout(() => {
@@ -1109,7 +1175,7 @@ export default function FileUpload({
                         setIsSavingPrompt(false);
                       }
                     }}
-                    disabled={isSavingPrompt}
+                    className="focus:outline-none"
                   >
                     {isSavingPrompt ? (
                       <>
@@ -1119,7 +1185,7 @@ export default function FileUpload({
                     ) : (
                       <span>Save Prompt & Generate Summary</span>
                     )}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

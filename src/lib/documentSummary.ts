@@ -70,6 +70,8 @@ ${documentContent}
     { role: "user", content: summarizationPrompt }
   ];
 
+  console.log(messages);
+
   const result = await client.getChatCompletions(chatDeploymentName, messages);
   
   if (!result || !result.choices || result.choices.length === 0) {

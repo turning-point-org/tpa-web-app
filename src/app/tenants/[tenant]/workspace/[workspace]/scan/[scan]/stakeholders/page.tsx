@@ -393,7 +393,7 @@ export default function StakeholdersPage() {
   };
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="max-w-[1200px] mx-auto py-6">
       <h1 className="text-2xl font-semibold mb-6">Stakeholders</h1>
       
       {errorMessage && (

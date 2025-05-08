@@ -86,7 +86,7 @@ export default function LifecycleViewer({
   const [toggles, setToggles] = useState({
     processDetails: true,
     scores: true,
-    costs: true, // Set to true by default to show cost tags
+    costs: false, // Set to false by default to hide cost tags
     editMode: !isPainPointContext // Set to false by default in pain point context
   });
   
@@ -922,7 +922,7 @@ export default function LifecycleViewer({
             )}
             <div>
               <div className="text-gray-500 text-sm">
-                {isPainPointContext ? "PAIN POINT INTERVIEW - LIFECYCLE" : "LIFECYCLE"}
+                {isPainPointContext ? "ORA INTERVIEW ASSISTANT" : "LIFECYCLE"}
               </div>
               <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-indigo-800">{lifecycle?.name}</div> {/* Responsive text size */}
             </div>
@@ -988,20 +988,6 @@ export default function LifecycleViewer({
                         className="sr-only peer"
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
-                  </div>
-                  
-                  {/* Costs Toggle */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Costs</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox"
-                        checked={toggles.costs}
-                        onChange={() => handleToggle('costs')}
-                        className="sr-only peer"
-                      />
-                       <div className={`w-11 h-6 ${toggles.costs ? 'bg-blue-600' : 'bg-gray-200'} rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all`}></div>
                     </label>
                   </div>
                   
@@ -1119,16 +1105,6 @@ export default function LifecycleViewer({
                                      >
                                          {calculateCategoryScore(category)} pts
                                      </span>
-                                     
-                                     {toggles.costs && (
-                                         <span 
-                                             className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                                             style={{ backgroundColor: '#7A2BF7' }}
-                                             title={`Category Cost: ${formatCurrency(calculateCategoryCost(category))} (Sum of costs from pain points)`}
-                                         >
-                                             {formatCurrency(calculateCategoryCost(category))}
-                                         </span>
-                                     )}
                                  </div>
                              )}
                              </div>
@@ -1161,16 +1137,6 @@ export default function LifecycleViewer({
                                              >
                                                  {calculateProcessGroupScore(group.name)} pts
                                              </span>
-                                             
-                                             {toggles.costs && (
-                                                 <span 
-                                                     className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                                                     style={{ backgroundColor: '#7A2BF7' }}
-                                                     title={`Cost: ${formatCurrency(calculateProcessGroupCost(group.name))} (Calculated from pain points)`}
-                                                 >
-                                                     {formatCurrency(calculateProcessGroupCost(group.name))}
-                                                 </span>
-                                             )}
                                          </div>
                                      )}
                                      
@@ -1278,16 +1244,6 @@ export default function LifecycleViewer({
                       >
                         {calculateCategoryScore(lifecycle.processes.process_categories[editingCategory.index])} pts
                       </span>
-                      
-                      {toggles.costs && (
-                          <span 
-                              className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                              style={{ backgroundColor: '#7A2BF7' }}
-                              title={`Category Cost: ${formatCurrency(calculateCategoryCost(lifecycle.processes.process_categories[editingCategory.index]))} (Sum of costs from pain points)`}
-                          >
-                              {formatCurrency(calculateCategoryCost(lifecycle.processes.process_categories[editingCategory.index]))}
-                          </span>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1368,16 +1324,6 @@ export default function LifecycleViewer({
                       >
                         {calculateCategoryScore(lifecycle.processes.process_categories[editingCategory.index])} pts
                       </span>
-                      
-                      {toggles.costs && (
-                          <span 
-                              className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                              style={{ backgroundColor: '#7A2BF7' }}
-                              title={`Category Cost: ${formatCurrency(calculateCategoryCost(lifecycle.processes.process_categories[editingCategory.index]))} (Sum of costs from pain points)`}
-                          >
-                              {formatCurrency(calculateCategoryCost(lifecycle.processes.process_categories[editingCategory.index]))}
-                          </span>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1475,16 +1421,6 @@ export default function LifecycleViewer({
                       >
                         {calculateProcessGroupScore(lifecycle.processes.process_categories[editingGroup.categoryIndex].process_groups[editingGroup.groupIndex].name)} pts
                       </span>
-                      
-                      {toggles.costs && (
-                          <span 
-                              className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                              style={{ backgroundColor: '#7A2BF7' }}
-                              title={`Cost: ${formatCurrency(calculateProcessGroupCost(lifecycle.processes.process_categories[editingGroup.categoryIndex].process_groups[editingGroup.groupIndex].name))} (Calculated from pain points)`}
-                          >
-                              {formatCurrency(calculateProcessGroupCost(lifecycle.processes.process_categories[editingGroup.categoryIndex].process_groups[editingGroup.groupIndex].name))}
-                          </span>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1566,16 +1502,6 @@ export default function LifecycleViewer({
                       >
                         {calculateProcessGroupScore(lifecycle?.processes?.process_categories?.[editingGroup.categoryIndex]?.process_groups?.[editingGroup.groupIndex]?.name)} pts
                       </span>
-                      
-                      {toggles.costs && (
-                          <span 
-                              className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                              style={{ backgroundColor: '#7A2BF7' }}
-                              title={`Cost: ${formatCurrency(calculateProcessGroupCost(lifecycle?.processes?.process_categories?.[editingGroup.categoryIndex]?.process_groups?.[editingGroup.groupIndex]?.name))} (Calculated from pain points)`}
-                          >
-                              {formatCurrency(calculateProcessGroupCost(lifecycle?.processes?.process_categories?.[editingGroup.categoryIndex]?.process_groups?.[editingGroup.groupIndex]?.name))}
-                          </span>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1720,12 +1646,6 @@ export default function LifecycleViewer({
                                       .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number')
                                       .reduce((total, [_, value]) => total + (value as number), 0)} pts
                                   </span>
-                                  
-                                  {painPoint.cost_to_serve !== undefined && (
-                                    <span className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold bg-[#7A2BF7]">
-                                      {formatCurrency(painPoint.cost_to_serve)}
-                                    </span>
-                                  )}
                                 </div>
                               </div>
                               

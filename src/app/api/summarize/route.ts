@@ -301,7 +301,156 @@ Make sure your response is ONLY the JSON object, nothing else.`;
         const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
         const jsonString = jsonMatch ? jsonMatch[0] : aiResponse;
         
-        summaryJson = JSON.parse(jsonString);
+        // First attempt: Direct JSON parsing
+        try {
+          summaryJson = JSON.parse(jsonString);
+          console.log('Successfully parsed JSON directly');
+        } catch (initialParseError) {
+          console.warn('Initial JSON parsing failed, attempting to clean and fix JSON:', initialParseError);
+          
+          // Second attempt: Basic JSON cleaning
+          let cleanedJsonString = jsonString
+            // Replace single quotes with double quotes
+            .replace(/'/g, '"')
+            // Fix unquoted property names
+            .replace(/(\w+):/g, '"$1":')
+            // Ensure booleans are lowercase
+            .replace(/:\s*True/g, ': true')
+            .replace(/:\s*False/g, ': false')
+            // Remove trailing commas
+            .replace(/,\s*}/g, '}')
+            .replace(/,\s*\]/g, ']');
+          
+          try {
+            summaryJson = JSON.parse(cleanedJsonString);
+            console.log('Successfully parsed JSON after basic cleaning');
+          } catch (basicCleanError) {
+            console.warn('Basic JSON cleaning failed, attempting to fix anonymous objects:', basicCleanError);
+            
+            // Third attempt: Fix anonymous objects after assigned_process_group
+            // This pattern matches: "assigned_process_group": "value", { obj properties }
+            const anonymousObjRegex = /"assigned_process_group":\s*"([^"]+)",\s*\{([\s\S]*?)\}/g;
+            let regexMatch;
+            let hasChanges = false;
+            
+            // Make a copy for regex operations
+            let fixedJsonString = cleanedJsonString;
+            
+            // Process each match
+            while ((regexMatch = anonymousObjRegex.exec(cleanedJsonString)) !== null) {
+              hasChanges = true;
+              const fullMatch = regexMatch[0];
+              const processGroup = regexMatch[1];
+              const objContent = regexMatch[2];
+              
+              // Process the object content to ensure proper formatting
+              const properties = objContent
+                .replace(/[\s\n\r]+/g, ' ')
+                .split(',')
+                .filter(prop => prop.trim())
+                .map(prop => {
+                  // If already properly formatted, keep as is
+                  if (/^\s*"[^"]+"\s*:/.test(prop)) {
+                    return prop.trim();
+                  }
+                  
+                  // Otherwise add quotes to property names
+                  const parts = prop.split(':').map(p => p.trim());
+                  if (parts.length >= 2) {
+                    const name = parts[0].replace(/^"(.*)"$/, '$1');
+                    const value = parts.slice(1).join(':');
+                    return `"${name}": ${value}`;
+                  }
+                  
+                  return prop.trim();
+                })
+                .join(', ');
+              
+              // Replace anonymous object with properly formatted properties
+              const replacement = `"assigned_process_group": "${processGroup}", ${properties}`;
+              fixedJsonString = fixedJsonString.replace(fullMatch, replacement);
+            }
+            
+            // Only try parsing if changes were made
+            if (hasChanges) {
+              try {
+                summaryJson = JSON.parse(fixedJsonString);
+                console.log('Successfully parsed JSON after fixing anonymous objects');
+              } catch (anonymousObjError) {
+                console.warn('Failed to fix anonymous objects, trying generic approach:', anonymousObjError);
+                cleanedJsonString = fixedJsonString; // Use our partially fixed version for next attempt
+              }
+            }
+            
+            // Fourth attempt: Generic pattern for any anonymous object after a property
+            if (!summaryJson) {
+              // Look for pattern: "property": "value", { object content }
+              const genericObjRegex = /"([^"]+)":\s*"([^"]+)",\s*\{([\s\S]*?)\}/g;
+              let hasGenericChanges = false;
+              
+              // Make a copy for the final attempt
+              let finalJsonString = cleanedJsonString;
+              
+              // Collect all matches first to avoid regex issues with replacements
+              const matches = [];
+              let genericMatch;
+              while ((genericMatch = genericObjRegex.exec(cleanedJsonString)) !== null) {
+                matches.push({
+                  fullMatch: genericMatch[0],
+                  property: genericMatch[1],
+                  value: genericMatch[2],
+                  objContent: genericMatch[3]
+                });
+              }
+              
+              // Process each match
+              matches.forEach(m => {
+                hasGenericChanges = true;
+                
+                // Process properties similarly to the previous step
+                const properties = m.objContent
+                  .replace(/[\s\n\r]+/g, ' ')
+                  .split(',')
+                  .filter(prop => prop.trim())
+                  .map(prop => {
+                    if (/^\s*"[^"]+"\s*:/.test(prop)) {
+                      return prop.trim();
+                    }
+                    
+                    const parts = prop.split(':').map(p => p.trim());
+                    if (parts.length >= 2) {
+                      const name = parts[0].replace(/^"(.*)"$/, '$1');
+                      const value = parts.slice(1).join(':');
+                      return `"${name}": ${value}`;
+                    }
+                    
+                    return prop.trim();
+                  })
+                  .join(', ');
+                
+                // Replace with flattened properties
+                const replacement = `"${m.property}": "${m.value}", ${properties}`;
+                finalJsonString = finalJsonString.replace(m.fullMatch, replacement);
+              });
+              
+              // Final parsing attempt
+              if (hasGenericChanges) {
+                try {
+                  summaryJson = JSON.parse(finalJsonString);
+                  console.log('Successfully parsed JSON after generic object flattening');
+                } catch (finalError) {
+                  console.error('All JSON parsing attempts failed:', finalError);
+                  console.error('Final attempted JSON:', finalJsonString);
+                  throw new Error(`JSON parsing failed after multiple attempts: ${initialParseError instanceof Error ? initialParseError.message : String(initialParseError)}`);
+                }
+              } else {
+                // If no matches were found with our patterns, throw the original error
+                console.error('No fixable patterns found in the JSON');
+                throw initialParseError;
+              }
+            }
+          }
+        }
         
         // Validate the structure and handle both property names
         if ((!summaryJson.pain_points && !summaryJson.painPoints) || 

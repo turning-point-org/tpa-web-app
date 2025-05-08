@@ -42,7 +42,7 @@ type PainPointSummary = {
   overallSummary: string;
 };
 
-export default function PainPointsPage() {
+export default function InterviewCopilotPage() {
   // Get URL parameters
   const params = useParams();
   const router = useRouter();
@@ -284,7 +284,7 @@ export default function PainPointsPage() {
                       </select>
                     </div>
                     <Button
-                      onClick={() => router.push(`/tenants/${tenantSlug}/workspace/${workspaceId}/scan/${scanId}/pain-points/${lifecycle.id}`)}
+                      onClick={() => router.push(`/tenants/${tenantSlug}/workspace/${workspaceId}/scan/${scanId}/interview-copilot/${lifecycle.id}`)}
                       variant="primary"
                       className="text-sm self-end"
                     >

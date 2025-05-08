@@ -73,12 +73,12 @@ export default function CompanyDetailsPage() {
   };
 
   return (
-    <div>
+    <div className="max-w-2xl mx-auto">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold mb-2">Company Details</h2>
+        <h2 className="text-2xl font-semibold mb-2">Enter Company Details</h2>
       </div>
       <p className="text-gray-600 mb-6">
-        Enter and manage company information for this scan.
+        To start this new scan, provide the details for the company
       </p>
       
       {isLoading ? (
