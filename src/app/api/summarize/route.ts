@@ -9,7 +9,6 @@ interface PainPoint {
   description: string;
   assigned_process_group?: string;
   score?: number;
-  cost_to_serve: string;
 }
 
 interface SummaryData {
@@ -246,16 +245,14 @@ Please structure your response as a valid JSON object with this structure:
       "name": "Brief name of the pain point (5-10 words)",
       "description": "Detailed description of the pain point (1-3 sentences)",
       "assigned_process_group": "Name of most relevant process group (must be an exact process group name from the list above)",
-      ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'},
-      "cost_to_serve": 10000
+      ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'}
     },
     {
       "id": "unique-id-2",
       "name": "Brief name of another pain point",
       "description": "Detailed description of this pain point",
       "assigned_process_group": "Unassigned",
-      ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'},
-      "cost_to_serve": 30000
+      ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'}
     }
   ],
   "overallSummary": "A brief overall summary of the key points from the conversation (1-2 sentences)"
@@ -278,7 +275,6 @@ Rules:
 ${strategicObjectives.length > 0 
   ? '11. Score each pain point against EACH strategic objective on a scale of 0-3, where 3 indicates high impact/relevance to that objective'
   : '11. Score pain points on a scale of 0-3, where 3 indicates the most severe/painful issues, and 0 is not applicable.'}
-12. Provide a cost_to_serve estimate for each pain point based on industry standards and the complexity of the issue. Use integer values representing the estimated cost in dollars (e.g., 5000, 25000, 100000, 300000).
 
 Make sure your response is ONLY the JSON object, nothing else.`;
     
@@ -468,7 +464,6 @@ Make sure your response is ONLY the JSON object, nothing else.`;
             name: point.name || 'Untitled Pain Point',
             description: point.description || 'No description provided',
             assigned_process_group: point.assigned_process_group || 'Unassigned',  // Default to Unassigned if not provided
-            cost_to_serve: point.cost_to_serve || 30000 // Default cost estimate if not provided
           };
           
           // Add strategic objective scores if they exist in response, otherwise use default score

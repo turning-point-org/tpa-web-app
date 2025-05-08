@@ -37,6 +37,7 @@ interface ProcessCategory {
   score?: number;
   process_groups?: ProcessGroup[];
   cost_to_serve?: number;
+  industry_benchmark?: number;
 }
 
 interface ProcessGroup {
@@ -72,18 +73,22 @@ const DetailsModal = ({
   onClose, 
   lifecycleName, 
   categoryName,
-  processGroups = []
+  processGroups = [],
+  categoryCostToServe = 0
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
   lifecycleName: string; 
   categoryName: string;
   processGroups?: ProcessGroup[];
+  categoryCostToServe?: number;
 }) => {
   if (!isOpen) return null;
 
-  // Calculate total cost_to_serve for all process groups
-  const totalCost = processGroups.reduce((total, group) => total + (group.costToServe || 0), 0);
+  // Use the category's own cost_to_serve value if available
+  const totalCost = categoryCostToServe > 0 
+    ? categoryCostToServe 
+    : processGroups.reduce((total, group) => total + (group.costToServe || 0), 0);
   
   // Calculate total points for all process groups
   const totalPoints = processGroups.reduce((total, group) => total + (group.score || 0), 0);
@@ -162,13 +167,15 @@ const DetailsModal = ({
               {totalPoints} pts
             </span>
             
-            <span 
-              className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-              style={{ backgroundColor: '#7A2BF7' }}
-              title="Total cost to serve"
-            >
-              ${formatCurrency(totalCost)}
-            </span>
+            {totalCost > 0 && (
+              <span 
+                className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
+                style={{ backgroundColor: '#7A2BF7' }}
+                title="Total cost to serve"
+              >
+                ${formatCurrency(totalCost)}
+              </span>
+            )}
           </div>
           
           <h4 className="text-sm font-medium text-gray-500 mb-1 text-left">Description</h4>
@@ -191,6 +198,7 @@ const DetailsModal = ({
             <div className="space-y-3">
               {processGroups.map((group, index) => {
                 const score = typeof group.score === 'number' ? group.score : 0;
+                const costToServe = typeof group.costToServe === 'number' ? group.costToServe : 0;
                 const strategicObjectives = group.strategicObjectives || [];
                 // Create a unique ID for each group
                 const groupId = `group-${index}`;
@@ -212,11 +220,22 @@ const DetailsModal = ({
                       onClick={() => toggleProcessGroup(groupId)}
                     >
                       <div className="flex items-center">
-                        <span 
-                          className={`mr-2 transform transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
-                        >
-                          ▶
-                        </span>
+                        <Button
+                          variant="primary"
+                          className="mr-1 p-0 border-0 shadow-none min-w-[16px] min-h-[16px] w-4 h-4 text-black"
+                          iconOnly
+                          colorOverride="transparent"
+                          icon={
+                            <svg 
+                              className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} 
+                              fill="none" 
+                              stroke="black" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                          }
+                        />
                         <h3 className="text-lg font-medium text-gray-800 text-left">{group.name}</h3>
                       </div>
                       
@@ -229,13 +248,15 @@ const DetailsModal = ({
                           {score} pts
                         </span>
                         
-                        <span 
-                          className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                          style={{ backgroundColor: '#7A2BF7' }}
-                          title="Cost to serve"
-                        >
-                          ${formatCurrency(group.costToServe || 0)}
-                        </span>
+                        {costToServe > 0 && (
+                          <span 
+                            className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
+                            style={{ backgroundColor: '#7A2BF7' }}
+                            title="Cost to serve"
+                          >
+                            ${formatCurrency(costToServe)}
+                          </span>
+                        )}
                       </div>
                     </div>
                     
@@ -283,11 +304,22 @@ const DetailsModal = ({
                               togglePainPointsSection(groupId);
                             }}
                           >
-                            <span 
-                              className={`mr-2 transform transition-transform duration-200 ${isPainPointsSectionExpanded ? 'rotate-90' : ''}`}
-                            >
-                              ▶
-                            </span>
+                            <Button
+                              variant="primary"
+                              className="mr-1 p-0 border-0 shadow-none min-w-[16px] min-h-[16px] w-4 h-4 text-black"
+                              iconOnly
+                              colorOverride="transparent" 
+                              icon={
+                                <svg 
+                                  className={`w-3 h-3 transition-transform duration-200 ${isPainPointsSectionExpanded ? 'rotate-90' : ''}`} 
+                                  fill="none" 
+                                  stroke="black" 
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                              }
+                            />
                             <h4 className="text-xs font-medium text-gray-500 text-left flex items-center">
                               Assigned Pain Points 
                               {assignedPainPoints.length > 0 && (
@@ -330,11 +362,22 @@ const DetailsModal = ({
                                           }}
                                         >
                                           <div className="flex items-center">
-                                            <span 
-                                              className={`mr-2 transform transition-transform duration-200 ${isPainPointExpanded ? 'rotate-90' : ''}`}
-                                            >
-                                              ▶
-                                            </span>
+                                            <Button
+                                              variant="primary"
+                                              className="mr-1 p-0 border-0 shadow-none min-w-[16px] min-h-[16px] w-4 h-4 text-black"
+                                              iconOnly
+                                              colorOverride="transparent"
+                                              icon={
+                                                <svg 
+                                                  className={`w-3 h-3 transition-transform duration-200 ${isPainPointExpanded ? 'rotate-90' : ''}`} 
+                                                  fill="none" 
+                                                  stroke="black" 
+                                                  viewBox="0 0 24 24"
+                                                >
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                                </svg>
+                                              }
+                                            />
                                             <h5 className="font-medium text-gray-800 text-sm">{painPoint.name}</h5>
                                           </div>
                                           
@@ -601,6 +644,7 @@ const LifecyclesScanned = () => {
           
           let processCategories = [];
           let totalProcessGroups = 0;
+          let costToServe = 0;
           
           if (lifecycleDetailResponse.ok) {
             const data = await lifecycleDetailResponse.json();
@@ -614,29 +658,36 @@ const LifecyclesScanned = () => {
               totalProcessGroups = processCategories.reduce((total: number, category: any) => {
                 return total + (category.process_groups?.length || 0);
               }, 0);
+              
+              // Calculate cost to serve from process categories that have cost_to_serve property
+              costToServe = processCategories.reduce((total: number, category: any) => {
+                return total + (category.cost_to_serve || 0);
+              }, 0);
             }
           }
           
-          // Fetch pain points for this lifecycle to calculate cost to serve
-          const painPointsResponse = await fetch(
-            `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}&lifecycle_id=${lifecycle.id}`
-          );
-          
-          let costToServe = 0;
-          
-          if (painPointsResponse.ok) {
-            const painPointsData = await painPointsResponse.json();
-            const painPoints = painPointsData.pain_points || [];
+          // Only if we couldn't find any cost_to_serve in process categories, 
+          // then fall back to pain points as a secondary source
+          if (costToServe === 0) {
+            // Fetch pain points for this lifecycle as fallback
+            const painPointsResponse = await fetch(
+              `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}&lifecycle_id=${lifecycle.id}`
+            );
             
-            // Sum cost_to_serve for pain points that don't have assigned_process_group = "Unassigned"
-            costToServe = painPoints.reduce((total: number, point: any) => {
-              if (point.assigned_process_group !== "Unassigned") {
-                return total + (point.cost_to_serve || 0);
-              }
-              return total;
-            }, 0);
-          } else if (painPointsResponse.status !== 404) {
-            console.error(`Failed to fetch pain points for lifecycle ${lifecycle.id}`);
+            if (painPointsResponse.ok) {
+              const painPointsData = await painPointsResponse.json();
+              const painPoints = painPointsData.pain_points || [];
+              
+              // Sum cost_to_serve for pain points that don't have assigned_process_group = "Unassigned"
+              costToServe = painPoints.reduce((total: number, point: any) => {
+                if (point.assigned_process_group !== "Unassigned") {
+                  return total + (point.cost_to_serve || 0);
+                }
+                return total;
+              }, 0);
+            } else if (painPointsResponse.status !== 404) {
+              console.error(`Failed to fetch pain points for lifecycle ${lifecycle.id}`);
+            }
           }
           
           return {
@@ -720,7 +771,8 @@ const OpportunityExplorer = () => {
   const [modalContent, setModalContent] = useState({ 
     lifecycleName: '', 
     categoryName: '',
-    processGroups: [] as ProcessGroup[]
+    processGroups: [] as ProcessGroup[],
+    categoryCostToServe: 0
   });
   
   // Add state for pain points data
@@ -908,10 +960,17 @@ const OpportunityExplorer = () => {
   const calculateProcessGroupCost = (lifecycleId: string, groupName: string): number => {
     if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return 0;
     
+    // Check if we have any pain points assigned to this process group
+    const assignedPainPoints = painPointsData[lifecycleId].pain_points
+      .filter(point => point.assigned_process_group === groupName);
+    
+    if (assignedPainPoints.length === 0) return 0;
+    
     // Calculate total cost from pain points assigned to this process group
-    return painPointsData[lifecycleId].pain_points
-      .filter(point => point.assigned_process_group === groupName)
+    const totalCost = assignedPainPoints
       .reduce((total, point) => total + (point.cost_to_serve || 0), 0);
+    
+    return totalCost;
   };
   
   // Get strategic objectives for a process group
@@ -968,10 +1027,38 @@ const OpportunityExplorer = () => {
 
   // Calculate total cost to serve for a process category based on pain points
   const calculateCategoryTotalCost = (lifecycleId: string, category: ProcessCategory) => {
+    // If category has a cost_to_serve property, use that directly
+    if (category.cost_to_serve !== undefined) {
+      return category.cost_to_serve;
+    }
+    
+    // Otherwise calculate from process groups cost
     if (!category.process_groups) return 0;
     
     return category.process_groups.reduce((total, group) => {
       return total + calculateProcessGroupCost(lifecycleId, group.name);
+    }, 0);
+  };
+
+  // Calculate industry benchmark for a process category
+  const calculateCategoryIndustryBenchmark = (category: ProcessCategory) => {
+    // If category has an industry_benchmark property, use that directly
+    if (category.industry_benchmark !== undefined) {
+      return category.industry_benchmark;
+    }
+    
+    // If no industry_benchmark is defined, return 0
+    return 0;
+  };
+
+  // Calculate total industry benchmark for an entire lifecycle
+  const calculateLifecycleIndustryBenchmark = (lifecycleId: string) => {
+    const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
+    if (!lifecycle || !lifecycle.processes || !lifecycle.processes.process_categories) return 0;
+    
+    // Sum up industry_benchmark from all process categories
+    return lifecycle.processes.process_categories.reduce((total, category) => {
+      return total + calculateCategoryIndustryBenchmark(category);
     }, 0);
   };
 
@@ -980,13 +1067,33 @@ const OpportunityExplorer = () => {
     const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
     if (!lifecycle || !lifecycle.processes || !lifecycle.processes.process_categories) return 0;
     
+    // Sum up cost_to_serve from all process categories
     return lifecycle.processes.process_categories.reduce((total, category) => {
+      // If category has a cost_to_serve property, use that directly
+      if (category.cost_to_serve !== undefined) {
+        return total + category.cost_to_serve;
+      }
+      // Otherwise calculate from process groups
       return total + calculateCategoryTotalCost(lifecycleId, category);
+    }, 0);
+  };
+
+  // Calculate total points for an entire lifecycle
+  const calculateLifecycleTotalPoints = (lifecycleId: string) => {
+    const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
+    if (!lifecycle || !lifecycle.processes || !lifecycle.processes.process_categories) return 0;
+    
+    // Sum up points from all process categories
+    return lifecycle.processes.process_categories.reduce((total, category) => {
+      return total + calculateCategoryTotalPoints(lifecycleId, category);
     }, 0);
   };
 
   // Handle opening the modal with category details
   const handleCategoryClick = (lifecycleName: string, lifecycleId: string, category: ProcessCategory) => {
+    // Check for category's own cost_to_serve value
+    const categoryCostToServe = category.cost_to_serve || 0;
+    
     // Update process groups with calculated scores based on strategic objectives
     const updatedProcessGroups = category.process_groups ? 
       category.process_groups.map(group => {
@@ -1014,7 +1121,8 @@ const OpportunityExplorer = () => {
     setModalContent({
       lifecycleName,
       categoryName: category.name,
-      processGroups: updatedProcessGroups
+      processGroups: updatedProcessGroups,
+      categoryCostToServe: categoryCostToServe
     });
     setModalOpen(true);
   };
@@ -1027,14 +1135,10 @@ const OpportunityExplorer = () => {
     return (
       <div className="flex justify-between gap-4 w-full overflow-hidden px-3 py-2">
         {allLifecyclesData.map((lifecycle, index) => {
-          // Calculate total cost to serve for this lifecycle
-          const totalCostToServe = lifecycle.processes?.process_categories?.reduce(
-            (total, category) => total + (category.cost_to_serve || 0), 
-            0
-          ) || 0;
-
           // Get all process categories for this lifecycle
           const categories = lifecycle.processes?.process_categories || [];
+          // Calculate total points for this lifecycle
+          const totalPoints = calculateLifecycleTotalPoints(lifecycle.id);
           
           return (
             <div 
@@ -1047,8 +1151,19 @@ const OpportunityExplorer = () => {
               <div className="flex flex-col h-full">
                 {/* Lifecycle header */}
                 <div className="bg-white p-3 border-b border-gray-200 group-hover:bg-[#f9f5ff] transition-colors duration-200">
-                  <div className="flex items-center justify-center">
-                    <span className="bg-[#7A2BF7] text-white font-bold px-3 py-1 rounded-md text-xs group-hover:bg-[#5319A5] transition-colors duration-200">
+                  <div className="flex items-center justify-center space-x-2">
+                    <span 
+                      className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-bold"
+                      style={{ backgroundColor: '#0EA394' }}
+                      title="Total points"
+                    >
+                      {totalPoints} pts
+                    </span>
+                    <span 
+                      className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-bold"
+                      style={{ backgroundColor: '#7A2BF7' }}
+                      title="Total cost to serve"
+                    >
                       ${formatCurrency(calculateLifecycleTotalCost(lifecycle.id))}
                     </span>
                   </div>
@@ -1076,13 +1191,13 @@ const OpportunityExplorer = () => {
                       return (
                         <div 
                           key={idx} 
-                          className={`relative w-full border-t border-white flex items-center justify-center
-                            ${isTopCard ? 'rounded-t-md' : ''}`}
+                          className={`relative w-full border-t border-white flex items-center justify-center 
+                            ${isTopCard ? 'rounded-t-md' : ''} hover:bg-opacity-80 hover:brightness-110 transition-all`}
                           style={{ 
                             height: `${height}px`,
                             backgroundColor 
                           }}
-                          title={`${category.name}: ${category.description || 'No description'}`}
+                          title={`${category.name}`}
                           onClick={(e) => {
                             e.stopPropagation(); // Prevent lifecycle from being selected
                             handleCategoryClick(lifecycle.name, lifecycle.id, category);
@@ -1126,86 +1241,102 @@ const OpportunityExplorer = () => {
 
     return (
       <div className="flex justify-between gap-4 w-full overflow-hidden px-3 py-2">
-        {selectedLifecycleData.processes.process_categories.map((category, index) => (
-          <div 
-            key={index} 
-            className="flex-1 min-w-0 flex flex-col h-[450px] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg hover:border-[#5319A5] hover:scale-[1.01] transition-all duration-200 transform cursor-pointer group"
-            style={{ minWidth: '0' }}
-            onClick={() => handleCategoryClick(selectedLifecycleData.name, lifecycleId, category)}
-            title={`Click to view details for ${category.name}`}
-          >
-            <div className="flex flex-col h-full">
-              {/* Cost to serve header */}
-              <div className="bg-white p-3 border-b border-gray-200 group-hover:bg-[#f9f5ff] transition-colors duration-200">
-                <div className="flex items-center justify-center">
-                  <span className="bg-[#7A2BF7] text-white font-bold px-3 py-1 rounded-md text-xs group-hover:bg-[#5319A5] transition-colors duration-200">
-                    ${formatCurrency(calculateCategoryTotalCost(lifecycleId, category))}
-                  </span>
+        {selectedLifecycleData.processes.process_categories.map((category, index) => {
+          // Calculate total points for this category
+          const totalPoints = calculateCategoryTotalPoints(lifecycleId, category);
+          
+          return (
+            <div 
+              key={index} 
+              className="flex-1 min-w-0 flex flex-col h-[450px] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg hover:border-[#5319A5] hover:scale-[1.01] transition-all duration-200 transform cursor-pointer group"
+              style={{ minWidth: '0' }}
+              onClick={() => handleCategoryClick(selectedLifecycleData.name, lifecycleId, category)}
+              title={`Click to view details for ${category.name}`}
+            >
+              <div className="flex flex-col h-full">
+                {/* Cost to serve header */}
+                <div className="bg-white p-3 border-b border-gray-200 group-hover:bg-[#f9f5ff] transition-colors duration-200">
+                  <div className="flex items-center justify-center space-x-2">
+                    <span 
+                      className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-bold"
+                      style={{ backgroundColor: '#0EA394' }}
+                      title="Total points"
+                    >
+                      {totalPoints} pts
+                    </span>
+                    <span 
+                      className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-bold"
+                      style={{ backgroundColor: '#7A2BF7' }}
+                      title="Category cost to serve"
+                    >
+                      ${formatCurrency(calculateCategoryTotalCost(lifecycleId, category))}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Main content area with stacked bars */}
+                <div className="flex-grow flex flex-col justify-end px-4">
+                  {category.process_groups && [...category.process_groups]
+                    .map(group => {
+                      // Calculate score from strategic objectives
+                      const calculatedScore = calculateProcessGroupScore(lifecycleId, group.name);
+                      return { ...group, calculatedScore };
+                    })
+                    .sort((a, b) => a.calculatedScore - b.calculatedScore) // Sort by score ascending
+                    .map((group, idx, array) => {
+                      const score = group.calculatedScore;
+                      // Smaller height calculation (min 20px for 0 score)
+                      const height = score === 0 ? 20 : Math.max(20, Math.min(100, score * 5));
+                      // Determine if this is the top card in the stack (visually at the top, with least points)
+                      const isTopCard = idx === 0;
+                      
+                      // Calculate color based on score (gradient from #12C8B5 to #007D70)
+                      // For 0 points: #12C8B5, for 20+ points: #007D70
+                      const colorRatio = Math.min(1, score / 20); // Value between 0 and 1
+                      
+                      // Convert hex to RGB for interpolation
+                      const startColor = { r: 18, g: 200, b: 181 }; // #12C8B5
+                      const endColor = { r: 0, g: 125, b: 112 };   // #007D70
+                      
+                      // Interpolate between colors
+                      const r = Math.round(startColor.r + colorRatio * (endColor.r - startColor.r));
+                      const g = Math.round(startColor.g + colorRatio * (endColor.g - startColor.g));
+                      const b = Math.round(startColor.b + colorRatio * (endColor.b - startColor.b));
+                      
+                      // Create RGB color string
+                      const backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                      
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`relative w-full border-t border-white flex items-center justify-center
+                            ${isTopCard ? 'rounded-t-md' : ''} hover:bg-opacity-80 hover:brightness-110 transition-all`}
+                          style={{ 
+                            height: `${height}px`,
+                            backgroundColor 
+                          }}
+                          title={`${group.name}`}
+                        >
+                          <p className="text-white font-bold text-sm">{score}pts</p>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+                
+                {/* Category footer */}
+                <div className="bg-gray-50 p-3 border-t border-gray-200 mt-auto w-full h-[90px] flex flex-col justify-center group-hover:bg-[#f9f5ff] transition-colors duration-200">
+                  <h3 className="text-base font-medium text-center line-clamp-2 overflow-hidden group-hover:text-[#5319A5] transition-colors duration-200">
+                    {category.name.length > 30 ? `${category.name.substring(0, 30)}...` : category.name}
+                  </h3>
+                  <p className="text-xs text-gray-500 text-center mt-1">
+                    {calculateCategoryTotalPoints(lifecycleId, category)}pts
+                  </p>
                 </div>
               </div>
-              
-              {/* Main content area with stacked bars */}
-              <div className="flex-grow flex flex-col justify-end px-4">
-                {category.process_groups && [...category.process_groups]
-                  .map(group => {
-                    // Calculate score from strategic objectives
-                    const calculatedScore = calculateProcessGroupScore(lifecycleId, group.name);
-                    return { ...group, calculatedScore };
-                  })
-                  .sort((a, b) => a.calculatedScore - b.calculatedScore) // Sort by score ascending
-                  .map((group, idx, array) => {
-                    const score = group.calculatedScore;
-                    // Smaller height calculation (min 20px for 0 score)
-                    const height = score === 0 ? 20 : Math.max(20, Math.min(100, score * 5));
-                    // Determine if this is the top card in the stack (visually at the top, with least points)
-                    const isTopCard = idx === 0;
-                    
-                    // Calculate color based on score (gradient from #12C8B5 to #007D70)
-                    // For 0 points: #12C8B5, for 20+ points: #007D70
-                    const colorRatio = Math.min(1, score / 20); // Value between 0 and 1
-                    
-                    // Convert hex to RGB for interpolation
-                    const startColor = { r: 18, g: 200, b: 181 }; // #12C8B5
-                    const endColor = { r: 0, g: 125, b: 112 };   // #007D70
-                    
-                    // Interpolate between colors
-                    const r = Math.round(startColor.r + colorRatio * (endColor.r - startColor.r));
-                    const g = Math.round(startColor.g + colorRatio * (endColor.g - startColor.g));
-                    const b = Math.round(startColor.b + colorRatio * (endColor.b - startColor.b));
-                    
-                    // Create RGB color string
-                    const backgroundColor = `rgb(${r}, ${g}, ${b})`;
-                    
-                    return (
-                      <div 
-                        key={idx} 
-                        className={`relative w-full border-t border-white flex items-center justify-center
-                          ${isTopCard ? 'rounded-t-md' : ''}`}
-                        style={{ 
-                          height: `${height}px`,
-                          backgroundColor 
-                        }}
-                        title={`${group.name}: ${group.description}`}
-                      >
-                        <p className="text-white font-bold text-sm">{score}pts</p>
-                      </div>
-                    );
-                  })
-                }
-              </div>
-              
-              {/* Category footer */}
-              <div className="bg-gray-50 p-3 border-t border-gray-200 mt-auto w-full h-[90px] flex flex-col justify-center group-hover:bg-[#f9f5ff] transition-colors duration-200">
-                <h3 className="text-base font-medium text-center line-clamp-2 overflow-hidden group-hover:text-[#5319A5] transition-colors duration-200">
-                  {category.name.length > 30 ? `${category.name.substring(0, 30)}...` : category.name}
-                </h3>
-                <p className="text-xs text-gray-500 text-center mt-1">
-                  {calculateCategoryTotalPoints(lifecycleId, category)}pts
-                </p>
-              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -1258,6 +1389,7 @@ const OpportunityExplorer = () => {
         lifecycleName={modalContent.lifecycleName} 
         categoryName={modalContent.categoryName}
         processGroups={modalContent.processGroups}
+        categoryCostToServe={modalContent.categoryCostToServe}
       />
     </div>
   );

@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import Image from 'next/image';
 import { OraIcon } from "@/assets/icons";
 import { ChatIcon, InterviewIcon, PainPointIcon } from "@/assets/icons/interview-icons";
+import Button from './Button';
 
 interface OraInterviewPanelProps {
   scanId: string;
@@ -58,9 +59,9 @@ interface PainPoint {
   name: string;
   description: string;
   assigned_process_group?: string;
-  cost_to_serve?: number;
-  // Remove the score property and add strategic objectives type
-  [key: string]: any; // Allow for strategic objective properties (so_*)
+  // Remove the cost_to_serve property
+  // Allow for strategic objective properties (so_*)
+  [key: string]: any; 
 }
 
 // Define Summary interface
@@ -183,16 +184,6 @@ const PainPointCard = ({
   // Calculate the total score
   const totalScore = calculateTotalScore();
 
-  // Add a function to format currency like in LifecycleViewer
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
-
   // Get a list of strategic objectives for display
   const getStrategicObjectives = () => {
     return Object.entries(painPoint)
@@ -226,14 +217,12 @@ const PainPointCard = ({
         </svg>
       </button>
       
-      {/* Score and Cost display - use flex to show them horizontally */}
+      {/* Score display - use flex to show horizontally */}
       <div className="mb-1.5">
         {/* Show total strategic objective score (not editable) */}
         <span className="text-xs px-2 py-0.5 rounded-md bg-[#0EA394] text-white">
           {totalScore} {totalScore === 1 ? 'point' : 'points'}
         </span>
-        
-        {/* Remove cost to serve section */}
       </div>
       
       <h3 className="font-medium text-white text-sm mb-1.5 pr-7">{painPoint.name}</h3>
@@ -247,9 +236,22 @@ const PainPointCard = ({
             className="text-xs text-gray-400 mb-1 flex items-center cursor-pointer" 
             onClick={toggleObjectives}
           >
-            <span className="mr-1 transform transition-transform duration-200" style={{ display: 'inline-block', transform: objectivesExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
-              ▶
-            </span>
+            <Button
+              variant="primary"
+              className="mr-1 p-0 border-0 shadow-none min-w-[16px] min-h-[16px] w-4 h-4 text-gray-300"
+              iconOnly
+              colorOverride="#1f2937"
+              icon={
+                <svg 
+                  className={`w-3 h-3 transition-transform duration-200 ${objectivesExpanded ? 'rotate-90' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                </svg>
+              }
+            />
             Strategic Objective Applicability:
           </div>
           {objectivesExpanded && (

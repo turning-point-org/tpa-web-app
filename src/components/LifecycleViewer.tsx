@@ -17,7 +17,6 @@ interface PainPoint {
   name: string;
   description: string;
   assigned_process_group?: string;
-  cost_to_serve?: number;
   // Strategic objective properties are prefixed with so_
   [key: string]: any; // To allow strategic objective properties (so_*)
 }
@@ -86,7 +85,6 @@ export default function LifecycleViewer({
   const [toggles, setToggles] = useState({
     processDetails: true,
     scores: true,
-    costs: false, // Set to false by default to hide cost tags
     editMode: !isPainPointContext // Set to false by default in pain point context
   });
   
@@ -752,37 +750,6 @@ export default function LifecycleViewer({
       const groupScore = calculateProcessGroupScore(group.name);
       return total + groupScore;
     }, 0);
-  };
-  
-  // Add function to calculate cost for a process group
-  const calculateProcessGroupCost = (groupName: string): number => {
-    if (!painPointSummary || !painPointSummary.pain_points) return 0;
-    
-    // Calculate total cost from pain points assigned to this process group
-    return painPointSummary.pain_points
-      .filter(point => point.assigned_process_group === groupName)
-      .reduce((total, point) => total + (point.cost_to_serve || 100000), 0);
-  };
-  
-  // Add function to calculate total cost for a process category
-  const calculateCategoryCost = (category: any): number => {
-    if (!category.process_groups) return 0;
-    
-    // Calculate sum of costs from all groups in this category
-    return category.process_groups.reduce((total: number, group: any) => {
-      const groupCost = calculateProcessGroupCost(group.name);
-      return total + groupCost;
-    }, 0);
-  };
-  
-  // Helper function to format cost as currency
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
   };
   
   // Add new function to get strategic objectives for a process group

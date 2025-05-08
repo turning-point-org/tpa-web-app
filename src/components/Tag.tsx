@@ -9,7 +9,7 @@ const Tag: React.FC<TagProps> = ({ children, className = '' }) => {
   // Base classes for the tag
   const baseClasses = "inline-block px-2.5 py-1 rounded-full text-xs font-bold";
   
-  // Custom background and text color
+  // Default background and text color (can be overridden by className)
   const styleClasses = "bg-[#0EA394] text-white";
 
   return (

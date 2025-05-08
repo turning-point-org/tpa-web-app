@@ -9,7 +9,6 @@ interface PainPoint {
   description: string;
   assigned_process_group?: string;
   score?: number;
-  cost_to_serve?: number;
 }
 
 // Function to get tenant_id from tenant_slug
@@ -99,20 +98,6 @@ export async function GET(req: NextRequest) {
     // Handle transition: if has painPoints but not pain_points, copy it
     if (result.painPoints && !result.pain_points) {
       result.pain_points = result.painPoints;
-    }
-    
-    // Ensure each pain point has cost_to_serve, defaulting to 100000 if not present
-    if (result.pain_points && Array.isArray(result.pain_points)) {
-      result.pain_points = result.pain_points.map((point: PainPoint) => ({
-        ...point,
-        cost_to_serve: point.cost_to_serve ?? 100000 // Default to 100000 if undefined
-      }));
-    } else if (result.painPoints && Array.isArray(result.painPoints)) {
-      // Also handle the old property name if present
-      result.painPoints = result.painPoints.map((point: PainPoint) => ({
-        ...point,
-        cost_to_serve: point.cost_to_serve ?? 100000 // Default to 100000 if undefined
-      }));
     }
     
     // Add cache control headers to prevent caching

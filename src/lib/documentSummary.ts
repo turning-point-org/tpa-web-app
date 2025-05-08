@@ -70,7 +70,7 @@ ${documentContent}
     { role: "user", content: summarizationPrompt }
   ];
 
-  console.log(messages);
+  // console.log(messages);
 
   const result = await client.getChatCompletions(chatDeploymentName, messages);
   

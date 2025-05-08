@@ -288,7 +288,7 @@ export default function InterviewCopilotPage() {
                       variant="primary"
                       className="text-sm self-end"
                     >
-                      Start Interview
+                      {lifecycle.interview_status === 'complete' ? 'Review Interview' : 'Start Interview'}
                     </Button>
                   </div>
                 </div>
