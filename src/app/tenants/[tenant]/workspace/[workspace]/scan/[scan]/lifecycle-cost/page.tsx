@@ -46,10 +46,10 @@ export default function LifecycleCostPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedLifecycle, setExpandedLifecycle] = useState<string | null>(null);
-  const [editedCosts, setEditedCosts] = useState<Record<string, Record<number, number>>>({});
-  const [editedBenchmarks, setEditedBenchmarks] = useState<Record<string, Record<number, number>>>({});
-  const [savingStatus, setSavingStatus] = useState<Record<string, Record<number, string>>>({});
-  const [saveSuccess, setSaveSuccess] = useState<Record<string, Record<number, string>>>({});
+  const [editedCosts, setEditedCosts] = useState<Record<string, number>>({});
+  const [editedBenchmarks, setEditedBenchmarks] = useState<Record<string, number>>({});
+  const [savingStatus, setSavingStatus] = useState<Record<string, string>>({});
+  const [saveSuccess, setSaveSuccess] = useState<Record<string, string>>({});
   const params = useParams();
   const router = useRouter();
 
@@ -57,58 +57,40 @@ export default function LifecycleCostPage() {
     setExpandedLifecycle(expandedLifecycle === lifecycleId ? null : lifecycleId);
   };
 
-  const handleCostChange = (lifecycleId: string, categoryIndex: number, value: string) => {
+  const handleCostChange = (lifecycleId: string, value: string) => {
     // Parse the input value, removing any non-numeric characters
     const numericValue = parseInt(value.replace(/\D/g, '')) || 0;
     
     // Update the edited costs state
-    setEditedCosts(prev => {
-      const lifecycleCosts = prev[lifecycleId] || {};
-      return {
-        ...prev,
-        [lifecycleId]: {
-          ...lifecycleCosts,
-          [categoryIndex]: numericValue
-        }
-      };
-    });
+    setEditedCosts(prev => ({
+      ...prev,
+      [lifecycleId]: numericValue
+    }));
   };
 
-  const handleBenchmarkChange = (lifecycleId: string, categoryIndex: number, value: string) => {
+  const handleBenchmarkChange = (lifecycleId: string, value: string) => {
     // Parse the input value, removing any non-numeric characters
     const numericValue = parseInt(value.replace(/\D/g, '')) || 0;
     
     // Update the edited benchmarks state
-    setEditedBenchmarks(prev => {
-      const lifecycleBenchmarks = prev[lifecycleId] || {};
-      return {
-        ...prev,
-        [lifecycleId]: {
-          ...lifecycleBenchmarks,
-          [categoryIndex]: numericValue
-        }
-      };
-    });
+    setEditedBenchmarks(prev => ({
+      ...prev,
+      [lifecycleId]: numericValue
+    }));
   };
 
-  const handleSaveCost = async (lifecycleId: string, categoryIndex: number) => {
+  const handleSaveCost = async (lifecycleId: string) => {
     // Get the value to save
-    const costToSave = editedCosts[lifecycleId]?.[categoryIndex];
+    const costToSave = editedCosts[lifecycleId];
     
     // If no edited value exists, do nothing
     if (costToSave === undefined) return;
     
     // Mark as saving
-    setSavingStatus(prev => {
-      const lifecycleStatus = prev[lifecycleId] || {};
-      return {
-        ...prev,
-        [lifecycleId]: {
-          ...lifecycleStatus,
-          [categoryIndex]: 'cost'
-        }
-      };
-    });
+    setSavingStatus(prev => ({
+      ...prev,
+      [lifecycleId]: 'cost'
+    }));
 
     try {
       const tenantSlug = params.tenant as string;
@@ -125,7 +107,6 @@ export default function LifecycleCostPage() {
           workspace_id: workspaceId,
           scan_id: scanId,
           lifecycle_id: lifecycleId,
-          category_index: categoryIndex,
           cost_to_serve: costToSave
         })
       });
@@ -139,32 +120,12 @@ export default function LifecycleCostPage() {
       setLifecycles(prevLifecycles => {
         return prevLifecycles.map(lifecycle => {
           if (lifecycle.id === lifecycleId) {
-            const updatedCategories = [...lifecycle.processCategories];
-            updatedCategories[categoryIndex] = {
-              ...updatedCategories[categoryIndex],
-              cost_to_serve: costToSave
-            };
-
-            // Recalculate total cost to serve
-            const totalCostToServe = updatedCategories.reduce(
-              (sum, category) => sum + (category.cost_to_serve || 0),
-              0
-            );
-
-            // Recalculate total industry benchmark
-            const totalIndustryBenchmark = updatedCategories.reduce(
-              (sum, category) => sum + (category.industry_benchmark || 0),
-              0
-            );
-
             return {
               ...lifecycle,
-              processCategories: updatedCategories,
               costMetrics: {
                 ...lifecycle.costMetrics,
-                costToServe: totalCostToServe,
-                industryBenchmark: totalIndustryBenchmark,
-                delta: totalIndustryBenchmark - totalCostToServe
+                costToServe: costToSave,
+                delta: lifecycle.costMetrics.industryBenchmark - costToSave
               }
             };
           }
@@ -173,40 +134,27 @@ export default function LifecycleCostPage() {
       });
 
       // Mark as saved successfully
-      setSaveSuccess(prev => {
-        const lifecycleSuccess = prev[lifecycleId] || {};
-        return {
-          ...prev,
-          [lifecycleId]: {
-            ...lifecycleSuccess,
-            [categoryIndex]: 'cost'
-          }
-        };
-      });
+      setSaveSuccess(prev => ({
+        ...prev,
+        [lifecycleId]: 'cost'
+      }));
 
       // Clear the success indicator after 2 seconds
       setTimeout(() => {
         setSaveSuccess(prev => {
-          const lifecycleSuccess = {...(prev[lifecycleId] || {})};
-          if (lifecycleSuccess[categoryIndex] === 'cost') {
-            delete lifecycleSuccess[categoryIndex];
+          const updatedSuccess = {...prev};
+          if (updatedSuccess[lifecycleId] === 'cost') {
+            delete updatedSuccess[lifecycleId];
           }
-          return {
-            ...prev,
-            [lifecycleId]: lifecycleSuccess
-          };
+          return updatedSuccess;
         });
       }, 2000);
 
       // Clear the edited state since it's now been saved
       setEditedCosts(prev => {
-        const newState = {...prev};
-        if (newState[lifecycleId]) {
-          const lifecycleCosts = {...newState[lifecycleId]};
-          delete lifecycleCosts[categoryIndex];
-          newState[lifecycleId] = lifecycleCosts;
-        }
-        return newState;
+        const updatedCosts = {...prev};
+        delete updatedCosts[lifecycleId];
+        return updatedCosts;
       });
       
     } catch (err) {
@@ -218,36 +166,27 @@ export default function LifecycleCostPage() {
     } finally {
       // Clear saving status
       setSavingStatus(prev => {
-        const lifecycleStatus = {...(prev[lifecycleId] || {})};
-        if (lifecycleStatus[categoryIndex] === 'cost') {
-          delete lifecycleStatus[categoryIndex];
+        const updatedStatus = {...prev};
+        if (updatedStatus[lifecycleId] === 'cost') {
+          delete updatedStatus[lifecycleId];
         }
-        return {
-          ...prev,
-          [lifecycleId]: lifecycleStatus
-        };
+        return updatedStatus;
       });
     }
   };
 
-  const handleSaveBenchmark = async (lifecycleId: string, categoryIndex: number) => {
+  const handleSaveBenchmark = async (lifecycleId: string) => {
     // Get the value to save
-    const benchmarkToSave = editedBenchmarks[lifecycleId]?.[categoryIndex];
+    const benchmarkToSave = editedBenchmarks[lifecycleId];
     
     // If no edited value exists, do nothing
     if (benchmarkToSave === undefined) return;
     
     // Mark as saving
-    setSavingStatus(prev => {
-      const lifecycleStatus = prev[lifecycleId] || {};
-      return {
-        ...prev,
-        [lifecycleId]: {
-          ...lifecycleStatus,
-          [categoryIndex]: 'benchmark'
-        }
-      };
-    });
+    setSavingStatus(prev => ({
+      ...prev,
+      [lifecycleId]: 'benchmark'
+    }));
 
     try {
       const tenantSlug = params.tenant as string;
@@ -264,7 +203,6 @@ export default function LifecycleCostPage() {
           workspace_id: workspaceId,
           scan_id: scanId,
           lifecycle_id: lifecycleId,
-          category_index: categoryIndex,
           industry_benchmark: benchmarkToSave
         })
       });
@@ -278,31 +216,12 @@ export default function LifecycleCostPage() {
       setLifecycles(prevLifecycles => {
         return prevLifecycles.map(lifecycle => {
           if (lifecycle.id === lifecycleId) {
-            const updatedCategories = [...lifecycle.processCategories];
-            updatedCategories[categoryIndex] = {
-              ...updatedCategories[categoryIndex],
-              industry_benchmark: benchmarkToSave
-            };
-
-            // Recalculate total industry benchmark
-            const totalIndustryBenchmark = updatedCategories.reduce(
-              (sum, category) => sum + (category.industry_benchmark || 0),
-              0
-            );
-
-            // Use total cost to serve for delta calculation
-            const totalCostToServe = updatedCategories.reduce(
-              (sum, category) => sum + (category.cost_to_serve || 0),
-              0
-            );
-
             return {
               ...lifecycle,
-              processCategories: updatedCategories,
               costMetrics: {
                 ...lifecycle.costMetrics,
-                industryBenchmark: totalIndustryBenchmark,
-                delta: totalIndustryBenchmark - totalCostToServe
+                industryBenchmark: benchmarkToSave,
+                delta: benchmarkToSave - lifecycle.costMetrics.costToServe
               }
             };
           }
@@ -311,40 +230,27 @@ export default function LifecycleCostPage() {
       });
 
       // Mark as saved successfully
-      setSaveSuccess(prev => {
-        const lifecycleSuccess = prev[lifecycleId] || {};
-        return {
-          ...prev,
-          [lifecycleId]: {
-            ...lifecycleSuccess,
-            [categoryIndex]: 'benchmark'
-          }
-        };
-      });
+      setSaveSuccess(prev => ({
+        ...prev,
+        [lifecycleId]: 'benchmark'
+      }));
 
       // Clear the success indicator after 2 seconds
       setTimeout(() => {
         setSaveSuccess(prev => {
-          const lifecycleSuccess = {...(prev[lifecycleId] || {})};
-          if (lifecycleSuccess[categoryIndex] === 'benchmark') {
-            delete lifecycleSuccess[categoryIndex];
+          const updatedSuccess = {...prev};
+          if (updatedSuccess[lifecycleId] === 'benchmark') {
+            delete updatedSuccess[lifecycleId];
           }
-          return {
-            ...prev,
-            [lifecycleId]: lifecycleSuccess
-          };
+          return updatedSuccess;
         });
       }, 2000);
 
       // Clear the edited state since it's now been saved
       setEditedBenchmarks(prev => {
-        const newState = {...prev};
-        if (newState[lifecycleId]) {
-          const lifecycleBenchmarks = {...newState[lifecycleId]};
-          delete lifecycleBenchmarks[categoryIndex];
-          newState[lifecycleId] = lifecycleBenchmarks;
-        }
-        return newState;
+        const updatedBenchmarks = {...prev};
+        delete updatedBenchmarks[lifecycleId];
+        return updatedBenchmarks;
       });
       
     } catch (err) {
@@ -356,14 +262,11 @@ export default function LifecycleCostPage() {
     } finally {
       // Clear saving status
       setSavingStatus(prev => {
-        const lifecycleStatus = {...(prev[lifecycleId] || {})};
-        if (lifecycleStatus[categoryIndex] === 'benchmark') {
-          delete lifecycleStatus[categoryIndex];
+        const updatedStatus = {...prev};
+        if (updatedStatus[lifecycleId] === 'benchmark') {
+          delete updatedStatus[lifecycleId];
         }
-        return {
-          ...prev,
-          [lifecycleId]: lifecycleStatus
-        };
+        return updatedStatus;
       });
     }
   };
@@ -462,17 +365,17 @@ export default function LifecycleCostPage() {
   };
 
   // Helper to get current value for an input field
-  const getCurrentValue = (lifecycleId: string, categoryIndex: number, savedValue?: number, isIndustryBenchmark = false) => {
+  const getCurrentValue = (lifecycleId: string, savedValue?: number, isIndustryBenchmark = false) => {
     // If it's industry benchmark field
     if (isIndustryBenchmark) {
       // If there's an edited value, use that
-      if (editedBenchmarks[lifecycleId]?.[categoryIndex] !== undefined) {
-        return editedBenchmarks[lifecycleId][categoryIndex].toLocaleString();
+      if (editedBenchmarks[lifecycleId] !== undefined) {
+        return editedBenchmarks[lifecycleId].toLocaleString();
       }
     } else {
       // If there's an edited value, use that
-      if (editedCosts[lifecycleId]?.[categoryIndex] !== undefined) {
-        return editedCosts[lifecycleId][categoryIndex].toLocaleString();
+      if (editedCosts[lifecycleId] !== undefined) {
+        return editedCosts[lifecycleId].toLocaleString();
       }
     }
     // Otherwise use the saved value or 0
@@ -480,13 +383,13 @@ export default function LifecycleCostPage() {
   };
 
   // Helper to check if a field is currently saving
-  const isSaving = (lifecycleId: string, categoryIndex: number, type: 'cost' | 'benchmark') => {
-    return savingStatus[lifecycleId]?.[categoryIndex] === type;
+  const isSaving = (lifecycleId: string, type: 'cost' | 'benchmark') => {
+    return savingStatus[lifecycleId] === type;
   };
 
   // Helper to check if a field has been saved successfully
-  const isSaveSuccess = (lifecycleId: string, categoryIndex: number, type: 'cost' | 'benchmark') => {
-    return saveSuccess[lifecycleId]?.[categoryIndex] === type;
+  const isSaveSuccess = (lifecycleId: string, type: 'cost' | 'benchmark') => {
+    return saveSuccess[lifecycleId] === type;
   };
 
   return (
@@ -557,96 +460,87 @@ export default function LifecycleCostPage() {
                         <tr>
                           <td colSpan={8} className="py-4 px-6 bg-gray-50">
                             <div className="px-4 py-3">
-                              {/* <h4 className="font-medium text-lg pb-4 mb-3">Journeys:</h4> */}
-                              {lifecycle.processCategories.length > 0 ? (
-                                <div className="space-y-4">
-                                  {lifecycle.processCategories.map((category, index) => (
-                                    <div key={index} className="flex flex-wrap border-b border-gray-200 pb-3">
-                                      <div className="w-full md:w-1/3 mb-4 md:mb-0">
-                                        <div className="flex items-center">
-                                          <Tag className="bg-[#5319a5] mr-2">Journey</Tag>
-                                          <p className="font-medium">{category.name}</p>
-                                        </div>
-                                      </div>
-                                      <div className="w-full md:w-2/3 flex flex-col items-end space-y-4">
-                                        <div className="flex items-center">
-                                          <label htmlFor={`cost-${lifecycle.id}-${index}`} className="whitespace-nowrap text-right font-medium mr-2">
-                                            Cost to Serve:
-                                          </label>
-                                          <div className="flex items-center">
-                                            <div className="relative flex items-center">
-                                              <span className="absolute left-2 top-1/2 -translate-y-1/2">$</span>
-                                              <input
-                                                id={`cost-${lifecycle.id}-${index}`}
-                                                type="text"
-                                                className="pl-6 pr-2 py-1 border rounded-md w-40 text-right"
-                                                value={getCurrentValue(lifecycle.id, index, category.cost_to_serve)}
-                                                onChange={(e) => handleCostChange(lifecycle.id, index, e.target.value)}
-                                                disabled={isSaving(lifecycle.id, index, 'cost')}
-                                              />
-                                              
-                                              <button 
-                                                className="ml-2 p-1 rounded-md hover:bg-blue-100 text-blue-600 disabled:text-gray-400 disabled:hover:bg-transparent"
-                                                onClick={() => handleSaveCost(lifecycle.id, index)}
-                                                disabled={isSaving(lifecycle.id, index, 'cost') || editedCosts[lifecycle.id]?.[index] === undefined}
-                                                aria-label="Save cost"
-                                              >
-                                                {isSaveSuccess(lifecycle.id, index, 'cost') ? (
-                                                  <CheckCircle className="w-5 h-5 text-green-500" />
-                                                ) : (
-                                                  <Save className="w-5 h-5" />
-                                                )}
-                                              </button>
-                                              
-                                              {isSaving(lifecycle.id, index, 'cost') && (
-                                                <span className="ml-2 text-sm text-gray-500">Saving...</span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center">
-                                          <label htmlFor={`benchmark-${lifecycle.id}-${index}`} className="whitespace-nowrap text-right font-medium mr-2">
-                                            Industry Benchmark:
-                                          </label>
-                                          <div className="flex items-center">
-                                            <div className="relative flex items-center">
-                                              <span className="absolute left-2 top-1/2 -translate-y-1/2">$</span>
-                                              <input
-                                                id={`benchmark-${lifecycle.id}-${index}`}
-                                                type="text"
-                                                className="pl-6 pr-2 py-1 border rounded-md w-40 text-right"
-                                                value={getCurrentValue(lifecycle.id, index, category.industry_benchmark, true)}
-                                                onChange={(e) => handleBenchmarkChange(lifecycle.id, index, e.target.value)}
-                                                disabled={isSaving(lifecycle.id, index, 'benchmark')}
-                                              />
-                                              
-                                              <button 
-                                                className="ml-2 p-1 rounded-md hover:bg-blue-100 text-blue-600 disabled:text-gray-400 disabled:hover:bg-transparent"
-                                                onClick={() => handleSaveBenchmark(lifecycle.id, index)}
-                                                disabled={isSaving(lifecycle.id, index, 'benchmark') || editedBenchmarks[lifecycle.id]?.[index] === undefined}
-                                                aria-label="Save benchmark"
-                                              >
-                                                {isSaveSuccess(lifecycle.id, index, 'benchmark') ? (
-                                                  <CheckCircle className="w-5 h-5 text-green-500" />
-                                                ) : (
-                                                  <Save className="w-5 h-5" />
-                                                )}
-                                              </button>
-                                              
-                                              {isSaving(lifecycle.id, index, 'benchmark') && (
-                                                <span className="ml-2 text-sm text-gray-500">Saving...</span>
-                                              )}
-                                            </div>
-                                          </div>
+                              <div className="space-y-6">
+                                <div className="flex flex-wrap justify-between items-center">
+                                  <div className="w-full md:w-1/3 mb-4 md:mb-0">
+                                    <h3 className="font-medium text-lg">Lifecycle Cost Details</h3>
+                                    <p className="text-gray-600 text-sm mt-1">Edit costs for the lifecycle</p>
+                                  </div>
+                                  <div className="w-full md:w-2/3 flex flex-col items-end space-y-4">
+                                    <div className="flex items-center">
+                                      <label htmlFor={`cost-${lifecycle.id}`} className="whitespace-nowrap text-right font-medium mr-2">
+                                        Cost to Serve:
+                                      </label>
+                                      <div className="flex items-center">
+                                        <div className="relative flex items-center">
+                                          <span className="absolute left-2 top-1/2 -translate-y-1/2">$</span>
+                                          <input
+                                            id={`cost-${lifecycle.id}`}
+                                            type="text"
+                                            className="pl-6 pr-2 py-1 border rounded-md w-40 text-right"
+                                            value={getCurrentValue(lifecycle.id, lifecycle.costMetrics.costToServe)}
+                                            onChange={(e) => handleCostChange(lifecycle.id, e.target.value)}
+                                            disabled={isSaving(lifecycle.id, 'cost')}
+                                          />
+                                          
+                                          <button 
+                                            className="ml-2 p-1 rounded-md hover:bg-blue-100 text-blue-600 disabled:text-gray-400 disabled:hover:bg-transparent"
+                                            onClick={() => handleSaveCost(lifecycle.id)}
+                                            disabled={isSaving(lifecycle.id, 'cost') || editedCosts[lifecycle.id] === undefined}
+                                            aria-label="Save cost"
+                                          >
+                                            {isSaveSuccess(lifecycle.id, 'cost') ? (
+                                              <CheckCircle className="w-5 h-5 text-green-500" />
+                                            ) : (
+                                              <Save className="w-5 h-5" />
+                                            )}
+                                          </button>
+                                          
+                                          {isSaving(lifecycle.id, 'cost') && (
+                                            <span className="ml-2 text-sm text-gray-500">Saving...</span>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
-                                  ))}
+                                    
+                                    <div className="flex items-center">
+                                      <label htmlFor={`benchmark-${lifecycle.id}`} className="whitespace-nowrap text-right font-medium mr-2">
+                                        Industry Benchmark:
+                                      </label>
+                                      <div className="flex items-center">
+                                        <div className="relative flex items-center">
+                                          <span className="absolute left-2 top-1/2 -translate-y-1/2">$</span>
+                                          <input
+                                            id={`benchmark-${lifecycle.id}`}
+                                            type="text"
+                                            className="pl-6 pr-2 py-1 border rounded-md w-40 text-right"
+                                            value={getCurrentValue(lifecycle.id, lifecycle.costMetrics.industryBenchmark, true)}
+                                            onChange={(e) => handleBenchmarkChange(lifecycle.id, e.target.value)}
+                                            disabled={isSaving(lifecycle.id, 'benchmark')}
+                                          />
+                                          
+                                          <button 
+                                            className="ml-2 p-1 rounded-md hover:bg-blue-100 text-blue-600 disabled:text-gray-400 disabled:hover:bg-transparent"
+                                            onClick={() => handleSaveBenchmark(lifecycle.id)}
+                                            disabled={isSaving(lifecycle.id, 'benchmark') || editedBenchmarks[lifecycle.id] === undefined}
+                                            aria-label="Save benchmark"
+                                          >
+                                            {isSaveSuccess(lifecycle.id, 'benchmark') ? (
+                                              <CheckCircle className="w-5 h-5 text-green-500" />
+                                            ) : (
+                                              <Save className="w-5 h-5" />
+                                            )}
+                                          </button>
+                                          
+                                          {isSaving(lifecycle.id, 'benchmark') && (
+                                            <span className="ml-2 text-sm text-gray-500">Saving...</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
-                              ) : (
-                                <p className="text-gray-500">No process categories found for this lifecycle.</p>
-                              )}
+                              </div>
                             </div>
                           </td>
                         </tr>

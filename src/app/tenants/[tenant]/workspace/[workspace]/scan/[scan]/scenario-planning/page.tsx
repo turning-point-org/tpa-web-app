@@ -85,11 +85,6 @@ const DetailsModal = ({
 }) => {
   if (!isOpen) return null;
 
-  // Use the category's own cost_to_serve value if available
-  const totalCost = categoryCostToServe > 0 
-    ? categoryCostToServe 
-    : processGroups.reduce((total, group) => total + (group.costToServe || 0), 0);
-  
   // Calculate total points for all process groups
   const totalPoints = processGroups.reduce((total, group) => total + (group.score || 0), 0);
   
@@ -166,16 +161,6 @@ const DetailsModal = ({
             >
               {totalPoints} pts
             </span>
-            
-            {totalCost > 0 && (
-              <span 
-                className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                style={{ backgroundColor: '#7A2BF7' }}
-                title="Total cost to serve"
-              >
-                ${formatCurrency(totalCost)}
-              </span>
-            )}
           </div>
           
           <h4 className="text-sm font-medium text-gray-500 mb-1 text-left">Description</h4>
@@ -198,7 +183,6 @@ const DetailsModal = ({
             <div className="space-y-3">
               {processGroups.map((group, index) => {
                 const score = typeof group.score === 'number' ? group.score : 0;
-                const costToServe = typeof group.costToServe === 'number' ? group.costToServe : 0;
                 const strategicObjectives = group.strategicObjectives || [];
                 // Create a unique ID for each group
                 const groupId = `group-${index}`;
@@ -247,16 +231,6 @@ const DetailsModal = ({
                         >
                           {score} pts
                         </span>
-                        
-                        {costToServe > 0 && (
-                          <span 
-                            className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                            style={{ backgroundColor: '#7A2BF7' }}
-                            title="Cost to serve"
-                          >
-                            ${formatCurrency(costToServe)}
-                          </span>
-                        )}
                       </div>
                     </div>
                     
@@ -386,12 +360,6 @@ const DetailsModal = ({
                                             <span className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold bg-[#0EA394]">
                                               {totalScore} pts
                                             </span>
-                                            
-                                            {painPoint.cost_to_serve !== undefined && (
-                                              <span className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold bg-[#7A2BF7]">
-                                                ${formatCurrency(painPoint.cost_to_serve)}
-                                              </span>
-                                            )}
                                           </div>
                                         </div>
                                         
@@ -624,9 +592,9 @@ const LifecyclesScanned = () => {
         const workspace = params.workspace as string;
         const scanId = params.scan as string;
         
-        // Fetch all lifecycles
+        // Fetch all lifecycles with cost data from the lifecycle-costs endpoint
         const lifecyclesResponse = await fetch(
-          `/api/tenants/by-slug/workspaces/scans/lifecycles?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}`
+          `/api/tenants/by-slug/workspaces/scans/lifecycle-costs?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}`
         );
         
         if (!lifecyclesResponse.ok) {
@@ -635,7 +603,7 @@ const LifecyclesScanned = () => {
         
         const lifecycles = await lifecyclesResponse.json();
         
-        // For each lifecycle, fetch detailed data and pain points
+        // For each lifecycle, fetch additional details
         const enhancedLifecyclesPromises = lifecycles.map(async (lifecycle: any) => {
           // Fetch detailed lifecycle data
           const lifecycleDetailResponse = await fetch(
@@ -644,7 +612,6 @@ const LifecyclesScanned = () => {
           
           let processCategories = [];
           let totalProcessGroups = 0;
-          let costToServe = 0;
           
           if (lifecycleDetailResponse.ok) {
             const data = await lifecycleDetailResponse.json();
@@ -658,37 +625,11 @@ const LifecyclesScanned = () => {
               totalProcessGroups = processCategories.reduce((total: number, category: any) => {
                 return total + (category.process_groups?.length || 0);
               }, 0);
-              
-              // Calculate cost to serve from process categories that have cost_to_serve property
-              costToServe = processCategories.reduce((total: number, category: any) => {
-                return total + (category.cost_to_serve || 0);
-              }, 0);
             }
           }
           
-          // Only if we couldn't find any cost_to_serve in process categories, 
-          // then fall back to pain points as a secondary source
-          if (costToServe === 0) {
-            // Fetch pain points for this lifecycle as fallback
-            const painPointsResponse = await fetch(
-              `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}&lifecycle_id=${lifecycle.id}`
-            );
-            
-            if (painPointsResponse.ok) {
-              const painPointsData = await painPointsResponse.json();
-              const painPoints = painPointsData.pain_points || [];
-              
-              // Sum cost_to_serve for pain points that don't have assigned_process_group = "Unassigned"
-              costToServe = painPoints.reduce((total: number, point: any) => {
-                if (point.assigned_process_group !== "Unassigned") {
-                  return total + (point.cost_to_serve || 0);
-                }
-                return total;
-              }, 0);
-            } else if (painPointsResponse.status !== 404) {
-              console.error(`Failed to fetch pain points for lifecycle ${lifecycle.id}`);
-            }
-          }
+          // Use cost_to_serve directly from the lifecycle costMetrics
+          const costToServe = lifecycle.costMetrics?.costToServe || 0;
           
           return {
             ...lifecycle,
@@ -861,8 +802,19 @@ const OpportunityExplorer = () => {
         const scanId = params.scan as string;
         
         if (selectedLifecycle === "all") {
-          // Fetch detailed data for all lifecycles
-          const detailedDataPromises = lifecycles.map(lifecycle => 
+          // Fetch detailed data for all lifecycles with cost information
+          const lifecyclesResponse = await fetch(
+            `/api/tenants/by-slug/workspaces/scans/lifecycle-costs?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}`
+          );
+          
+          if (!lifecyclesResponse.ok) {
+            throw new Error('Failed to fetch lifecycles');
+          }
+          
+          const lifecyclesData = await lifecyclesResponse.json();
+          
+          // Now fetch detailed processes for these lifecycles
+          const detailedDataPromises = lifecyclesData.map((lifecycle: Lifecycle) => 
             fetch(`/api/tenants/by-slug/workspaces/scans/lifecycles?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}&lifecycle_id=${lifecycle.id}`)
               .then(response => {
                 if (!response.ok) {
@@ -870,7 +822,14 @@ const OpportunityExplorer = () => {
                 }
                 return response.json();
               })
-              .then(data => Array.isArray(data) ? data.find(lc => lc.id === lifecycle.id) : data)
+              .then(data => {
+                const lifecycleDetails = Array.isArray(data) ? data.find(lc => lc.id === lifecycle.id) : data;
+                // Merge the processes data with the lifecycle cost data
+                return {
+                  ...lifecycle,
+                  processes: lifecycleDetails?.processes
+                };
+              })
           );
           
           const detailedData = await Promise.all(detailedDataPromises);
@@ -889,23 +848,22 @@ const OpportunityExplorer = () => {
           
           setSelectedLifecycleData(null);
         } else {
-          // Find the lifecycle in the already loaded data first
-          const existingLifecycle = lifecycles.find(lc => lc.id === selectedLifecycle);
+          // Fetch cost data for the selected lifecycle
+          const costResponse = await fetch(
+            `/api/tenants/by-slug/workspaces/scans/lifecycle-costs?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}`
+          );
           
-          // If we have all the data we need, use it directly
-          if (existingLifecycle && existingLifecycle.processes && existingLifecycle.processes.process_categories) {
-            setSelectedLifecycleData(existingLifecycle);
-            
-            // Still need to fetch pain points data for this lifecycle
-            const painPointsSummary = await fetchPainPointsForLifecycle(selectedLifecycle);
-            setPainPointsData({ [selectedLifecycle]: painPointsSummary });
-            
-            setIsLoading(false);
-            return;
+          if (!costResponse.ok) {
+            throw new Error('Failed to fetch lifecycle costs');
           }
           
-          // Otherwise fetch the specific lifecycle data
-          const response = await fetch(`/api/tenants/by-slug/workspaces/scans/lifecycles?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}&lifecycle_id=${selectedLifecycle}`);
+          const costData = await costResponse.json();
+          const lifecycleCostData = costData.find((lc: any) => lc.id === selectedLifecycle);
+          
+          // Fetch the detailed lifecycle data
+          const response = await fetch(
+            `/api/tenants/by-slug/workspaces/scans/lifecycles?slug=${tenant}&workspace_id=${workspace}&scan_id=${scanId}&lifecycle_id=${selectedLifecycle}`
+          );
           
           if (!response.ok) {
             throw new Error('Failed to fetch lifecycle data');
@@ -913,8 +871,19 @@ const OpportunityExplorer = () => {
           
           const data = await response.json();
           // The API might return an array, so we need to find the specific lifecycle
-          const lifecycleData = Array.isArray(data) ? data.find(lc => lc.id === selectedLifecycle) : data;
-          setSelectedLifecycleData(lifecycleData);
+          const lifecycleDetails = Array.isArray(data) ? data.find(lc => lc.id === selectedLifecycle) : data;
+          
+          // Merge the cost data with the detailed data
+          const mergedData = {
+            ...lifecycleDetails,
+            costMetrics: lifecycleCostData?.costMetrics || {
+              costToServe: 0,
+              industryBenchmark: 0,
+              delta: 0
+            }
+          };
+          
+          setSelectedLifecycleData(mergedData);
           
           // Fetch pain points for this lifecycle
           const painPointsSummary = await fetchPainPointsForLifecycle(selectedLifecycle);
@@ -1025,57 +994,54 @@ const OpportunityExplorer = () => {
     }, 0);
   };
 
-  // Calculate total cost to serve for a process category based on pain points
+  // Calculate cost to serve for a process category based on pain points
   const calculateCategoryTotalCost = (lifecycleId: string, category: ProcessCategory) => {
-    // If category has a cost_to_serve property, use that directly
-    if (category.cost_to_serve !== undefined) {
-      return category.cost_to_serve;
-    }
+    // If there's a lifecycle with cost data, we can proportionally allocate cost to categories
+    const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
+    if (!lifecycle) return 0;
     
-    // Otherwise calculate from process groups cost
-    if (!category.process_groups) return 0;
+    const lifecycleCost = lifecycle.costMetrics?.costToServe || lifecycle.cost_to_serve || 0;
     
-    return category.process_groups.reduce((total, group) => {
-      return total + calculateProcessGroupCost(lifecycleId, group.name);
-    }, 0);
+    // If no lifecycle cost or no process groups in this category, return 0
+    if (lifecycleCost === 0 || !category.process_groups || category.process_groups.length === 0) return 0;
+    
+    // For simplicity, distribute cost evenly across categories
+    const totalCategories = lifecycle.processes?.process_categories?.length || 1;
+    return lifecycleCost / totalCategories;
   };
 
   // Calculate industry benchmark for a process category
-  const calculateCategoryIndustryBenchmark = (category: ProcessCategory) => {
-    // If category has an industry_benchmark property, use that directly
-    if (category.industry_benchmark !== undefined) {
-      return category.industry_benchmark;
-    }
+  const calculateCategoryIndustryBenchmark = (lifecycleId: string, category: ProcessCategory) => {
+    // Get the lifecycle to use its global industry benchmark
+    const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
+    if (!lifecycle) return 0;
     
-    // If no industry_benchmark is defined, return 0
-    return 0;
+    const lifecycleBenchmark = lifecycle.costMetrics?.industryBenchmark || lifecycle.industry_benchmark || 0;
+    
+    // If no lifecycle benchmark or no process groups in this category, return 0
+    if (lifecycleBenchmark === 0 || !category.process_groups || category.process_groups.length === 0) return 0;
+    
+    // For simplicity, distribute benchmark evenly across categories
+    const totalCategories = lifecycle.processes?.process_categories?.length || 1;
+    return lifecycleBenchmark / totalCategories;
   };
 
   // Calculate total industry benchmark for an entire lifecycle
   const calculateLifecycleIndustryBenchmark = (lifecycleId: string) => {
     const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
-    if (!lifecycle || !lifecycle.processes || !lifecycle.processes.process_categories) return 0;
+    if (!lifecycle) return 0;
     
-    // Sum up industry_benchmark from all process categories
-    return lifecycle.processes.process_categories.reduce((total, category) => {
-      return total + calculateCategoryIndustryBenchmark(category);
-    }, 0);
+    // Use lifecycle-level industry_benchmark directly
+    return lifecycle.costMetrics?.industryBenchmark || lifecycle.industry_benchmark || 0;
   };
 
   // Calculate total cost to serve for an entire lifecycle
   const calculateLifecycleTotalCost = (lifecycleId: string) => {
     const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
-    if (!lifecycle || !lifecycle.processes || !lifecycle.processes.process_categories) return 0;
+    if (!lifecycle) return 0;
     
-    // Sum up cost_to_serve from all process categories
-    return lifecycle.processes.process_categories.reduce((total, category) => {
-      // If category has a cost_to_serve property, use that directly
-      if (category.cost_to_serve !== undefined) {
-        return total + category.cost_to_serve;
-      }
-      // Otherwise calculate from process groups
-      return total + calculateCategoryTotalCost(lifecycleId, category);
-    }, 0);
+    // Use lifecycle-level cost_to_serve directly
+    return lifecycle.costMetrics?.costToServe || lifecycle.cost_to_serve || 0;
   };
 
   // Calculate total points for an entire lifecycle
@@ -1091,17 +1057,11 @@ const OpportunityExplorer = () => {
 
   // Handle opening the modal with category details
   const handleCategoryClick = (lifecycleName: string, lifecycleId: string, category: ProcessCategory) => {
-    // Check for category's own cost_to_serve value
-    const categoryCostToServe = category.cost_to_serve || 0;
-    
     // Update process groups with calculated scores based on strategic objectives
     const updatedProcessGroups = category.process_groups ? 
       category.process_groups.map(group => {
         // Calculate score
         const score = calculateProcessGroupScore(lifecycleId, group.name);
-        
-        // Calculate cost to serve
-        const costToServe = calculateProcessGroupCost(lifecycleId, group.name);
         
         // Get strategic objectives breakdown
         const strategicObjectives = getStrategicObjectivesForGroup(lifecycleId, group.name);
@@ -1112,7 +1072,6 @@ const OpportunityExplorer = () => {
         return {
           ...group,
           score,
-          costToServe,
           strategicObjectives,
           painPoints
         };
@@ -1122,7 +1081,7 @@ const OpportunityExplorer = () => {
       lifecycleName,
       categoryName: category.name,
       processGroups: updatedProcessGroups,
-      categoryCostToServe: categoryCostToServe
+      categoryCostToServe: 0 // Set to 0 as we no longer display this
     });
     setModalOpen(true);
   };
@@ -1139,6 +1098,8 @@ const OpportunityExplorer = () => {
           const categories = lifecycle.processes?.process_categories || [];
           // Calculate total points for this lifecycle
           const totalPoints = calculateLifecycleTotalPoints(lifecycle.id);
+          // Get lifecycle level cost to serve
+          const costToServe = lifecycle.costMetrics?.costToServe || 0;
           
           return (
             <div 
@@ -1149,7 +1110,7 @@ const OpportunityExplorer = () => {
               title={`Click to view ${lifecycle.name} details`}
             >
               <div className="flex flex-col h-full">
-                {/* Lifecycle header */}
+                {/* Lifecycle header - showing points and cost */}
                 <div className="bg-white p-3 border-b border-gray-200 group-hover:bg-[#f9f5ff] transition-colors duration-200">
                   <div className="flex items-center justify-center space-x-2">
                     <span 
@@ -1164,7 +1125,7 @@ const OpportunityExplorer = () => {
                       style={{ backgroundColor: '#7A2BF7' }}
                       title="Total cost to serve"
                     >
-                      ${formatCurrency(calculateLifecycleTotalCost(lifecycle.id))}
+                      ${formatCurrency(costToServe)}
                     </span>
                   </div>
                 </div>
@@ -1220,7 +1181,7 @@ const OpportunityExplorer = () => {
                     {lifecycle.name}
                   </h3>
                   <p className="text-xs text-gray-500 text-center mt-1">
-                    {categories.length} Process Categories
+                    {categories.length} Journeys
                   </p>
                 </div>
               </div>
@@ -1254,22 +1215,15 @@ const OpportunityExplorer = () => {
               title={`Click to view details for ${category.name}`}
             >
               <div className="flex flex-col h-full">
-                {/* Cost to serve header */}
+                {/* Points header - removed cost to serve */}
                 <div className="bg-white p-3 border-b border-gray-200 group-hover:bg-[#f9f5ff] transition-colors duration-200">
-                  <div className="flex items-center justify-center space-x-2">
+                  <div className="flex items-center justify-center">
                     <span 
                       className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-bold"
                       style={{ backgroundColor: '#0EA394' }}
                       title="Total points"
                     >
                       {totalPoints} pts
-                    </span>
-                    <span 
-                      className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-bold"
-                      style={{ backgroundColor: '#7A2BF7' }}
-                      title="Category cost to serve"
-                    >
-                      ${formatCurrency(calculateCategoryTotalCost(lifecycleId, category))}
                     </span>
                   </div>
                 </div>

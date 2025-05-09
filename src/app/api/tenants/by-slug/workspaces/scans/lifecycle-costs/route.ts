@@ -13,8 +13,6 @@ interface ProcessCategory {
   description: string;
   score: number;
   process_groups: ProcessGroup[];
-  cost_to_serve?: number;
-  industry_benchmark?: number;
 }
 
 interface Lifecycle {
@@ -24,6 +22,8 @@ interface Lifecycle {
     process_categories: ProcessCategory[];
   };
   position?: number;
+  cost_to_serve?: number;
+  industry_benchmark?: number;
 }
 
 interface PainPoint {
@@ -112,10 +112,6 @@ export async function GET(req: NextRequest) {
     const lifecyclesWithCosts = lifecycles.map((lifecycle: Lifecycle) => {
       // Count the total number of process groups inside all process categories
       let processes = 0;
-      let costToServe = 0;
-      let industryBenchmark = 0;
-      let hasCostValues = false;
-      let hasBenchmarkValues = false;
       
       // Calculate totals from actual data if processes exists
       if (lifecycle.processes && Array.isArray(lifecycle.processes.process_categories)) {
@@ -123,18 +119,6 @@ export async function GET(req: NextRequest) {
         lifecycle.processes.process_categories.forEach((category: ProcessCategory) => {
           if (category.process_groups && Array.isArray(category.process_groups)) {
             processes += category.process_groups.length;
-          }
-          
-          // Check if this category has a cost_to_serve value
-          if (category.cost_to_serve) {
-            hasCostValues = true;
-            costToServe += Math.abs(category.cost_to_serve);
-          }
-          
-          // Check if this category has an industry_benchmark value
-          if (category.industry_benchmark) {
-            hasBenchmarkValues = true;
-            industryBenchmark += Math.abs(category.industry_benchmark);
           }
         });
       }
@@ -164,14 +148,12 @@ export async function GET(req: NextRequest) {
         }, 0);
       }
       
-      // Use actual cost_to_serve if values exist, otherwise use 0
-      const actualCostToServe = hasCostValues ? costToServe : 0;
-      
-      // Use actual industry_benchmark as the sum of category benchmarks (no hardcoded fallback)
-      const actualIndustryBenchmark = industryBenchmark;
+      // Use actual cost_to_serve and industry_benchmark from lifecycle level
+      const costToServe = lifecycle.cost_to_serve || 0;
+      const industryBenchmark = lifecycle.industry_benchmark || 0;
       
       // Calculate delta (difference between industry benchmark and cost to serve)
-      const delta = actualIndustryBenchmark - actualCostToServe;
+      const delta = industryBenchmark - costToServe;
       
       return {
         ...lifecycle,
@@ -179,8 +161,8 @@ export async function GET(req: NextRequest) {
           processes,
           painPoints,
           points,
-          costToServe: actualCostToServe,
-          industryBenchmark: actualIndustryBenchmark,
+          costToServe: costToServe,
+          industryBenchmark: industryBenchmark,
           delta
         }
       };
@@ -213,13 +195,12 @@ export async function PUT(req: NextRequest) {
       workspace_id, 
       scan_id, 
       lifecycle_id, 
-      category_index, 
       cost_to_serve,
       industry_benchmark
     } = body;
 
     // Validate required fields
-    if (!tenant_slug || !workspace_id || !scan_id || !lifecycle_id || category_index === undefined || 
+    if (!tenant_slug || !workspace_id || !scan_id || !lifecycle_id || 
         (cost_to_serve === undefined && industry_benchmark === undefined)) {
       return NextResponse.json(
         { error: "Missing required parameters" },
@@ -267,51 +248,21 @@ export async function PUT(req: NextRequest) {
     // Get the lifecycle from resources
     const lifecycle = lifecycles[0];
     
-    // Ensure the processes and process_categories exist
-    if (!lifecycle.processes || !lifecycle.processes.process_categories || 
-        !Array.isArray(lifecycle.processes.process_categories) || 
-        category_index >= lifecycle.processes.process_categories.length) {
-      return NextResponse.json(
-        { error: "Process category not found" },
-        { status: 404 }
-      );
-    }
-
-    // Update the appropriate field in the process category
+    // Update the cost_to_serve or industry_benchmark at the lifecycle level
     if (cost_to_serve !== undefined) {
       // Store the cost_to_serve value as a positive integer
       const positiveCostValue = Math.abs(cost_to_serve);
-      lifecycle.processes.process_categories[category_index].cost_to_serve = positiveCostValue;
+      lifecycle.cost_to_serve = positiveCostValue;
     }
     
     if (industry_benchmark !== undefined) {
       // Store the industry_benchmark value as a positive integer
       const positiveBenchmarkValue = Math.abs(industry_benchmark);
-      lifecycle.processes.process_categories[category_index].industry_benchmark = positiveBenchmarkValue;
+      lifecycle.industry_benchmark = positiveBenchmarkValue;
     }
     
     try {
-      // Update the lifecycle in the database using a more reliable approach
-      // Instead of using .replace() which requires knowing the exact partition key,
-      // use query-based update with an upsert operation
-      const querySpec = {
-        query: `
-          SELECT * FROM c 
-          WHERE c.id = @id
-          AND c.scan_id = @scan_id 
-          AND c.workspace_id = @workspace_id 
-          AND c.tenant_slug = @tenant_slug 
-          AND c.type = "lifecycle"
-        `,
-        parameters: [
-          { name: "@id", value: lifecycle_id },
-          { name: "@scan_id", value: scan_id },
-          { name: "@workspace_id", value: workspace_id },
-          { name: "@tenant_slug", value: tenant_slug },
-        ]
-      };
-      
-      // Use the upsert operation which will either update or create
+      // Update the lifecycle in the database using upsert
       const { resource: updatedLifecycle } = await container.items.upsert(lifecycle);
         
       // Return the updated lifecycle
