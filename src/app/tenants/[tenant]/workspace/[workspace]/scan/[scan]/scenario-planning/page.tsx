@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Button from '@/components/Button';
 import Image from 'next/image';
 import Modal from '@/components/Modal';
+import DetailsModal from '@/app/components/DetailsModal';
+import { FileText, Star } from 'lucide-react';
 
 // Define interfaces for our data
 interface CompanyInfo {
@@ -40,26 +42,8 @@ interface ProcessCategory {
   industry_benchmark?: number;
 }
 
-interface ProcessGroup {
-  name: string;
-  description?: string;
-  score?: number;
-  processes?: any[];
-  strategicObjectives?: { name: string; score: number }[];
-  costToServe?: number;
-  painPoints?: PainPoint[]; // Add pain points property
-}
-
-// Define interface for pain points
-interface PainPoint {
-  id: string;
-  name: string;
-  description: string;
-  assigned_process_group?: string;
-  cost_to_serve?: number;
-  // Strategic objective properties are prefixed with so_
-  [key: string]: any; // To allow strategic objective properties (so_*)
-}
+// Reusing the ProcessGroup and PainPoint types from DetailsModal
+import type { ProcessGroup, PainPoint } from '@/app/components/DetailsModal';
 
 interface PainPointSummary {
   id: string;
@@ -67,387 +51,26 @@ interface PainPointSummary {
   overallSummary: string;
 }
 
-// Modal Component for Process Category Details
-const DetailsModal = ({ 
-  isOpen, 
-  onClose, 
-  lifecycleName, 
-  categoryName,
-  processGroups = [],
-  categoryCostToServe = 0
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  lifecycleName: string; 
-  categoryName: string;
-  processGroups?: ProcessGroup[];
-  categoryCostToServe?: number;
-}) => {
-  if (!isOpen) return null;
-
-  // Calculate total points for all process groups
-  const totalPoints = processGroups.reduce((total, group) => total + (group.score || 0), 0);
-  
-  // State to track expanded process groups
-  const [expandedGroups, setExpandedGroups] = useState<{[key: string]: boolean}>({});
-  
-  // State to track expanded pain points sections
-  const [expandedPainPointSections, setExpandedPainPointSections] = useState<{[key: string]: boolean}>({});
-  
-  // State to track expanded individual pain points
-  const [expandedPainPoints, setExpandedPainPoints] = useState<{[key: string]: boolean}>({});
-  
-  // Function to toggle a process group expansion
-  const toggleProcessGroup = (groupId: string) => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [groupId]: !prev[groupId]
-    }));
-  };
-  
-  // Function to toggle a pain points section expansion
-  const togglePainPointsSection = (groupId: string) => {
-    setExpandedPainPointSections(prev => ({
-      ...prev,
-      [groupId]: !prev[groupId]
-    }));
-  };
-  
-  // Function to toggle a specific pain point
-  const togglePainPoint = (painPointId: string) => {
-    setExpandedPainPoints(prev => ({
-      ...prev,
-      [painPointId]: !prev[painPointId]
-    }));
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="3xl" title="">
-      <div className="py-2 relative">
-        {/* Close button */}
-        <button 
-          onClick={onClose}
-          className="absolute top-0 right-0 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
-          aria-label="Close modal"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-        
-        {/* Custom header with lifecycle tag and category title */}
-        <div className="mb-6">
-          <div className="mb-1 text-left">
-            <span 
-              className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-              style={{ backgroundColor: '#6B7280' }}
-            >
-              {lifecycleName}
-            </span>
-          </div>
-          <h2 className="text-2xl font-semibold text-gray-900 text-left mb-1">
-            {categoryName}
-          </h2>
-          <p className="text-sm text-gray-500 text-left">Journey</p>
-        </div>
-        
-        {/* Header with metrics */}
-        <div className="mb-6 text-left">
-          <div className="flex space-x-2 mb-4">
-            <span 
-              className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-              style={{ backgroundColor: '#0EA394' }}
-              title="Total points across all process groups"
-            >
-              {totalPoints} pts
-            </span>
-          </div>
-          
-          <h4 className="text-sm font-medium text-gray-500 mb-1 text-left">Description</h4>
-          <p className="text-gray-700 bg-gray-50 p-3 rounded-md border border-gray-200 text-sm text-left">
-            {categoryName} process category in the {lifecycleName} lifecycle.
-          </p>
-        </div>
-        
-        {/* Process Groups Section with Accordion */}
-        <div className="mb-4">
-          <h4 className="text-sm font-medium text-gray-500 mb-2 text-left">
-            Processes ({processGroups.length})
-          </h4>
-          
-          {processGroups.length === 0 ? (
-            <div className="bg-gray-50 p-4 rounded-md border border-gray-200 text-left">
-              <p className="text-gray-500">No processes found for this category.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {processGroups.map((group, index) => {
-                const score = typeof group.score === 'number' ? group.score : 0;
-                const strategicObjectives = group.strategicObjectives || [];
-                // Create a unique ID for each group
-                const groupId = `group-${index}`;
-                const isExpanded = expandedGroups[groupId] || false;
-                const isPainPointsSectionExpanded = expandedPainPointSections[groupId] || false;
-                
-                // Get pain points assigned to this group
-                const assignedPainPoints = group.painPoints || [];
-                const hasPainPoints = assignedPainPoints.length > 0;
-                
-                return (
-                  <div 
-                    key={index} 
-                    className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
-                  >
-                    {/* Collapsible header */}
-                    <div 
-                      className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
-                      onClick={() => toggleProcessGroup(groupId)}
-                    >
-                      <div className="flex items-center">
-                        <Button
-                          variant="primary"
-                          className="mr-1 p-0 border-0 shadow-none min-w-[16px] min-h-[16px] w-4 h-4 text-black"
-                          iconOnly
-                          colorOverride="transparent"
-                          icon={
-                            <svg 
-                              className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} 
-                              fill="none" 
-                              stroke="black" 
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                          }
-                        />
-                        <h3 className="text-lg font-medium text-gray-800 text-left">{group.name}</h3>
-                      </div>
-                      
-                      <div className="flex space-x-2">
-                        <span 
-                          className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                          style={{ backgroundColor: '#0EA394' }}
-                          title="Process group score"
-                        >
-                          {score} pts
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Collapsible content */}
-                    {isExpanded && (
-                      <div className="p-4 pt-0 border-t border-gray-100">
-                        {/* Group Description */}
-                        {group.description ? (
-                          <div className="mb-3 pt-3">
-                            <h4 className="text-xs font-medium text-gray-500 mb-1 text-left">Description</h4>
-                            <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded-md border border-gray-100 text-left">
-                              {group.description}
-                            </p>
-                          </div>
-                        ) : null}
-                        
-                        {/* Strategic Objectives section */}
-                        {strategicObjectives && strategicObjectives.length > 0 && (
-                          <div className="mt-3">
-                            <h4 className="text-xs font-medium text-gray-500 mb-1 text-left">Strategic Objectives Impact</h4>
-                            <div className="bg-gray-50 p-2 rounded-md border border-gray-100">
-                              <div className="flex flex-wrap gap-2">
-                                {strategicObjectives.map((obj, idx) => (
-                                  <div 
-                                    key={idx} 
-                                    className="flex items-center bg-white rounded px-2 py-1 border border-gray-200"
-                                  >
-                                    <span className="text-xs text-gray-700 text-left">{obj.name}</span>
-                                    <span className="ml-1.5 inline-block px-1.5 py-0.5 bg-[#0EA394] text-white text-xs rounded-full">
-                                      {obj.score}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Pain Points Section */}
-                        <div className="mt-4">
-                          <div 
-                            className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded-md"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              togglePainPointsSection(groupId);
-                            }}
-                          >
-                            <Button
-                              variant="primary"
-                              className="mr-1 p-0 border-0 shadow-none min-w-[16px] min-h-[16px] w-4 h-4 text-black"
-                              iconOnly
-                              colorOverride="transparent" 
-                              icon={
-                                <svg 
-                                  className={`w-3 h-3 transition-transform duration-200 ${isPainPointsSectionExpanded ? 'rotate-90' : ''}`} 
-                                  fill="none" 
-                                  stroke="black" 
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                                </svg>
-                              }
-                            />
-                            <h4 className="text-xs font-medium text-gray-500 text-left flex items-center">
-                              Assigned Pain Points 
-                              {assignedPainPoints.length > 0 && (
-                                <span className="ml-2 bg-gray-200 text-gray-700 text-xs px-1.5 py-0.5 rounded-full">
-                                  {assignedPainPoints.length}
-                                </span>
-                              )}
-                            </h4>
-                          </div>
-                          
-                          {/* Pain Points Content */}
-                          {isPainPointsSectionExpanded && (
-                            <div className="mt-2">
-                              {!hasPainPoints ? (
-                                <p className="text-sm text-gray-500 italic bg-gray-50 p-3 rounded-md border border-gray-200">
-                                  No pain points assigned to this process.
-                                </p>
-                              ) : (
-                                <div className="bg-gray-50 p-3 rounded-md border border-gray-200 space-y-3">
-                                  {assignedPainPoints.map((painPoint, ppIdx) => {
-                                    const painPointId = `pain-point-${index}-${ppIdx}`;
-                                    const isPainPointExpanded = expandedPainPoints[painPointId] || false;
-                                    
-                                    // Calculate the total strategic objective score
-                                    const totalScore = Object.entries(painPoint)
-                                      .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number')
-                                      .reduce((total, [_, value]) => total + (value as number), 0);
-                                    
-                                    return (
-                                      <div 
-                                        key={ppIdx} 
-                                        className="bg-white rounded-md border border-gray-200 overflow-hidden"
-                                      >
-                                        {/* Pain Point Header */}
-                                        <div 
-                                          className="p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            togglePainPoint(painPointId);
-                                          }}
-                                        >
-                                          <div className="flex items-center">
-                                            <Button
-                                              variant="primary"
-                                              className="mr-1 p-0 border-0 shadow-none min-w-[16px] min-h-[16px] w-4 h-4 text-black"
-                                              iconOnly
-                                              colorOverride="transparent"
-                                              icon={
-                                                <svg 
-                                                  className={`w-3 h-3 transition-transform duration-200 ${isPainPointExpanded ? 'rotate-90' : ''}`} 
-                                                  fill="none" 
-                                                  stroke="black" 
-                                                  viewBox="0 0 24 24"
-                                                >
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                                                </svg>
-                                              }
-                                            />
-                                            <h5 className="font-medium text-gray-800 text-sm">{painPoint.name}</h5>
-                                          </div>
-                                          
-                                          <div className="flex items-center space-x-2">
-                                            {/* Show total strategic objectives points */}
-                                            <span className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold bg-[#0EA394]">
-                                              {totalScore} pts
-                                            </span>
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Pain Point Details */}
-                                        {isPainPointExpanded && (
-                                          <div className="p-3 pt-0 border-t border-gray-100">
-                                            <p className="text-sm text-gray-600 mb-3 pt-3 text-left">{painPoint.description}</p>
-                                            
-                                            {/* Strategic Objectives for this Pain Point */}
-                                            <div className="mt-2">
-                                              <h6 className="text-xs font-medium text-gray-500 mb-1 text-left">Strategic Objective Applicability:</h6>
-                                              <div className="flex flex-wrap gap-1">
-                                                {Object.entries(painPoint)
-                                                  .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number' && value > 0)
-                                                  .map(([key, value], idx) => {
-                                                    // Format the objective name
-                                                    const objName = key.replace('so_', '')
-                                                      .split('_')
-                                                      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                                                      .join(' ');
-                                                      
-                                                    // Determine label based on score
-                                                    let label = 'Low';
-                                                    if (value === 2) label = 'Med';
-                                                    else if (value >= 3) label = 'High';
-                                                      
-                                                    return (
-                                                      <div 
-                                                        key={idx}
-                                                        className="flex items-center bg-gray-100 rounded px-2 py-1 border border-gray-200"
-                                                      >
-                                                        <span className="text-xs text-gray-700 text-left">{objName}</span>
-                                                        <span className="ml-1.5 inline-block px-1.5 py-0.5 bg-[#0EA394] text-white text-xs rounded-full">
-                                                          {label} ({value})
-                                                        </span>
-                                                      </div>
-                                                    );
-                                                  })}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Process count (if there are processes) */}
-                        {group.processes && group.processes.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-500">
-                            Contains {group.processes.length} {group.processes.length === 1 ? 'process' : 'processes'}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </Modal>
-  );
-};
-
 // Module components
-const Introduction = ({ scanName = "Introduction" }: { scanName?: string }) => (
-  <div className="text-center">
-    <div className="flex items-center justify-center mb-2">
-      <div className="bg-white p-3 rounded-full w-12 h-12 flex items-center justify-center shadow-sm mr-3">
-        <Image src="/assets/icons/file.svg" width={25} height={25} alt="File icon" />
+function Introduction({ scanName = "Introduction" }: { scanName?: string }) {
+  return (
+    <div className="text-center">
+      <div className="flex items-center justify-center mb-2">
+        <div className="bg-white p-3 rounded-full w-12 h-12 flex items-center justify-center shadow-sm mr-3">
+          <Image src="/assets/icons/file.svg" width={25} height={25} alt="File icon" />
+        </div>
+        <h2 className="text-2xl font-semibold text-[#5319A5]">{scanName}</h2>
       </div>
-      <h2 className="text-2xl font-semibold text-[#5319A5]">{scanName}</h2>
+      <p className="text-gray-600 mb-4 py-3 max-w-2xl mx-auto">A focused diagnostic to uncover key process pain points, highlight opportunities, and lay the groundwork for meaningful process improvements.</p>
+      {/* <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <p className="text-gray-800">Introduction content will be placed here.</p>
+      </div> */}
     </div>
-    <p className="text-gray-600 mb-4 py-3 max-w-2xl mx-auto">A focused diagnostic to uncover key process pain points, highlight opportunities, and lay the groundwork for meaningful process improvements.</p>
-    {/* <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-      <p className="text-gray-800">Introduction content will be placed here.</p>
-    </div> */}
-  </div>
-);
+  );
+}
 
 // ProjectOverview is now a functional component that accepts companyName as a prop
-const ProjectOverview = ({ companyName = "the company" }: { companyName?: string }) => {
+function ProjectOverview({ companyName = "the company" }: { companyName?: string }) {
   const params = useParams();
   const [lifecyclesCount, setLifecyclesCount] = useState(0);
   const [processesCount, setProcessesCount] = useState(0);
@@ -577,9 +200,9 @@ const ProjectOverview = ({ companyName = "the company" }: { companyName?: string
       </div>
     </div>
   );
-};
+}
 
-const LifecyclesScanned = () => {
+function LifecyclesScanned() {
   const params = useParams();
   const [lifecyclesData, setLifecyclesData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -699,14 +322,50 @@ const LifecyclesScanned = () => {
       </div>
     </div>
   );
-};
+}
 
-const OpportunityExplorer = () => {
+// Add this function at the top level of the file, outside of other components
+function ModalWrapper({
+  isOpen,
+  onClose,
+  lifecycleName,
+  categoryName,
+  processGroups,
+  categoryCostToServe,
+  initialExpandedGroupId
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  lifecycleName: string; 
+  categoryName: string;
+  processGroups: ProcessGroup[];
+  categoryCostToServe: number;
+  initialExpandedGroupId: string | null;
+}) {
+  return (
+    <DetailsModal 
+      isOpen={isOpen} 
+      onClose={onClose}
+      lifecycleName={lifecycleName} 
+      categoryName={categoryName}
+      processGroups={processGroups}
+      categoryCostToServe={categoryCostToServe}
+      initialExpandedGroupId={initialExpandedGroupId}
+    />
+  );
+}
+
+function OpportunityExplorer({ 
+  setAllLifecyclesData,
+  setPainPointsData
+}: { 
+  setAllLifecyclesData: React.Dispatch<React.SetStateAction<Lifecycle[]>>;
+  setPainPointsData: React.Dispatch<React.SetStateAction<Record<string, PainPointSummary>>>;
+}) {
   const params = useParams();
   const [lifecycles, setLifecycles] = useState<Lifecycle[]>([]);
   const [selectedLifecycle, setSelectedLifecycle] = useState<string>("all");
   const [selectedLifecycleData, setSelectedLifecycleData] = useState<Lifecycle | null>(null);
-  const [allLifecyclesData, setAllLifecyclesData] = useState<Lifecycle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState({ 
@@ -716,9 +375,14 @@ const OpportunityExplorer = () => {
     categoryCostToServe: 0
   });
   
-  // Add state for pain points data
-  const [painPointsData, setPainPointsData] = useState<Record<string, PainPointSummary>>({});
+  // Add state for expanded process group in modal
+  const [initialExpandedGroupId, setInitialExpandedGroupId] = useState<string | null>(null);
+  
+  // Add state for pain points data - using local variables instead to prevent duplicates
+  const [localPainPointsData, setLocalPainPointsData] = useState<Record<string, PainPointSummary>>({});
   const [isLoadingPainPoints, setIsLoadingPainPoints] = useState(false);
+  const [localAllLifecyclesData, setLocalAllLifecyclesData] = useState<Lifecycle[]>([]);
+  const [selectedProcesses, setSelectedProcesses] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchLifecycles = async () => {
@@ -834,6 +498,8 @@ const OpportunityExplorer = () => {
           
           const detailedData = await Promise.all(detailedDataPromises);
           const filteredData = detailedData.filter(Boolean);
+          setLocalAllLifecyclesData(filteredData);
+          // Update parent state
           setAllLifecyclesData(filteredData);
           
           // Also fetch pain points data for all lifecycles
@@ -844,6 +510,8 @@ const OpportunityExplorer = () => {
           
           const painPointsResults = await Promise.all(painPointsPromises);
           const painPointsMap = Object.fromEntries(painPointsResults);
+          setLocalPainPointsData(painPointsMap);
+          // Update parent state
           setPainPointsData(painPointsMap);
           
           setSelectedLifecycleData(null);
@@ -887,7 +555,7 @@ const OpportunityExplorer = () => {
           
           // Fetch pain points for this lifecycle
           const painPointsSummary = await fetchPainPointsForLifecycle(selectedLifecycle);
-          setPainPointsData({ [selectedLifecycle]: painPointsSummary });
+          setLocalPainPointsData({ [selectedLifecycle]: painPointsSummary });
         }
       } catch (error) {
         console.error('Error fetching lifecycle data:', error);
@@ -900,7 +568,7 @@ const OpportunityExplorer = () => {
     if (lifecycles.length > 0) {
       fetchLifecyclesData();
     }
-  }, [selectedLifecycle, lifecycles, params]);
+  }, [selectedLifecycle, lifecycles, params, setAllLifecyclesData, setPainPointsData]);
 
   const handleLifecycleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedLifecycle(e.target.value);
@@ -908,10 +576,10 @@ const OpportunityExplorer = () => {
 
   // Calculate score for a process group based on strategic objectives
   const calculateProcessGroupScore = (lifecycleId: string, groupName: string): number => {
-    if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return 0;
+    if (!localPainPointsData[lifecycleId] || !localPainPointsData[lifecycleId].pain_points) return 0;
     
     // Calculate total score from pain points assigned to this process group
-    return painPointsData[lifecycleId].pain_points
+    return localPainPointsData[lifecycleId].pain_points
       .filter(point => point.assigned_process_group === groupName)
       .reduce((total, point) => {
         // Calculate sum of all strategic objective scores (properties starting with "so_")
@@ -925,29 +593,12 @@ const OpportunityExplorer = () => {
       }, 0);
   };
   
-  // Calculate cost to serve for a process group based on pain points
-  const calculateProcessGroupCost = (lifecycleId: string, groupName: string): number => {
-    if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return 0;
-    
-    // Check if we have any pain points assigned to this process group
-    const assignedPainPoints = painPointsData[lifecycleId].pain_points
-      .filter(point => point.assigned_process_group === groupName);
-    
-    if (assignedPainPoints.length === 0) return 0;
-    
-    // Calculate total cost from pain points assigned to this process group
-    const totalCost = assignedPainPoints
-      .reduce((total, point) => total + (point.cost_to_serve || 0), 0);
-    
-    return totalCost;
-  };
-  
   // Get strategic objectives for a process group
   const getStrategicObjectivesForGroup = (lifecycleId: string, groupName: string): { name: string, score: number }[] => {
-    if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return [];
+    if (!localPainPointsData[lifecycleId] || !localPainPointsData[lifecycleId].pain_points) return [];
     
     // Get pain points assigned to this group
-    const groupPainPoints = painPointsData[lifecycleId].pain_points
+    const groupPainPoints = localPainPointsData[lifecycleId].pain_points
       .filter(point => point.assigned_process_group === groupName);
       
     // Create a map to track totals for each strategic objective
@@ -978,10 +629,10 @@ const OpportunityExplorer = () => {
   
   // Get pain points assigned to a process group
   const getPainPointsForGroup = (lifecycleId: string, groupName: string): PainPoint[] => {
-    if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return [];
+    if (!localPainPointsData[lifecycleId] || !localPainPointsData[lifecycleId].pain_points) return [];
     
     // Get pain points assigned to this group
-    return painPointsData[lifecycleId].pain_points
+    return localPainPointsData[lifecycleId].pain_points
       .filter(point => point.assigned_process_group === groupName);
   };
 
@@ -997,7 +648,7 @@ const OpportunityExplorer = () => {
   // Calculate cost to serve for a process category based on pain points
   const calculateCategoryTotalCost = (lifecycleId: string, category: ProcessCategory) => {
     // If there's a lifecycle with cost data, we can proportionally allocate cost to categories
-    const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
+    const lifecycle = localAllLifecyclesData.find(lc => lc.id === lifecycleId);
     if (!lifecycle) return 0;
     
     const lifecycleCost = lifecycle.costMetrics?.costToServe || lifecycle.cost_to_serve || 0;
@@ -1013,7 +664,7 @@ const OpportunityExplorer = () => {
   // Calculate industry benchmark for a process category
   const calculateCategoryIndustryBenchmark = (lifecycleId: string, category: ProcessCategory) => {
     // Get the lifecycle to use its global industry benchmark
-    const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
+    const lifecycle = localAllLifecyclesData.find(lc => lc.id === lifecycleId);
     if (!lifecycle) return 0;
     
     const lifecycleBenchmark = lifecycle.costMetrics?.industryBenchmark || lifecycle.industry_benchmark || 0;
@@ -1028,7 +679,7 @@ const OpportunityExplorer = () => {
 
   // Calculate total industry benchmark for an entire lifecycle
   const calculateLifecycleIndustryBenchmark = (lifecycleId: string) => {
-    const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
+    const lifecycle = localAllLifecyclesData.find(lc => lc.id === lifecycleId);
     if (!lifecycle) return 0;
     
     // Use lifecycle-level industry_benchmark directly
@@ -1037,7 +688,7 @@ const OpportunityExplorer = () => {
 
   // Calculate total cost to serve for an entire lifecycle
   const calculateLifecycleTotalCost = (lifecycleId: string) => {
-    const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
+    const lifecycle = localAllLifecyclesData.find(lc => lc.id === lifecycleId);
     if (!lifecycle) return 0;
     
     // Use lifecycle-level cost_to_serve directly
@@ -1046,7 +697,7 @@ const OpportunityExplorer = () => {
 
   // Calculate total points for an entire lifecycle
   const calculateLifecycleTotalPoints = (lifecycleId: string) => {
-    const lifecycle = allLifecyclesData.find(lc => lc.id === lifecycleId);
+    const lifecycle = localAllLifecyclesData.find(lc => lc.id === lifecycleId);
     if (!lifecycle || !lifecycle.processes || !lifecycle.processes.process_categories) return 0;
     
     // Sum up points from all process categories
@@ -1057,6 +708,9 @@ const OpportunityExplorer = () => {
 
   // Handle opening the modal with category details
   const handleCategoryClick = (lifecycleName: string, lifecycleId: string, category: ProcessCategory) => {
+    // Reset the initially expanded group ID
+    setInitialExpandedGroupId(null);
+    
     // Update process groups with calculated scores based on strategic objectives
     const updatedProcessGroups = category.process_groups ? 
       category.process_groups.map(group => {
@@ -1086,14 +740,67 @@ const OpportunityExplorer = () => {
     setModalOpen(true);
   };
 
+  // New function to handle process group click
+  const handleProcessGroupClick = (e: React.MouseEvent, lifecycleName: string, lifecycleId: string, category: ProcessCategory, groupName: string) => {
+    e.stopPropagation(); // Prevent category click event
+
+    // Update process groups with calculated scores based on strategic objectives
+    const updatedProcessGroups = category.process_groups ? 
+      category.process_groups.map(group => {
+        // Calculate score
+        const score = calculateProcessGroupScore(lifecycleId, group.name);
+        
+        // Get strategic objectives breakdown
+        const strategicObjectives = getStrategicObjectivesForGroup(lifecycleId, group.name);
+        
+        // Get pain points assigned to this group
+        const painPoints = getPainPointsForGroup(lifecycleId, group.name);
+        
+        return {
+          ...group,
+          score,
+          strategicObjectives,
+          painPoints
+        };
+      }) : [];
+      
+    setModalContent({
+      lifecycleName,
+      categoryName: category.name,
+      processGroups: updatedProcessGroups,
+      categoryCostToServe: 0
+    });
+
+    // Find the index of the clicked process group to create a unique ID
+    const groupIndex = (category.process_groups || []).findIndex(group => group.name === groupName);
+    if (groupIndex !== -1) {
+      setInitialExpandedGroupId(`group-${groupIndex}`);
+    }
+    
+    setModalOpen(true);
+  };
+
+  // Toggle process selection
+  const toggleProcessSelection = (processId: string) => {
+    setSelectedProcesses(prevSelected => {
+      const newSelected = new Set(prevSelected);
+      if (newSelected.has(processId)) {
+        newSelected.delete(processId);
+      } else {
+        newSelected.add(processId);
+      }
+      return newSelected;
+    });
+  };
+
   const renderAllLifecycles = () => {
-    if (!allLifecyclesData.length) {
+    if (!localAllLifecyclesData.length) {
       return <p className="text-gray-500">No lifecycle data available.</p>;
     }
 
     return (
       <div className="flex justify-between gap-4 w-full overflow-hidden px-3 py-2">
-        {allLifecyclesData.map((lifecycle, index) => {
+        {localAllLifecyclesData.map((lifecycle, index) => {
           // Get all process categories for this lifecycle
           const categories = lifecycle.processes?.process_categories || [];
           // Calculate total points for this lifecycle
@@ -1104,7 +811,7 @@ const OpportunityExplorer = () => {
           return (
             <div 
               key={lifecycle.id} 
-              className="flex-1 min-w-0 flex flex-col h-[450px] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg hover:border-[#5319A5] hover:scale-[1.01] transition-all duration-200 transform cursor-pointer group"
+              className="flex-1 min-w-0 flex flex-col h-[550px] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg hover:border-[#5319A5] hover:scale-[1.01] transition-all duration-200 transform cursor-pointer group"
               style={{ minWidth: '0' }}
               onClick={() => setSelectedLifecycle(lifecycle.id)}
               title={`Click to view ${lifecycle.name} details`}
@@ -1209,7 +916,7 @@ const OpportunityExplorer = () => {
           return (
             <div 
               key={index} 
-              className="flex-1 min-w-0 flex flex-col h-[450px] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg hover:border-[#5319A5] hover:scale-[1.01] transition-all duration-200 transform cursor-pointer group"
+              className="flex-1 min-w-0 flex flex-col h-[550px] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg hover:border-[#5319A5] hover:scale-[1.01] transition-all duration-200 transform cursor-pointer group"
               style={{ minWidth: '0' }}
               onClick={() => handleCategoryClick(selectedLifecycleData.name, lifecycleId, category)}
               title={`Click to view details for ${category.name}`}
@@ -1270,6 +977,7 @@ const OpportunityExplorer = () => {
                             backgroundColor 
                           }}
                           title={`${group.name}`}
+                          onClick={(e) => handleProcessGroupClick(e, selectedLifecycleData.name, lifecycleId, category, group.name)}
                         >
                           <p className="text-white font-bold text-sm">{score}pts</p>
                         </div>
@@ -1336,18 +1044,19 @@ const OpportunityExplorer = () => {
         )}
       </div>
       
-      {/* Modal for displaying category details */}
-      <DetailsModal 
+      {/* Use the ModalWrapper instead of direct DetailsModal */}
+      <ModalWrapper 
         isOpen={modalOpen} 
         onClose={() => setModalOpen(false)}
         lifecycleName={modalContent.lifecycleName} 
         categoryName={modalContent.categoryName}
         processGroups={modalContent.processGroups}
         categoryCostToServe={modalContent.categoryCostToServe}
+        initialExpandedGroupId={initialExpandedGroupId}
       />
     </div>
   );
-};
+}
 
 // Format number as currency without cents
 const formatCurrency = (value: number): string => {
@@ -1364,14 +1073,88 @@ export default function ScenarioPlanningPage() {
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
   const [currentModule, setCurrentModule] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  // Add state for the focus modal
+  const [focusModalOpen, setFocusModalOpen] = useState(false);
+  const [focusType, setFocusType] = useState<'narrow' | 'wide'>('narrow');
+  // Add state for selected processes
+  const [selectedProcesses, setSelectedProcesses] = useState<Set<string>>(new Set());
+  
+  // State for process data
+  const [allLifecyclesData, setAllLifecyclesData] = useState<Lifecycle[]>([]);
+  const [painPointsData, setPainPointsData] = useState<Record<string, PainPointSummary>>({});
 
   // Modules array is now constructed with company name from state
   const getModules = (companyName: string, scanName: string) => [
     { component: <Introduction scanName={scanName} />, name: "Introduction" },
     { component: <ProjectOverview companyName={companyName} />, name: "Project Overview" },
     { component: <LifecyclesScanned />, name: "Lifecycles Scanned" },
-    { component: <OpportunityExplorer />, name: "Opportunity Explorer" },
+    { component: <OpportunityExplorer 
+        setAllLifecyclesData={setAllLifecyclesData}
+        setPainPointsData={setPainPointsData}
+      />, name: "Opportunity Explorer" },
   ];
+
+  // Functions for calculating scores - moved from OpportunityExplorer
+  const calculateProcessGroupScore = (lifecycleId: string, groupName: string): number => {
+    if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return 0;
+    
+    // Calculate total score from pain points assigned to this process group
+    return painPointsData[lifecycleId].pain_points
+      .filter(point => point.assigned_process_group === groupName)
+      .reduce((total, point) => {
+        // Calculate sum of all strategic objective scores (properties starting with "so_")
+        let pointScore = 0;
+        Object.entries(point).forEach(([key, value]) => {
+          if (key.startsWith('so_') && typeof value === 'number') {
+            pointScore += value;
+          }
+        });
+        return total + pointScore;
+      }, 0);
+  };
+  
+  // Get strategic objectives for a process group
+  const getStrategicObjectivesForGroup = (lifecycleId: string, groupName: string): { name: string, score: number }[] => {
+    if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return [];
+    
+    // Get pain points assigned to this group
+    const groupPainPoints = painPointsData[lifecycleId].pain_points
+      .filter(point => point.assigned_process_group === groupName);
+      
+    // Create a map to track totals for each strategic objective
+    const soTotals = new Map<string, number>();
+    
+    // Process each pain point to extract and sum strategic objectives
+    groupPainPoints.forEach(point => {
+      Object.entries(point).forEach(([key, value]) => {
+        if (key.startsWith('so_') && typeof value === 'number' && value > 0) {
+          // Format the objective name: convert so_objective_name to Objective Name
+          const objName = key.replace('so_', '')
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+          
+          // Add to the running total
+          soTotals.set(objName, (soTotals.get(objName) || 0) + value);
+        }
+      });
+    });
+    
+    // Convert map to array of objects for easier rendering
+    return Array.from(soTotals.entries()).map(([name, score]) => ({
+      name,
+      score
+    })).sort((a, b) => b.score - a.score); // Sort by highest total first
+  };
+  
+  // Get pain points assigned to a process group
+  const getPainPointsForGroup = (lifecycleId: string, groupName: string): PainPoint[] => {
+    if (!painPointsData[lifecycleId] || !painPointsData[lifecycleId].pain_points) return [];
+    
+    // Get pain points assigned to this group
+    return painPointsData[lifecycleId].pain_points
+      .filter(point => point.assigned_process_group === groupName);
+  };
 
   useEffect(() => {
     const fetchScanData = async () => {
@@ -1412,6 +1195,30 @@ export default function ScenarioPlanningPage() {
     }
   };
 
+  // Add handlers for the focus buttons
+  const handleNarrowFocusClick = () => {
+    setFocusType('narrow');
+    setFocusModalOpen(true);
+  };
+
+  const handleWideFocusClick = () => {
+    setFocusType('wide');
+    setFocusModalOpen(true);
+  };
+  
+  // Toggle process selection
+  const toggleProcessSelection = (processId: string) => {
+    setSelectedProcesses(prevSelected => {
+      const newSelected = new Set(prevSelected);
+      if (newSelected.has(processId)) {
+        newSelected.delete(processId);
+      } else {
+        newSelected.add(processId);
+      }
+      return newSelected;
+    });
+  };
+
   // Get company name from company info, or use a default
   const companyName = companyInfo?.name || "the company";
   
@@ -1422,9 +1229,18 @@ export default function ScenarioPlanningPage() {
     <div className={`px-8 ${currentModule === 0 ? 'min-h-screen flex flex-col justify-center -mt-20' : ''}`}>
       {/* Header with scan name - hidden on introduction page */}
       {currentModule !== 0 && (
-        <div className="mb-8 bg-white p-4 rounded-lg shadow-sm inline-block">
-          <p className="text-sm font-medium text-gray-500">SCENARIO PLANNER</p>
-          <h1 className="text-xl font-bold">{isLoading ? 'Loading...' : scanData.name}</h1>
+        <div className="mb-8 flex justify-between items-center">
+          <div className="bg-white p-4 rounded-lg shadow-sm inline-block">
+            <p className="text-sm font-medium text-gray-500">SCENARIO PLANNER</p>
+            <h1 className="text-xl font-bold">{isLoading ? 'Loading...' : scanData.name}</h1>
+          </div>
+          
+          {currentModule === 3 && (
+            <div className="flex space-x-3">
+              <Button variant="secondary" onClick={handleNarrowFocusClick}>Narrow Focus</Button>
+              <Button variant="secondary" onClick={handleWideFocusClick}>Wide Focus</Button>
+            </div>
+          )}
         </div>
       )}
       
@@ -1468,6 +1284,354 @@ export default function ScenarioPlanningPage() {
           </>
         )}
       </div>
+
+      {/* New Focus Modal - uses Modal component */}
+      {focusModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Overlay */}
+          <div 
+            className="fixed inset-0 bg-black opacity-50" 
+            onClick={() => setFocusModalOpen(false)}
+          ></div>
+          <div className="relative z-10 bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] max-w-[1600px] max-h-[900px] flex flex-col">
+            {/* Title and Close Button */}
+            <div className="flex justify-between items-center p-6 pb-3 mb-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">{focusType === 'narrow' ? 'Narrow Focus' : 'Wide Focus'}</h3>
+              <button 
+                onClick={() => setFocusModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                aria-label="Close modal"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {/* Modal Content */}
+            <div className="flex-grow overflow-auto p-6 pt-0">
+              {focusType === 'narrow' ? (
+                <div className="flex h-full">
+                  {/* Left side - 30% width with centered title - now fixed while scrolling */}
+                  <div className="w-[30%] pr-6 flex flex-col items-center justify-center sticky top-0 self-start h-full min-h-[500px]">
+                    <div className="text-center max-w-[300px]">
+                      <div className="mb-6 flex justify-center">
+                        <div className="w-16 h-16 rounded-full bg-white shadow-sm flex items-center justify-center border border-gray-100">
+                          <FileText size={24} className="text-[#5319A5]" />
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-medium mb-4 text-[#5319A5]">Key Processes For Improving</h3>
+                        <p className="text-gray-600 mb-12">This selection identifies core processes to improve based their total opportunity score. Targeting a process this way allows you completely respond to all of the associated pain points.</p>
+                      </div>
+                      
+                      <div className="pt-8 border-t border-gray-200">
+                        <h4 className="font-medium text-gray-800 mb-2">What to do</h4>
+                        <p className="text-sm text-gray-600">Review the list and select the processes that matter most to you or your team. These will guide where to focus your efforts next.</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Right side - 70% width with process groups list - handles scrolling */}
+                  <div className="w-[70%] overflow-y-auto max-h-[calc(900px-120px)]">
+                    {/* Column Headers */}
+                    <div className="grid grid-cols-12 gap-4 mb-4 px-4 text-sm font-medium text-gray-500">
+                      <div className="col-span-6">Process</div>
+                      <div className="col-span-2 text-center">Pain Points</div>
+                      <div className="col-span-2 text-center">Score</div>
+                      <div className="col-span-2 text-center">Select</div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {allLifecyclesData.flatMap(lifecycle => {
+                        if (!lifecycle.processes?.process_categories) return [];
+                        
+                        // Get all process groups from all categories
+                        const groups: {
+                          lifecycle: Lifecycle;
+                          category: ProcessCategory;
+                          group: ProcessGroup;
+                          score: number;
+                          painPointCount: number;
+                          id: string;
+                        }[] = [];
+                        
+                        lifecycle.processes.process_categories.forEach(category => {
+                          if (!category.process_groups) return;
+                          
+                          category.process_groups.forEach(group => {
+                            // Calculate score based on strategic objectives
+                            let score = 0;
+                            let painPointCount = 0;
+                            
+                            // If we have pain points data for this lifecycle, calculate score
+                            if (painPointsData[lifecycle.id]?.pain_points) {
+                              const points = painPointsData[lifecycle.id].pain_points
+                                .filter(point => point.assigned_process_group === group.name);
+                              
+                              // Count pain points
+                              painPointCount = points.length;
+                                
+                              // Calculate sum of all strategic objective scores
+                              points.forEach(point => {
+                                Object.entries(point).forEach(([key, value]) => {
+                                  if (key.startsWith('so_') && typeof value === 'number') {
+                                    score += value;
+                                  }
+                                });
+                              });
+                            }
+                            
+                            // Create a unique ID for this process group
+                            const id = `${lifecycle.id}-${category.name}-${group.name}`;
+                            
+                            groups.push({
+                              lifecycle,
+                              category,
+                              group,
+                              score,
+                              painPointCount,
+                              id
+                            });
+                          });
+                        });
+                        
+                        return groups;
+                      })
+                      // Sort by score (highest to lowest)
+                      .sort((a, b) => b.score - a.score)
+                      // Map to UI components
+                      .map((item, index) => {
+                        const isSelected = selectedProcesses.has(item.id);
+                        
+                        return (
+                          <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                            <div className="grid grid-cols-12 gap-4 items-center">
+                              {/* Process */}
+                              <div className="col-span-6">
+                                <h4 className="text-md font-semibold">{item.group.name}</h4>
+                                <div className="text-sm text-gray-500">
+                                  <span className="font-medium text-[#5319A5]">{item.lifecycle.name}</span> &gt; {item.category.name}
+                                </div>
+                                {item.group.description && (
+                                  <p className="text-sm text-gray-600 mt-2">{item.group.description}</p>
+                                )}
+                              </div>
+                              
+                              {/* Pain Points */}
+                              <div className="col-span-2 text-center">
+                                <span className="text-[#7A2BF7] text-lg font-bold">{item.painPointCount}</span>
+                              </div>
+                              
+                              {/* Score */}
+                              <div className="col-span-2 text-center">
+                                <span className="text-[#0EA394] text-lg font-bold">{item.score}<span className="text-sm font-normal">pts</span></span>
+                              </div>
+                              
+                              {/* Select */}
+                              <div className="col-span-2 text-center">
+                                <button 
+                                  onClick={() => toggleProcessSelection(item.id)}
+                                  className="inline-flex items-center justify-center focus:outline-none"
+                                  aria-label={isSelected ? "Deselect process" : "Select process"}
+                                >
+                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isSelected ? 'bg-[#5319A5]' : 'bg-white border border-gray-200'}`}>
+                                    <Star 
+                                      size={20} 
+                                      className={`${isSelected ? 'text-white fill-white' : 'text-gray-400'}`} 
+                                    />
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-full">
+                  {/* Left side - 30% width with centered title */}
+                  <div className="w-[30%] pr-6 flex flex-col items-center justify-center sticky top-0 self-start h-full min-h-[500px]">
+                    <div className="text-center max-w-[300px]">
+                      <div className="mb-6 flex justify-center">
+                        <div className="w-16 h-16 rounded-full bg-white shadow-sm flex items-center justify-center border border-gray-100">
+                          <FileText size={24} className="text-[#5319A5]" />
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-medium mb-4 text-[#5319A5]">Key Pain Points By Process</h3>
+                        <p className="text-gray-600 mb-12">This selection helps to identify processes to improve based on their top 2 pain points. Targeting processes this way allows you impact more areas of the company with shorter and sharper workloads.</p>
+                      </div>
+                      
+                      <div className="pt-8 border-t border-gray-200">
+                        <h4 className="font-medium text-gray-800 mb-2">What to do</h4>
+                        <p className="text-sm text-gray-600">Review the list and select the processes that matter most to you or your team. These will guide where to focus your efforts next.</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Right side - 70% width with process groups and pain points */}
+                  <div className="w-[70%] overflow-y-auto max-h-[calc(900px-120px)]">
+                    {/* Column Headers */}
+                    <div className="grid grid-cols-12 gap-4 mb-4 px-4 text-sm font-medium text-gray-500">
+                      <div className="col-span-6">Process</div>
+                      <div className="col-span-2 text-center">Pain Points</div>
+                      <div className="col-span-2 text-center">Score</div>
+                      <div className="col-span-2 text-center">Select</div>
+                    </div>
+                    
+                    <div className="space-y-6">
+                      {allLifecyclesData.flatMap(lifecycle => {
+                        if (!lifecycle.processes?.process_categories) return [];
+                        
+                        // Get all process groups from all categories
+                        const groups: {
+                          lifecycle: Lifecycle;
+                          category: ProcessCategory;
+                          group: ProcessGroup;
+                          score: number;
+                          painPointCount: number;
+                          painPoints: PainPoint[];
+                          id: string;
+                        }[] = [];
+                        
+                        lifecycle.processes.process_categories.forEach(category => {
+                          if (!category.process_groups) return;
+                          
+                          category.process_groups.forEach(group => {
+                            // Calculate score based on strategic objectives
+                            let score = 0;
+                            let painPoints: PainPoint[] = [];
+                            
+                            // If we have pain points data for this lifecycle, calculate score
+                            if (painPointsData[lifecycle.id]?.pain_points) {
+                              painPoints = painPointsData[lifecycle.id].pain_points
+                                .filter(point => point.assigned_process_group === group.name);
+                              
+                              // Calculate sum of all strategic objective scores
+                              painPoints.forEach(point => {
+                                Object.entries(point).forEach(([key, value]) => {
+                                  if (key.startsWith('so_') && typeof value === 'number') {
+                                    score += value;
+                                  }
+                                });
+                              });
+                            }
+                            
+                            // Create a unique ID for this process group
+                            const id = `${lifecycle.id}-${category.name}-${group.name}`;
+                            
+                            groups.push({
+                              lifecycle,
+                              category,
+                              group,
+                              score,
+                              painPointCount: painPoints.length,
+                              painPoints,
+                              id
+                            });
+                          });
+                        });
+                        
+                        return groups;
+                      })
+                      // Sort by score (highest to lowest)
+                      .sort((a, b) => b.score - a.score)
+                      // Map to UI components
+                      .map((item, index) => {
+                        const isSelected = selectedProcesses.has(item.id);
+                        
+                        // Get top 2 pain points sorted by their total strategic objective scores
+                        const topPainPoints = [...item.painPoints]
+                          .map(point => {
+                            // Calculate total score for this pain point
+                            let pointScore = 0;
+                            Object.entries(point).forEach(([key, value]) => {
+                              if (key.startsWith('so_') && typeof value === 'number') {
+                                pointScore += value;
+                              }
+                            });
+                            return { ...point, totalScore: pointScore };
+                          })
+                          .sort((a, b) => b.totalScore - a.totalScore)
+                          .slice(0, 2);
+                        
+                        return (
+                          <div key={index} className="border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                            {/* Process Header */}
+                            <div className="p-4 border-b border-gray-100">
+                              <div className="grid grid-cols-12 gap-4 items-center">
+                                {/* Process */}
+                                <div className="col-span-6">
+                                  <h4 className="text-md font-semibold">{item.group.name}</h4>
+                                  <div className="text-sm text-gray-500">
+                                    <span className="font-medium text-[#5319A5]">{item.lifecycle.name}</span> &gt; {item.category.name}
+                                  </div>
+                                  {item.group.description && (
+                                    <p className="text-sm text-gray-600 mt-2">{item.group.description}</p>
+                                  )}
+                                </div>
+                                
+                                {/* Pain Points */}
+                                <div className="col-span-2 text-center">
+                                  <span className="text-[#7A2BF7] text-lg font-bold">{item.painPointCount}</span>
+                                </div>
+                                
+                                {/* Score */}
+                                <div className="col-span-2 text-center">
+                                  <span className="text-[#0EA394] text-lg font-bold">{item.score}<span className="text-sm font-normal">pts</span></span>
+                                </div>
+                                
+                                {/* Select */}
+                                <div className="col-span-2 text-center">
+                                  <button 
+                                    onClick={() => toggleProcessSelection(item.id)}
+                                    className="inline-flex items-center justify-center focus:outline-none"
+                                    aria-label={isSelected ? "Deselect process" : "Select process"}
+                                  >
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isSelected ? 'bg-[#5319A5]' : 'bg-white border border-gray-200'}`}>
+                                      <Star 
+                                        size={20} 
+                                        className={`${isSelected ? 'text-white fill-white' : 'text-gray-400'}`} 
+                                      />
+                                    </div>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Top Pain Points */}
+                            {topPainPoints.length > 0 && (
+                              <div className="bg-gray-50 p-4">
+                                <div className="text-xs uppercase font-semibold text-gray-500 mb-2">Top Pain Points</div>
+                                <div className="space-y-3">
+                                  {topPainPoints.map((painPoint, idx) => (
+                                    <div key={idx} className="bg-white p-3 rounded border border-gray-200">
+                                      <div className="flex items-start">
+                                        <div className="min-w-[40px] h-6 rounded bg-[#7A2BF7] text-white flex items-center justify-center text-xs font-medium mr-3">
+                                          {painPoint.totalScore}pts
+                                        </div>
+                                        <div>
+                                          <p className="text-sm font-medium mb-1">{painPoint.description}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
