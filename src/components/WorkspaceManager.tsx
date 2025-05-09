@@ -397,7 +397,7 @@ export default function WorkspaceManager({ tenantSlug }: WorkspaceManagerProps) 
         {workspaces.map((workspace) => (
           <div
             key={workspace.id}
-            className="group relative p-4 border border-gray-200 rounded-lg bg-gray-50 shadow hover:bg-gray-100 h-[350px]"
+            className="group relative p-4 border-2 border-white/50 rounded-lg bg-gray-50 shadow hover:border-[#5319a5]/60 transition-colors h-[350px]"
           >
             {/* Edit button only visible on hover */}
             <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -405,8 +405,8 @@ export default function WorkspaceManager({ tenantSlug }: WorkspaceManagerProps) 
                 variant="primary"
                 iconOnly
                 className="p-2.5 rounded-full flex items-center justify-center shadow-md"
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={(e?: React.MouseEvent<HTMLButtonElement>) => {
+                  if (e) e.stopPropagation();
                   openEditModal(workspace);
                 }}
                 icon={<PencilIcon className="h-4 w-4" />}

@@ -370,7 +370,7 @@ export default function ScanManager({ tenantSlug, workspaceId }: ScanManagerProp
         {scans.map((scan) => (
           <div
             key={scan.id}
-            className="group relative p-4 border border-gray-200 rounded-lg bg-gray-50 shadow hover:bg-gray-100 h-[350px]"
+            className="group relative p-4 border-2 border-white/50 rounded-lg bg-gray-50 shadow hover:border-[#5319a5]/60 transition-colors h-[350px]"
           >
             {/* Edit button only visible on hover */}
             <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">

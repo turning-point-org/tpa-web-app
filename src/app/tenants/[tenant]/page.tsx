@@ -18,9 +18,17 @@ export default async function TenantPage({ params }: TenantPageProps) {
   const tenant = await res.json();
 
   return (
-    <div className="mx-auto pr-5 mt-5 pl-5">
-      <TenantHeader tenant={tenant} />
-      <WorkspaceManager tenantSlug={tenant.slug} />
+    <div className="mx-auto pr-5 pl-5" style={{ 
+      backgroundImage: "url('/assets/tpa-background.jpg')",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+      minHeight: "100vh"
+    }}>
+      <div className="max-w-[1200px] mx-auto pt-16">
+        <TenantHeader tenant={tenant} />
+        <WorkspaceManager tenantSlug={tenant.slug} />
+      </div>
     </div>
   );
 }
