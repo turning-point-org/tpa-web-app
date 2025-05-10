@@ -1078,6 +1078,8 @@ export default function ScenarioPlanningPage() {
   const [focusType, setFocusType] = useState<'narrow' | 'wide'>('narrow');
   // Add state for selected processes
   const [selectedProcesses, setSelectedProcesses] = useState<Set<string>>(new Set());
+  // Add state for selected processes modal
+  const [selectedModalOpen, setSelectedModalOpen] = useState(false);
   
   // State for process data
   const [allLifecyclesData, setAllLifecyclesData] = useState<Lifecycle[]>([]);
@@ -1225,6 +1227,11 @@ export default function ScenarioPlanningPage() {
   // Get modules array with current company name and scan name
   const modules = getModules(companyName, scanData.name || "Introduction");
 
+  // Handle opening the selected processes modal
+  const handleSelectedProcessesClick = () => {
+    setSelectedModalOpen(true);
+  };
+
   return (
     <div className={`px-8 ${currentModule === 0 ? 'min-h-screen flex flex-col justify-center -mt-20' : ''}`}>
       {/* Header with scan name - hidden on introduction page */}
@@ -1236,9 +1243,22 @@ export default function ScenarioPlanningPage() {
           </div>
           
           {currentModule === 3 && (
-            <div className="flex space-x-3">
+            <div className="flex space-x-3 items-center">
               <Button variant="secondary" onClick={handleNarrowFocusClick}>Narrow Focus</Button>
               <Button variant="secondary" onClick={handleWideFocusClick}>Wide Focus</Button>
+              <div className="ml-3 relative">
+                <div 
+                  className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center cursor-pointer hover:bg-gray-50"
+                  onClick={handleSelectedProcessesClick}
+                >
+                  <Star size={20} className="text-[#5319A5]" />
+                  {selectedProcesses.size > 0 && (
+                    <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#5319A5] flex items-center justify-center text-white text-xs font-bold">
+                      {selectedProcesses.size}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1628,6 +1648,160 @@ export default function ScenarioPlanningPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selected Processes Modal */}
+      {selectedModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Overlay */}
+          <div 
+            className="fixed inset-0 bg-black opacity-50" 
+            onClick={() => setSelectedModalOpen(false)}
+          ></div>
+          <div className="relative z-10 bg-white rounded-lg shadow-xl w-[90vw] max-w-[800px] max-h-[90vh] flex flex-col">
+            {/* Title and Close Button */}
+            <div className="flex justify-between items-center p-6 pb-3 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Key Areas in Focus</h3>
+              <button 
+                onClick={() => setSelectedModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                aria-label="Close modal"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {/* Modal Content */}
+            <div className="flex-grow overflow-auto p-6">
+              {selectedProcesses.size === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No processes selected yet.</p>
+                  <p className="text-gray-500 mt-2">Select processes from the Narrow Focus or Wide Focus views.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {allLifecyclesData.flatMap(lifecycle => {
+                    if (!lifecycle.processes?.process_categories) return [];
+                    
+                    return lifecycle.processes.process_categories.flatMap(category => {
+                      if (!category.process_groups) return [];
+                      
+                      return category.process_groups.map(group => {
+                        // Create a unique ID for this process group
+                        const id = `${lifecycle.id}-${category.name}-${group.name}`;
+                        
+                        // Only show selected processes
+                        if (!selectedProcesses.has(id)) return null;
+                        
+                        // Calculate score and get pain points
+                        const painPoints = painPointsData[lifecycle.id]?.pain_points.filter(
+                          point => point.assigned_process_group === group.name
+                        ) || [];
+                        
+                        let score = 0;
+                        painPoints.forEach(point => {
+                          Object.entries(point).forEach(([key, value]) => {
+                            if (key.startsWith('so_') && typeof value === 'number') {
+                              score += value;
+                            }
+                          });
+                        });
+                        
+                        return (
+                          <div key={id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                            <div className="grid grid-cols-12 gap-4 items-center">
+                              {/* Process */}
+                              <div className="col-span-7">
+                                <h4 className="text-md font-semibold">{group.name}</h4>
+                                <div className="text-sm text-gray-500">
+                                  <span className="font-medium text-[#5319A5]">{lifecycle.name}</span> &gt; {category.name}
+                                </div>
+                                {group.description && (
+                                  <p className="text-sm text-gray-600 mt-2">{group.description}</p>
+                                )}
+                              </div>
+                              
+                              {/* Pain Points Count */}
+                              <div className="col-span-2 text-center">
+                                <div className="text-xs text-gray-500 mb-1">Pain Points</div>
+                                <span className="text-[#7A2BF7] text-lg font-bold">{painPoints.length}</span>
+                              </div>
+                              
+                              {/* Score */}
+                              <div className="col-span-2 text-center">
+                                <div className="text-xs text-gray-500 mb-1">Score</div>
+                                <span className="text-[#0EA394] text-lg font-bold">{score}<span className="text-sm font-normal">pts</span></span>
+                              </div>
+                              
+                              {/* Remove */}
+                              <div className="col-span-1 text-center">
+                                <button 
+                                  onClick={() => toggleProcessSelection(id)}
+                                  className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100"
+                                  aria-label="Remove from selection"
+                                >
+                                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }).filter(Boolean);
+                    });
+                  })}
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className="border-t border-gray-200 p-4 flex justify-between">
+              <div className="flex items-center">
+                <span className="text-sm font-medium text-gray-700">Total Opportunity Size:</span>
+                <span className="ml-2 px-2 py-1 bg-[#0EA394] text-white text-sm font-bold rounded">
+                  {/* Calculate total opportunity size by summing score values shown in the list */}
+                  {allLifecyclesData.reduce((total, lifecycle) => {
+                    if (!lifecycle.processes?.process_categories) return total;
+                    
+                    // Get scores for all selected processes in this lifecycle
+                    const lifecycleTotal = lifecycle.processes.process_categories.reduce((catTotal, category) => {
+                      if (!category.process_groups) return catTotal;
+                      
+                      // Get scores for selected process groups in this category
+                      const categoryTotal = category.process_groups.reduce((groupTotal, group) => {
+                        // Create ID to check if selected
+                        const id = `${lifecycle.id}-${category.name}-${group.name}`;
+                        if (!selectedProcesses.has(id)) return groupTotal;
+                        
+                        // Get pain points and calculate score
+                        const painPoints = painPointsData[lifecycle.id]?.pain_points?.filter(
+                          point => point.assigned_process_group === group.name
+                        ) || [];
+                        
+                        let score = 0;
+                        painPoints.forEach(point => {
+                          Object.entries(point).forEach(([key, value]) => {
+                            if (key.startsWith('so_') && typeof value === 'number') {
+                              score += value;
+                            }
+                          });
+                        });
+                        
+                        return groupTotal + score;
+                      }, 0);
+                      
+                      return catTotal + categoryTotal;
+                    }, 0);
+                    
+                    return total + lifecycleTotal;
+                  }, 0)} pts
+                </span>
+              </div>
             </div>
           </div>
         </div>
