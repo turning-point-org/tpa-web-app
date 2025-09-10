@@ -1,3 +1,7 @@
+// This file is no longer needed for Azure App Service deployment
+// Azure App Service will automatically use 'npm start' command
+// Keep this file for local PM2 development if needed
+
 module.exports = {
   apps: [
     {
