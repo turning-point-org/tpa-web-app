@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Button from '@/components/Button';
 import Modal from '@/components/Modal';
+import { Download } from 'lucide-react';
 
 // Define interfaces for process groups and pain points
 export interface ProcessGroup {
@@ -36,6 +37,110 @@ interface DetailsModalProps {
   categoryCostToServe?: number;
   initialExpandedGroupId?: string | null;
 }
+
+// Function to generate CSV data
+const generateCSVData = (lifecycleName: string, categoryName: string, processGroups: ProcessGroup[]) => {
+  const csvRows = [];
+  
+  // Add header row
+  csvRows.push([
+    'Lifecycle',
+    'Journey',
+    'Process Group',
+    'Process Group Description',
+    'Process Group Score',
+    'Pain Point Name',
+    'Pain Point Description',
+    'Pain Point Total Score',
+    'Strategic Objectives'
+  ]);
+  
+  // Add data rows
+  processGroups.forEach(group => {
+    const painPoints = group.painPoints || [];
+    
+    if (painPoints.length === 0) {
+      // If no pain points, add a row for the process group only
+      csvRows.push([
+        lifecycleName,
+        categoryName,
+        group.name,
+        group.description || '',
+        group.score || 0,
+        '',
+        '',
+        '',
+        ''
+      ]);
+    } else {
+      // Add a row for each pain point
+      painPoints.forEach(painPoint => {
+        // Calculate total strategic objective score
+        const totalScore = Object.entries(painPoint)
+          .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number')
+          .reduce((total, [_, value]) => total + (value as number), 0);
+        
+        // Format strategic objectives
+        const strategicObjectives = Object.entries(painPoint)
+          .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number' && value > 0)
+          .map(([key, value]) => {
+            const objName = key.replace('so_', '')
+              .split('_')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ');
+            let label = 'Low';
+            if (value === 2) label = 'Med';
+            else if (value >= 3) label = 'High';
+            return `${objName}: ${label} (${value})`;
+          })
+          .join('; ');
+        
+        csvRows.push([
+          lifecycleName,
+          categoryName,
+          group.name,
+          group.description || '',
+          group.score || 0,
+          painPoint.name || '',
+          painPoint.description || '',
+          totalScore,
+          strategicObjectives
+        ]);
+      });
+    }
+  });
+  
+  return csvRows;
+};
+
+// Function to download CSV
+const downloadCSV = (csvData: string[][], filename: string) => {
+  // Convert array to CSV string
+  const csvContent = csvData.map(row => 
+    row.map(cell => {
+      // Escape quotes and wrap in quotes if contains comma, quote, or newline
+      const cellStr = String(cell);
+      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+        return `"${cellStr.replace(/"/g, '""')}"`;
+      }
+      return cellStr;
+    }).join(',')
+  ).join('\n');
+  
+  // Create and download file
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
 
 // Modal Component for Process Category Details
 function DetailsModalComponent({ 
@@ -101,6 +206,13 @@ function DetailsModalComponent({
     }));
   };
 
+  // Function to handle CSV export
+  const handleExportCSV = () => {
+    const csvData = generateCSVData(lifecycleName, categoryName, processGroups);
+    const filename = `${lifecycleName}-${categoryName}-processes-and-pain-points.csv`;
+    downloadCSV(csvData, filename);
+  };
+
   // Return null conditionally here instead of early return
   if (!isOpen) {
     return null;
@@ -109,16 +221,29 @@ function DetailsModalComponent({
   return (
     <Modal isOpen={isOpen} onClose={onClose} maxWidth="3xl" title="">
       <div className="py-2 relative">
-        {/* Close button */}
-        <button 
-          onClick={onClose}
-          className="absolute top-0 right-0 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
-          aria-label="Close modal"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        {/* Header buttons */}
+        <div className="absolute top-0 right-0 flex space-x-2">
+          {/* Export CSV button */}
+          <button 
+            onClick={handleExportCSV}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 flex items-center"
+            aria-label="Export to CSV"
+            title="Export to CSV"
+          >
+            <Download className="w-5 h-5" />
+          </button>
+          
+          {/* Close button */}
+          <button 
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+            aria-label="Close modal"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
         
         {/* Custom header with lifecycle tag and category title */}
         <div className="mb-6">

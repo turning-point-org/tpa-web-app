@@ -704,6 +704,57 @@ export default function LifecycleViewer({
     }
   };
   
+  // Process group reordering handlers
+  const handleMoveGroup = async (categoryIndex: number, groupIndex: number, direction: 'up' | 'down') => {
+    if (!lifecycle?.processes?.process_categories?.[categoryIndex]?.process_groups) return;
+    
+    const category = lifecycle.processes.process_categories[categoryIndex];
+    const groups = category.process_groups;
+    const newIndex = direction === 'up' ? groupIndex - 1 : groupIndex + 1;
+    
+    // Check bounds
+    if (newIndex < 0 || newIndex >= groups.length) return;
+    
+    try {
+      setIsSubmitting(true);
+      
+      // Create updated groups array with swapped positions
+      const updatedGroups = [...groups];
+      [updatedGroups[groupIndex], updatedGroups[newIndex]] = [updatedGroups[newIndex], updatedGroups[groupIndex]];
+      
+      // API call to reorder the groups
+      const response = await fetch('/api/tenants/by-slug/workspaces/scans/lifecycles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tenant_slug: tenantSlug,
+          workspace_id: workspaceId,
+          scan_id: scanId,
+          lifecycle_id: lifecycleId,
+          action: 'reorder_groups',
+          category_index: categoryIndex,
+          groups: updatedGroups
+        }),
+      });
+      
+      if (response.ok) {
+        // Update local state
+        const updatedLifecycle = JSON.parse(JSON.stringify(lifecycle));
+        updatedLifecycle.processes.process_categories[categoryIndex].process_groups = updatedGroups;
+        setLifecycle(updatedLifecycle);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to reorder process groups");
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred while reordering process groups");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
   // Emit an event to swap the OraPanel with OraInterviewPanel when in pain point context
   useEffect(() => {
     if (isPainPointContext && lifecycle) {
@@ -1080,60 +1131,106 @@ export default function LifecycleViewer({
                              <div 
                                 className="p-3 space-y-3 overflow-y-auto flex-grow" // Allow vertical scroll, take remaining space
                              >
-                             {category.process_groups?.map((group, groupIndex) => (
-                                 <div 
-                                     key={`group-${lifecycleId}-${catIndex}-${groupIndex}`} // More specific key
-                                     className={`p-3 bg-white border-2 ${toggles.editMode ? 'border-transparent hover:border-indigo-500 cursor-pointer' : 'border-transparent hover:border-gray-300 cursor-pointer'} rounded-lg shadow-sm relative transition-colors duration-200`}
-                                     onClick={(e) => {
-                                         e.stopPropagation(); // Prevent category click
-                                         handleGroupClick(catIndex, groupIndex);
-                                     }}
-                                     title={toggles.editMode ? "Click to edit group" : "Click to view group details"}
-                                 >
-                                     <h4 className="font-medium text-gray-800 mb-1 truncate">{group.name}</h4> {/* Add truncate */}
-                                     {toggles.processDetails && group.description && ( // Only show if description exists
-                                        <p className="text-sm text-gray-600 mb-2 line-clamp-3">{group.description}</p> // Add line-clamp
-                                     )}
-                                     
-                                     {toggles.scores && (
-                                         <div className="mt-1 mb-2 flex space-x-2">
-                                             <span 
-                                                 className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                                                 style={{ backgroundColor: '#0EA394' }}
-                                                 title={`Score: ${calculateProcessGroupScore(group.name)} (Sum of strategic objective points from pain points)`}
-                                             >
-                                                 {calculateProcessGroupScore(group.name)} pts
-                                             </span>
-                                         </div>
-                                     )}
-                                     
-                                     {/* Processes (Example - Adapt if needed) */}
-                                     {group.processes && group.processes.length > 0 && toggles.processDetails && (
-                                         <div className="mt-2 space-y-1 border-t pt-2 border-gray-100">
-                                             {group.processes?.map((process, processIndex) => (
-                                                 <div 
-                                                     key={`proc-${lifecycleId}-${catIndex}-${groupIndex}-${processIndex}`} 
-                                                     className="p-1.5 bg-blue-50 border border-blue-100 rounded text-xs relative"
-                                                     title={process.description} // Tooltip for process description
-                                                 >
-                                                     <div className="font-medium text-blue-800 truncate">{process.name}</div>
-                                                     {toggles.scores && process.score !== undefined && (
-                                                         <div className="mt-1">
-                                                             <span 
-                                                                 className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                                                                 style={{ backgroundColor: '#0EA394' }}
-                                                                 title={`Process Score: ${process.score}`}
-                                                             >
-                                                                 {process.score} pts
-                                                             </span>
-                                                         </div>
-                                                     )}
-                                                 </div>
-                                             ))}
-                                         </div>
-                                     )}
-                                 </div>
-                             ))}
+                            {category.process_groups?.map((group, groupIndex) => (
+                                <div 
+                                    key={`group-${lifecycleId}-${catIndex}-${groupIndex}`} // More specific key
+                                    className={`p-3 bg-white border-2 ${toggles.editMode ? 'border-transparent hover:border-indigo-500 cursor-pointer' : 'border-transparent hover:border-gray-300 cursor-pointer'} rounded-lg shadow-sm relative transition-colors duration-200`}
+                                >
+                                    {/* Reorder buttons - only show in edit mode */}
+                                    {toggles.editMode && category.process_groups && category.process_groups.length > 1 && (
+                                        <div className="absolute top-2 right-2 flex flex-col space-y-1 z-10">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation(); // Prevent group click
+                                                    handleMoveGroup(catIndex, groupIndex, 'up');
+                                                }}
+                                                disabled={groupIndex === 0 || isSubmitting}
+                                                className={`p-1 rounded-full text-xs transition-colors ${
+                                                    groupIndex === 0 || isSubmitting
+                                                        ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                                                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                }`}
+                                                title="Move group up"
+                                                aria-label="Move group up"
+                                            >
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation(); // Prevent group click
+                                                    handleMoveGroup(catIndex, groupIndex, 'down');
+                                                }}
+                                                disabled={groupIndex === category.process_groups.length - 1 || isSubmitting}
+                                                className={`p-1 rounded-full text-xs transition-colors ${
+                                                    groupIndex === category.process_groups.length - 1 || isSubmitting
+                                                        ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                                                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                }`}
+                                                title="Move group down"
+                                                aria-label="Move group down"
+                                            >
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    )}
+                                    
+                                    <div
+                                        onClick={(e) => {
+                                            e.stopPropagation(); // Prevent category click
+                                            handleGroupClick(catIndex, groupIndex);
+                                        }}
+                                        title={toggles.editMode ? "Click to edit group" : "Click to view group details"}
+                                        className="w-full"
+                                    >
+                                        <h4 className="font-medium text-gray-800 mb-1 truncate pr-12">{group.name}</h4> {/* Add padding-right for buttons */}
+                                        {toggles.processDetails && group.description && ( // Only show if description exists
+                                           <p className="text-sm text-gray-600 mb-2 line-clamp-3">{group.description}</p> // Add line-clamp
+                                        )}
+                                        
+                                        {toggles.scores && (
+                                            <div className="mt-1 mb-2 flex space-x-2">
+                                                <span 
+                                                    className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
+                                                    style={{ backgroundColor: '#0EA394' }}
+                                                    title={`Score: ${calculateProcessGroupScore(group.name)} (Sum of strategic objective points from pain points)`}
+                                                >
+                                                    {calculateProcessGroupScore(group.name)} pts
+                                                </span>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Processes (Example - Adapt if needed) */}
+                                        {group.processes && group.processes.length > 0 && toggles.processDetails && (
+                                            <div className="mt-2 space-y-1 border-t pt-2 border-gray-100">
+                                                {group.processes?.map((process, processIndex) => (
+                                                    <div 
+                                                        key={`proc-${lifecycleId}-${catIndex}-${groupIndex}-${processIndex}`} 
+                                                        className="p-1.5 bg-blue-50 border border-blue-100 rounded text-xs relative"
+                                                        title={process.description} // Tooltip for process description
+                                                    >
+                                                        <div className="font-medium text-blue-800 truncate">{process.name}</div>
+                                                        {toggles.scores && process.score !== undefined && (
+                                                            <div className="mt-1">
+                                                                <span 
+                                                                    className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
+                                                                    style={{ backgroundColor: '#0EA394' }}
+                                                                    title={`Process Score: ${process.score}`}
+                                                                >
+                                                                    {process.score} pts
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
                              
                              {/* Add Process Group Button */}
                              {toggles.editMode && (

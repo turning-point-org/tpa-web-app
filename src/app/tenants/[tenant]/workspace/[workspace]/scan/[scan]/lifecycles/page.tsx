@@ -264,7 +264,41 @@ export default function LifecyclesPage() {
           closeEditModal();
           setShowRegenerateModal(editModal.lifecycle.id);
         } else {
-          startProcessGeneration(editModal.lifecycle, true);
+          // Generate processes for new lifecycle
+          closeEditModal();
+          setShowRegenerateModal(editModal.lifecycle.id);
+          setGeneratingProcesses(editModal.lifecycle.id);
+          setGenerationStep(0);
+          setGenerationComplete(false);
+          
+          // Animation with single interval
+          const stepTimer = setInterval(() => {
+            setGenerationStep(prev => {
+              if (prev >= generationSteps.length - 1) {
+                clearInterval(stepTimer);
+                setGenerationComplete(true);
+                return prev;
+              }
+              return prev + 1;
+            });
+          }, 2000);
+          
+          // Start API call and handle completion
+          handleGenerateProcesses(editModal.lifecycle, false).then(() => {
+            // Always close modal after API completes
+            setTimeout(() => {
+              setShowRegenerateModal(null);
+              setGeneratingProcesses(null);
+              setGenerationComplete(false);
+              setGenerationStep(0);
+            }, 1000);
+          }).catch(() => {
+            // On error, also close modal
+            setShowRegenerateModal(null);
+            setGeneratingProcesses(null);
+            setGenerationComplete(false);
+            setGenerationStep(0);
+          });
         }
       } else {
         const errorData = await response.json();
@@ -367,13 +401,25 @@ export default function LifecyclesPage() {
           });
         }, 2000);
         
-        // Start API call
-        const apiResult = await handleGenerateProcesses(createdLifecycle, false);
-        
-        // When everything is done, close and reset
-        if (apiResult && generationComplete) {
+        // Start API call and handle completion
+        try {
+          const apiResult = await handleGenerateProcesses(createdLifecycle, false);
+          
+          // Always close modal and reset states after API completes
+          setTimeout(() => {
+            setShowRegenerateModal(null);
+            setGeneratingProcesses(null);
+            setIsNewLifecycle(false);
+            setGenerationComplete(false);
+            setGenerationStep(0);
+          }, 1000); // Small delay to show completion
+        } catch (error) {
+          // On error, also close modal
           setShowRegenerateModal(null);
+          setGeneratingProcesses(null);
           setIsNewLifecycle(false);
+          setGenerationComplete(false);
+          setGenerationStep(0);
         }
       } else {
         const errorData = await response.json();
@@ -512,9 +558,6 @@ export default function LifecyclesPage() {
 
   const handleGenerateProcesses = async (lifecycle: Lifecycle, autoClose: boolean = true) => {
     try {
-      // Don't reset showRegenerateModal here to keep it open during generation
-      setGeneratingProcesses(lifecycle.id);
-      
       const response = await fetch("/api/tenants/by-slug/workspaces/scans/lifecycles/generate-processes", {
         method: "POST",
         headers: {
@@ -551,52 +594,9 @@ export default function LifecyclesPage() {
     } catch (err: any) {
       setError(err.message || "An error occurred while generating processes");
       return false;
-    } finally {
-      // Only clear the generatingProcesses state; modal closing is handled by animation logic
-      setGeneratingProcesses(null);
     }
   };
 
-  // Helper function to start process generation with animation
-  const startProcessGeneration = (lifecycle: Lifecycle, fromEditModal: boolean = false) => {
-    // Start the generation process with animation
-    setGenerationStep(0);
-    setGenerationComplete(false);
-    setGeneratingProcesses(lifecycle.id);
-    
-    // Start the step animation
-    const stepInterval = setInterval(() => {
-      setGenerationStep(prevStep => {
-        if (prevStep >= generationSteps.length - 1) {
-          clearInterval(stepInterval);
-          setGenerationComplete(true);
-          
-          // Close modal if API call already completed
-          if (!generatingProcesses) {
-            if (fromEditModal) {
-              closeEditModal();
-            } else {
-              setShowRegenerateModal(null);
-            }
-          }
-          return prevStep;
-        }
-        return prevStep + 1;
-      });
-    }, 2000);
-    
-    // Make the actual API call
-    handleGenerateProcesses(lifecycle, false).then(() => {
-      // Close modal if animation already completed
-      if (generationComplete) {
-        if (fromEditModal) {
-          closeEditModal();
-        } else {
-          setShowRegenerateModal(null);
-        }
-      }
-    });
-  };
 
   // LifecycleCard component that handles view mode only (edit is in modal)
   const LifecycleCard = ({ lifecycle, index }: { lifecycle: Lifecycle, index: number }) => {
@@ -652,10 +652,19 @@ export default function LifecyclesPage() {
                 
                 // Make the actual API call
                 handleGenerateProcesses(lifecycleToGenerate, false).then(() => {
-                  // Close modal if animation already completed
-                  if (generationComplete) {
+                  // Always close modal after API completes
+                  setTimeout(() => {
                     setShowRegenerateModal(null);
-                  }
+                    setGeneratingProcesses(null);
+                    setGenerationComplete(false);
+                    setGenerationStep(0);
+                  }, 1000);
+                }).catch(() => {
+                  // On error, also close modal
+                  setShowRegenerateModal(null);
+                  setGeneratingProcesses(null);
+                  setGenerationComplete(false);
+                  setGenerationStep(0);
                 });
               }}
               className="text-sm"
@@ -1012,12 +1021,21 @@ export default function LifecyclesPage() {
                       
                       // Make the actual API call
                       handleGenerateProcesses(lifecycle, false).then(() => {
-                        // Close modal if animation already completed
-                        if (generationComplete) {
+                        // Always close modal after API completes
+                        setTimeout(() => {
                           setShowRegenerateModal(null);
-                          // Reset the new lifecycle flag
+                          setGeneratingProcesses(null);
                           setIsNewLifecycle(false);
-                        }
+                          setGenerationComplete(false);
+                          setGenerationStep(0);
+                        }, 1000);
+                      }).catch(() => {
+                        // On error, also close modal
+                        setShowRegenerateModal(null);
+                        setGeneratingProcesses(null);
+                        setIsNewLifecycle(false);
+                        setGenerationComplete(false);
+                        setGenerationStep(0);
                       });
                     }, 0);
                   }

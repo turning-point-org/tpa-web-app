@@ -790,6 +790,42 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      case 'reorder_groups': {
+        const { category_index, groups } = requestBody;
+        
+        if (category_index === undefined || !groups || !Array.isArray(groups)) {
+          return NextResponse.json(
+            { error: "Missing required fields for group reordering" },
+            { status: 400 }
+          );
+        }
+
+        // Ensure category exists
+        if (!lifecycle.processes.process_categories[category_index]) {
+          return NextResponse.json(
+            { error: "Process category not found" },
+            { status: 404 }
+          );
+        }
+
+        // Update the groups array with the new order
+        lifecycle.processes.process_categories[category_index].process_groups = groups;
+        
+        // Recalculate category score
+        const categoryScore = groups.reduce((total: number, group: { score?: number }) => total + (group.score || 0), 0);
+        lifecycle.processes.process_categories[category_index].score = categoryScore;
+        
+        // Update the lifecycle in the database
+        lifecycle.updated_at = new Date().toISOString();
+        await container.item(lifecycle.id, tenant_id).replace(lifecycle);
+
+        return NextResponse.json({
+          success: true,
+          message: "Process groups reordered successfully",
+          category_score: categoryScore
+        });
+      }
+
       default:
         return NextResponse.json(
           { error: "Invalid action" },
