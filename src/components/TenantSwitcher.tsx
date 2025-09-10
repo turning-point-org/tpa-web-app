@@ -223,13 +223,14 @@ export default function TenantSwitcher() {
       {/* Expanded Content */}
       <div
         className={`
-          overflow-hidden rounded-lg mt-2 
-          ${isOpen ? "max-h-[400px] p-4 bg-white" : "max-h-0 p-0 bg-transparent"}
+          overflow-hidden rounded-lg mt-2 border border-gray-200
+          ${isOpen ? "max-h-[400px] bg-white" : "max-h-0 bg-transparent border-transparent"}
         `}
       >
         {isOpen && (
-          <div className="flex flex-col h-full">
-            <div className="flex-grow overflow-y-auto">
+          <div className="flex flex-col h-[400px]">
+            {/* Scrollable tenant list */}
+            <div className="flex-1 overflow-y-auto p-4 pb-2">
               <ul className="space-y-2">
                 {tenants.map((tenant) => (
                   <li
@@ -242,12 +243,15 @@ export default function TenantSwitcher() {
                 ))}
               </ul>
             </div>
-            <Button
-              onClick={() => setIsCreating(true)}
-              className="mt-2"
-            >
-              Create New Tenant
-            </Button>
+            {/* Fixed create button at bottom */}
+            <div className="p-4 pt-2 border-t border-gray-100 bg-white">
+              <Button
+                onClick={() => setIsCreating(true)}
+                className="w-full"
+              >
+                Create New Tenant
+              </Button>
+            </div>
           </div>
         )}
       </div>
