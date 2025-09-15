@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 
+import { withTenantAuth } from "@/utils/tenant-auth";
 // PUT: Update strategic objectives in company info record
-export async function PUT(req: NextRequest) {
+export const PUT = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -70,10 +71,10 @@ export async function PUT(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // GET: Retrieve strategic objectives from company info record
-export async function GET(req: NextRequest) {
+export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -127,4 +128,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}); 

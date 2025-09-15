@@ -5,6 +5,7 @@ import { searchSimilarDocuments, retrieveAllScanChunks } from "@/lib/vectordb";
 import { generateEmbeddings } from "@/lib/openai";
 import { summarizeDocument, getCompanyInfoForScan, calculateCosineSimilarity, extractEmployeesFromHRIS } from "@/lib/documentSummary";
 
+import { withTenantAuth } from "@/utils/tenant-auth";
 // Get OpenAI settings from environment variables
 const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
 const apiKey = process.env.AZURE_OPENAI_API_KEY;
@@ -42,7 +43,7 @@ async function getTenantIdFromSlug(tenantSlug: string): Promise<string> {
   return resources[0].tenant_id;
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const body = await req.json();
     const {
@@ -303,4 +304,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}); 

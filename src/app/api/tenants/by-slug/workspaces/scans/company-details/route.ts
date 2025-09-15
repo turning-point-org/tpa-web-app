@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 import { v4 as uuidv4 } from "uuid";
 
+import { withTenantAuth } from "@/utils/tenant-auth";
 // GET: Retrieve company information for a scan
-export async function GET(req: NextRequest) {
+export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -52,10 +53,10 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST: Create company information for a scan
-export async function POST(req: NextRequest) {
+export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -158,10 +159,10 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH: Update company information for a scan
-export async function PATCH(req: NextRequest) {
+export const PATCH = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -234,10 +235,10 @@ export async function PATCH(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE: Delete company information for a scan
-export async function DELETE(req: NextRequest) {
+export const DELETE = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -289,4 +290,4 @@ export async function DELETE(req: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}); 

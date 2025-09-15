@@ -3,7 +3,8 @@ import { generateChatCompletion } from "@/lib/openai";
 import { getCompanyInfoForScan } from "@/lib/documentSummary";
 import { container } from "@/lib/cosmos";
 
-export async function POST(req: NextRequest) {
+import { withTenantAuth } from "@/utils/tenant-auth";
+export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -224,4 +225,4 @@ The following stakeholders are involved in this lifecycle:
       { status: 500 }
     );
   }
-} 
+}); 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 
+import { withTenantAuth } from "@/utils/tenant-auth";
 // Function to get tenant_id from tenant_slug
 async function getTenantIdFromSlug(tenantSlug: string): Promise<string> {
   // Check if container is initialized
@@ -24,7 +25,7 @@ async function getTenantIdFromSlug(tenantSlug: string): Promise<string> {
   return resources[0].tenant_id;
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const body = await req.json();
     const {
@@ -120,4 +121,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}); 

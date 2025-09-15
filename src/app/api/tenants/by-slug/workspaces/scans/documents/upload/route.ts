@@ -9,6 +9,7 @@ import { Readable } from "stream";
 import { OpenAIClient, AzureKeyCredential } from "@azure/openai";
 import { summarizeDocument, getCompanyInfoForScan, getSummarizationPrompt, extractEmployeesFromHRIS } from "@/lib/documentSummary";
 
+import { withTenantAuth } from "@/utils/tenant-auth";
 export const config = {
   api: {
     bodyParser: false, // Required for handling file uploads
@@ -133,7 +134,7 @@ interface DocumentRecord {
   employees?: Array<{name: string, role: string}>;
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -503,4 +504,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}); 

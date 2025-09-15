@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 import { v4 as uuidv4 } from "uuid";
 
-export async function GET(req: NextRequest) {
+import { withTenantAuth } from "@/utils/tenant-auth";
+export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -121,9 +122,9 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const requestBody = await req.json();
     const { 
@@ -839,9 +840,9 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function PUT(req: NextRequest) {
+export const PUT = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const requestBody = await req.json();
     const { tenant_slug, workspace_id, scan_id, lifecycle_id, name, description } = requestBody;
@@ -934,10 +935,10 @@ export async function PUT(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // New endpoint to update positions OR other specific fields via actions
-export async function PATCH(req: NextRequest) {
+export const PATCH = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const requestBody = await req.json();
     const { 
@@ -1131,9 +1132,9 @@ export async function PATCH(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -1248,4 +1249,4 @@ export async function DELETE(req: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}); 

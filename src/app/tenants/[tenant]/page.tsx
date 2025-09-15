@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import WorkspaceManager from "@/components/WorkspaceManager";
 import TenantHeader from "@/components/TenantHeader";
+import TenantPageClient from "./TenantPageClient";
 
 interface TenantPageProps {
   params: Promise<{ tenant: string }>;
@@ -27,6 +28,7 @@ export default async function TenantPage({ params }: TenantPageProps) {
     }}>
       <div className="max-w-[1200px] mx-auto pt-16">
         <TenantHeader tenant={tenant} />
+        <TenantPageClient tenant={tenant} />
         <WorkspaceManager tenantSlug={tenant.slug} />
       </div>
     </div>

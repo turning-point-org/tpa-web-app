@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 
+import { withTenantAuth } from "@/utils/tenant-auth";
 // GET: Retrieve scenario planning data for a scan
-export async function GET(req: NextRequest) {
+export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -99,4 +100,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}); 

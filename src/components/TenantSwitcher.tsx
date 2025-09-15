@@ -25,6 +25,7 @@ export default function TenantSwitcher() {
   const [newTenantName, setNewTenantName] = useState("");
   const [newTenantDescription, setNewTenantDescription] = useState("");
   const [newTenantRegion, setNewTenantRegion] = useState("Australia");
+  const [isSuperUser, setIsSuperUser] = useState(false);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -45,12 +46,19 @@ export default function TenantSwitcher() {
         return;
       }
       
+      // Check if user is a super user
+      const userEmail = user.email || '';
+      const isSuper = userEmail.toLowerCase().endsWith('@turningpointadvisory.com.au');
+      setIsSuperUser(isSuper);
+      console.log(`User ${userEmail} is${isSuper ? '' : ' not'} a super user`);
+      
       // Ensure we have a token - add more detailed logging
       console.log("Auth status:", { 
         isAuthenticated: !!user, 
         user: user?.sub || user?.email || 'unknown',
         hasToken: !!user?.accessToken,
-        tokenType: user?.accessToken ? typeof user.accessToken : 'undefined'
+        tokenType: user?.accessToken ? typeof user.accessToken : 'undefined',
+        isSuperUser: isSuper
       });
       
       // Try to get token from session if not directly available in user object
@@ -99,6 +107,11 @@ export default function TenantSwitcher() {
         if (matchedTenant) {
           setSelectedTenant(matchedTenant);
         }
+      } else if (data.length === 1 && !selectedTenant) {
+        // Auto-select if user only has one tenant and no tenant is currently selected
+        console.log("Auto-selecting single tenant:", data[0].name);
+        setSelectedTenant(data[0]);
+        router.push(`/tenants/${data[0].slug}`);
       }
     } catch (error) {
       // Handle the specific "Authentication required" error gracefully
@@ -115,6 +128,12 @@ export default function TenantSwitcher() {
   const handleCreateTenant = async () => {
     const trimmedName = newTenantName.trim();
     if (!trimmedName) return;
+
+    // Check if user is authorized to create tenants
+    if (!isSuperUser) {
+      alert("Only administrators can create new tenants.");
+      return;
+    }
 
     if (
       tenants.some(
@@ -160,6 +179,11 @@ export default function TenantSwitcher() {
 
       if (res.status === 409) {
         alert("Tenant name already exists.");
+        return;
+      }
+
+      if (res.status === 403) {
+        alert("You are not authorized to create tenants. Only administrators can create new tenants.");
         return;
       }
 
@@ -243,15 +267,17 @@ export default function TenantSwitcher() {
                 ))}
               </ul>
             </div>
-            {/* Fixed create button at bottom */}
-            <div className="p-4 pt-2 border-t border-gray-100 bg-white">
-              <Button
-                onClick={() => setIsCreating(true)}
-                className="w-full"
-              >
-                Create New Tenant
-              </Button>
-            </div>
+            {/* Fixed create button at bottom - only show for super users */}
+            {isSuperUser && (
+              <div className="p-4 pt-2 border-t border-gray-100 bg-white">
+                <Button
+                  onClick={() => setIsCreating(true)}
+                  className="w-full"
+                >
+                  Create New Tenant
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

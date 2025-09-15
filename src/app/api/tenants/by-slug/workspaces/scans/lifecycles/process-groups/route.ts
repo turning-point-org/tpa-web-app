@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { container } from '@/lib/cosmos';
 
+import { withTenantAuth } from "@/utils/tenant-auth";
 /**
  * API endpoint to get all process groups from a lifecycle
  * 

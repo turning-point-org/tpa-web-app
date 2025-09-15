@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getSession } from '@auth0/nextjs-auth0/edge';
 
 /**
  * Extract the Auth0 token from the request cookies and add it to the request headers
@@ -30,6 +31,30 @@ export async function middleware(request: NextRequest) {
     console.log(`Middleware: Cookies found: ${cookies.getAll().map(c => c.name).join(', ')}`);
     
     if (hasAuth0Cookie) {
+      // Try to get user details from the Auth0 session
+      let userDetails = null;
+      try {
+        // Create a temporary response for the session call
+        const tempResponse = NextResponse.next();
+        const session = await getSession(request, tempResponse);
+        
+        if (session && session.user) {
+          userDetails = {
+            userId: session.user.sub,
+            email: session.user.email,
+            name: session.user.name,
+            picture: session.user.picture,
+            emailVerified: session.user.email_verified
+          };
+          
+          console.log(`Middleware: User authenticated - Details:`, userDetails);
+        } else {
+          console.log(`Middleware: Auth0 cookie present but no session/user found`);
+        }
+      } catch (sessionError) {
+        console.error('Middleware: Error getting session details:', sessionError);
+      }
+      
       // Create modified request headers
       const requestHeaders = new Headers(request.headers);
       
@@ -38,6 +63,14 @@ export async function middleware(request: NextRequest) {
       if (!authHeader) {
         requestHeaders.set('X-Auth0-Session', 'true');
         console.log(`Middleware: Added X-Auth0-Session header`);
+      }
+      
+      // Add user details to headers for API routes to access
+      if (userDetails) {
+        requestHeaders.set('X-User-Id', userDetails.userId);
+        requestHeaders.set('X-User-Email', userDetails.email);
+        requestHeaders.set('X-User-Name', userDetails.name || '');
+        console.log(`Middleware: Added user details to request headers`);
       }
       
       // Forward the request with the modified headers

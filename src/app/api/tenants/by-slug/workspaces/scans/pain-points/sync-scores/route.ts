@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { container } from '@/lib/cosmos';
 
+import { withTenantAuth } from "@/utils/tenant-auth";
 interface PainPoint {
   id: string;
   name: string;
@@ -19,7 +20,7 @@ interface PainPoint {
 }
 
 // POST endpoint to sync pain point scores with lifecycle process groups
-export async function POST(req: NextRequest) {
+export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * Fetch pain points for a specific lifecycle

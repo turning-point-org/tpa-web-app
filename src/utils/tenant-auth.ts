@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * API route handler wrapper that checks for Auth0 authentication
- * via session cookie (through headers set by middleware)
+ * and extracts tenant information from the request
  */
-export function withAuth(handler: (req: NextRequest, user?: any) => Promise<NextResponse>) {
+export function withTenantAuth(
+  handler: (req: NextRequest, user?: any, tenantId?: string) => Promise<NextResponse>
+) {
   return async (req: NextRequest) => {
     // Check if the request has Authorization header
     const authHeader = req.headers.get('authorization');
@@ -42,7 +44,23 @@ export function withAuth(handler: (req: NextRequest, user?: any) => Promise<Next
       console.log('Request authenticated via Authorization header');
     }
     
-    // Pass the request and user to the handler
-    return handler(req, user);
+    // Extract tenant information from URL parameters or query string
+    let tenantId: string | undefined;
+    
+    // Try to get tenant from URL path parameters (e.g., /api/tenants/[tenantId]/...)
+    const url = new URL(req.url);
+    const pathSegments = url.pathname.split('/');
+    const tenantIndex = pathSegments.indexOf('tenants');
+    if (tenantIndex !== -1 && pathSegments[tenantIndex + 1]) {
+      tenantId = pathSegments[tenantIndex + 1];
+    }
+    
+    // If not found in path, try query parameters
+    if (!tenantId) {
+      tenantId = url.searchParams.get('tenantId') || url.searchParams.get('tenant_id') || undefined;
+    }
+    
+    // Pass the request, user, and tenantId to the handler
+    return handler(req, user, tenantId);
   };
-} 
+}

@@ -3,6 +3,7 @@ import { container } from "@/lib/cosmos";
 import { OpenAIClient, AzureKeyCredential } from "@azure/openai";
 import { getCompanyInfoForScan } from "@/lib/documentSummary";
 
+import { withTenantAuth } from "@/utils/tenant-auth";
 // Define types for objectives
 type StrategicObjective = {
   name: string;
@@ -47,7 +48,7 @@ async function getTenantIdFromSlug(tenantSlug: string): Promise<string> {
   return resources[0].tenant_id;
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const body = await req.json();
     const { tenant_slug, workspace_id, scan_id } = body;
@@ -282,4 +283,4 @@ Respond in the following JSON format only:
       { status: 500 }
     );
   }
-} 
+}); 
