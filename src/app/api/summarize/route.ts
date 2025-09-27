@@ -132,7 +132,7 @@ export async function POST(req: Request) {
     }
 
     // Get strategic objectives from company info
-    let strategicObjectives: Array<{name: string, normalized_name: string}> = [];
+    let strategicObjectives: Array<{name: string, normalized_name: string, scoring_criteria?: any}> = [];
     
     try {
       // Fetch company info if container is available
@@ -160,7 +160,8 @@ export async function POST(req: Request) {
         if (companyInfoResources.length > 0 && companyInfoResources[0].strategic_objectives) {
           strategicObjectives = companyInfoResources[0].strategic_objectives.map((objective: any) => ({
             name: objective.name,
-            normalized_name: objective.name.toLowerCase().replace(/\s+/g, '_')
+            normalized_name: objective.name.toLowerCase().replace(/\s+/g, '_'),
+            scoring_criteria: objective.scoring_criteria || {}
           }));
           console.log(`Found ${strategicObjectives.length} strategic objectives`);
         }
@@ -174,7 +175,16 @@ export async function POST(req: Request) {
     
     // Generate strategic objectives scoring text
     const strategicObjectivesText = strategicObjectives.length > 0 
-      ? `\nPlease score each pain point against the following strategic objectives on a scale of 0-3 (where 3 indicates high impact/relevance to the objective, and 0 indicates no impact/relevance):\n\n${strategicObjectives.map(obj => `- ${obj.name}`).join('\n')}` 
+      ? `\nPlease score each pain point against the following strategic objectives on a scale of 0-3 (where 3 indicates high impact/relevance to the objective, and 0 indicates no impact/relevance):\n\n${strategicObjectives.map(obj => {
+          let objText = `- ${obj.name}`;
+          if (obj.scoring_criteria && (obj.scoring_criteria.low || obj.scoring_criteria.medium || obj.scoring_criteria.high)) {
+            objText += '\n  Scoring Criteria:';
+            if (obj.scoring_criteria.low) objText += `\n    • Score 1 (Low): ${obj.scoring_criteria.low}`;
+            if (obj.scoring_criteria.medium) objText += `\n    • Score 2 (Medium): ${obj.scoring_criteria.medium}`;
+            if (obj.scoring_criteria.high) objText += `\n    • Score 3 (High): ${obj.scoring_criteria.high}`;
+          }
+          return objText;
+        }).join('\n\n')}` 
       : '\nNo strategic objectives are available for this company.';
     
     // Create dynamic JSON structure for strategic objectives
@@ -273,7 +283,7 @@ Rules:
 9. Do not include any explanatory text outside the JSON object
 10. Ensure each pain point has at least a name and description
 ${strategicObjectives.length > 0 
-  ? '11. Score each pain point against EACH strategic objective on a scale of 0-3, where 3 indicates high impact/relevance to that objective'
+  ? '11. Score each pain point against EACH strategic objective on a scale of 0-3, where 3 indicates high impact/relevance to that objective. Use the custom scoring criteria provided for each objective when available to determine the appropriate score.'
   : '11. Score pain points on a scale of 0-3, where 3 indicates the most severe/painful issues, and 0 is not applicable.'}
 
 Make sure your response is ONLY the JSON object, nothing else.`;

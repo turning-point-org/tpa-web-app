@@ -15,7 +15,10 @@ export function withAuth(handler: (req: NextRequest, user?: any) => Promise<Next
     if (!authHeader && !hasAuth0Session) {
       console.log('API request denied - no authorization header or Auth0 session');
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { 
+          error: 'Your session has expired. Please log in again.',
+          code: 'SESSION_EXPIRED'
+        },
         { status: 401 }
       );
     }

@@ -10,6 +10,11 @@ type StrategicObjective = {
   name: string;
   description: string;
   status: "to be approved" | "approved";
+  scoring_criteria?: {
+    low?: string;
+    medium?: string;
+    high?: string;
+  };
 };
 
 export default function StrategicObjectivesPage() {
@@ -25,7 +30,12 @@ export default function StrategicObjectivesPage() {
   const [newObjective, setNewObjective] = useState<Partial<StrategicObjective>>({
     name: "",
     description: "",
-    status: "to be approved"
+    status: "to be approved",
+    scoring_criteria: {
+      low: "",
+      medium: "",
+      high: ""
+    }
   });
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -133,12 +143,26 @@ export default function StrategicObjectivesPage() {
       {
         name: newObjective.name,
         description: newObjective.description || "",
-        status: newObjective.status as "to be approved" | "approved" || "to be approved"
+        status: newObjective.status as "to be approved" | "approved" || "to be approved",
+        scoring_criteria: newObjective.scoring_criteria || {
+          low: "",
+          medium: "",
+          high: ""
+        }
       }
     ];
     
     await handleSaveObjectives(updatedObjectives);
-    setNewObjective({ name: "", description: "", status: "to be approved" });
+    setNewObjective({ 
+      name: "", 
+      description: "", 
+      status: "to be approved",
+      scoring_criteria: {
+        low: "",
+        medium: "",
+        high: ""
+      }
+    });
     setIsAddingNew(false);
   };
 
@@ -492,6 +516,71 @@ export default function StrategicObjectivesPage() {
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+            
+            {/* Scoring Criteria Section */}
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Scoring Criteria</h4>
+              <p className="text-xs text-gray-500 mb-3">Define custom scoring criteria for this strategic objective. These will be used when AI evaluates pain points.</p>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Low Impact (Score: 1)
+                  </label>
+                  <textarea
+                    value={editingObjective.scoring_criteria?.low || ""}
+                    onChange={(e) => setEditingObjective({
+                      ...editingObjective,
+                      scoring_criteria: {
+                        ...editingObjective.scoring_criteria,
+                        low: e.target.value
+                      }
+                    })}
+                    rows={2}
+                    placeholder="Define what constitutes low impact for this objective..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Medium Impact (Score: 2)
+                  </label>
+                  <textarea
+                    value={editingObjective.scoring_criteria?.medium || ""}
+                    onChange={(e) => setEditingObjective({
+                      ...editingObjective,
+                      scoring_criteria: {
+                        ...editingObjective.scoring_criteria,
+                        medium: e.target.value
+                      }
+                    })}
+                    rows={2}
+                    placeholder="Define what constitutes medium impact for this objective..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    High Impact (Score: 3)
+                  </label>
+                  <textarea
+                    value={editingObjective.scoring_criteria?.high || ""}
+                    onChange={(e) => setEditingObjective({
+                      ...editingObjective,
+                      scoring_criteria: {
+                        ...editingObjective.scoring_criteria,
+                        high: e.target.value
+                      }
+                    })}
+                    rows={2}
+                    placeholder="Define what constitutes high impact for this objective..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex justify-between mt-4">
               <Button

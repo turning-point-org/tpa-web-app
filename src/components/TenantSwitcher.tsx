@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useUser } from '@auth0/nextjs-auth0/client';
-import { fetchWithAuth, AuthenticationError } from '../utils/api';
+import { fetchWithAuth, AuthenticationError, SessionExpiredError, handleFetchResponse, withAuthErrorHandling } from '../utils/api';
 import Button from "@/components/Button";
 
 interface Tenant {
@@ -71,6 +71,10 @@ export default function TenantSwitcher() {
           const sessionRes = await fetch('/api/auth/session', {
             credentials: 'include'
           });
+          
+          // Use our auth error handler for session requests
+          await handleFetchResponse(sessionRes);
+          
           if (sessionRes.ok) {
             const sessionData = await sessionRes.json();
             if (sessionData.accessToken) {
@@ -83,6 +87,10 @@ export default function TenantSwitcher() {
             console.log("Failed to get session data:", sessionRes.status);
           }
         } catch (e) {
+          if (e instanceof SessionExpiredError || e instanceof AuthenticationError) {
+            // Auth error handler will redirect, so we can return early
+            return;
+          }
           console.error("Error fetching session:", e);
         }
       }
@@ -114,37 +122,36 @@ export default function TenantSwitcher() {
         router.push(`/tenants/${data[0].slug}`);
       }
     } catch (error) {
-      // Handle the specific "Authentication required" error gracefully
-      if (error instanceof AuthenticationError) {
-        console.log("Authentication required for tenant fetch - this is expected when not logged in");
+      // Check for authentication errors and handle them
+      const { isAuthError, handleAuthError } = await import('../utils/api');
+      if (isAuthError(error)) {
+        handleAuthError(error);
         return;
       }
       
-      // Log other errors
       console.error("Error fetching tenants:", error);
     }
   };
 
   const handleCreateTenant = async () => {
-    const trimmedName = newTenantName.trim();
-    if (!trimmedName) return;
-
-    // Check if user is authorized to create tenants
-    if (!isSuperUser) {
-      alert("Only administrators can create new tenants.");
-      return;
-    }
-
-    if (
-      tenants.some(
-        (t) => t.name.toLowerCase() === trimmedName.toLowerCase()
-      )
-    ) {
-      alert("A tenant with this name already exists.");
-      return;
-    }
-
     try {
+      const trimmedName = newTenantName.trim();
+      if (!trimmedName) return;
+
+      // Check if user is authorized to create tenants
+      if (!isSuperUser) {
+        alert("Only administrators can create new tenants.");
+        return;
+      }
+
+      if (
+        tenants.some(
+          (t) => t.name.toLowerCase() === trimmedName.toLowerCase()
+        )
+      ) {
+        alert("A tenant with this name already exists.");
+        return;
+      }
       // Try to get token from user object or session
       let token = user?.accessToken as string | undefined;
       
@@ -154,6 +161,10 @@ export default function TenantSwitcher() {
           const sessionRes = await fetch('/api/auth/session', {
             credentials: 'include'
           });
+          
+          // Use our auth error handler for session requests
+          await handleFetchResponse(sessionRes);
+          
           if (sessionRes.ok) {
             const sessionData = await sessionRes.json();
             if (sessionData.accessToken) {
@@ -161,6 +172,10 @@ export default function TenantSwitcher() {
             }
           }
         } catch (e) {
+          if (e instanceof SessionExpiredError || e instanceof AuthenticationError) {
+            // Auth error handler will redirect, so we can return early
+            return;
+          }
           console.error("Error fetching session:", e);
         }
       }
@@ -198,10 +213,10 @@ export default function TenantSwitcher() {
       setIsCreating(false);
       router.push(`/tenants/${newTenant.slug}`);
     } catch (err) {
-      // Handle authentication errors gracefully
-      if (err instanceof AuthenticationError) {
-        console.log("Authentication required for tenant creation - redirecting to login");
-        window.location.href = "/api/auth/login";
+      // Check for authentication errors and handle them
+      const { isAuthError, handleAuthError } = await import('../utils/api');
+      if (isAuthError(err)) {
+        handleAuthError(err);
         return;
       }
       

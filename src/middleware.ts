@@ -53,6 +53,10 @@ export async function middleware(request: NextRequest) {
         }
       } catch (sessionError) {
         console.error('Middleware: Error getting session details:', sessionError);
+        
+        // If we can't get session details but have a cookie, it might be expired
+        // Clear the session header to prevent false positives
+        console.log('Middleware: Session cookie present but session invalid - potential expiration');
       }
       
       // Create modified request headers

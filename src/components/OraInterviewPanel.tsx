@@ -783,6 +783,12 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
   const [isLoadingTranscription, setIsLoadingTranscription] = useState(true);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   
+  // Add state for transcript editing
+  const [isEditingTranscript, setIsEditingTranscript] = useState(false);
+  const [editedTranscript, setEditedTranscript] = useState<string>('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  
   // Add new state for pain point summary using the structured format
   const [painPointSummaryRaw, setPainPointSummaryRaw] = useState<string>('');
   const [painPointSummaryData, setPainPointSummaryData] = useState<SummaryData>({
@@ -1706,6 +1712,73 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
     setLastSummaryUpdate(now.toLocaleTimeString());
   };
 
+  // Add functions for transcript editing
+  const handleStartEdit = () => {
+    setEditedTranscript(transcription);
+    setIsEditingTranscript(true);
+    setEditError(null);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingTranscript(false);
+    setEditedTranscript('');
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!lifecycleId || editedTranscript.trim() === transcription.trim()) {
+      // No changes made, just exit edit mode
+      handleCancelEdit();
+      return;
+    }
+
+    try {
+      setIsSavingEdit(true);
+      setEditError(null);
+
+      // Save the edited transcript to database
+      const response = await fetch('/api/tenants/by-slug/workspaces/scans/pain-points-transcription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcription: editedTranscript.trim(),
+          tenantSlug,
+          workspaceId,
+          scanId,
+          lifecycleId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Failed to save edited transcript: ${response.status} ${errorData.error || ''}`);
+      }
+
+      // Update the local transcript state
+      setTranscription(editedTranscript.trim());
+      transcriptionRef.current = editedTranscript.trim();
+
+      // Exit edit mode
+      setIsEditingTranscript(false);
+      setEditedTranscript('');
+
+      console.log('Transcript edited and saved successfully');
+
+      // Optionally trigger a summary update with the new transcript
+      if (editedTranscript.trim()) {
+        updateSummary(true);
+      }
+
+    } catch (error) {
+      console.error('Error saving edited transcript:', error);
+      setEditError(error instanceof Error ? error.message : 'Failed to save transcript');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   return (
     <div className="fixed top-0 right-0 bottom-0 z-10 flex">
       {/* Add delete confirmation modal */}
@@ -1948,9 +2021,27 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
                   </div>
                 )}
                 
+                {editError && (
+                  <div className="absolute top-16 left-0 right-0 bg-red-900/90 text-red-200 p-2 text-xs text-center">
+                    {editError}
+                  </div>
+                )}
+                
+                {/* Show edit button only when not recording and transcript exists */}
+                {!isRecording && !isLoadingTranscription && transcription && !isEditingTranscript && (
+                  <button
+                    onClick={handleStartEdit}
+                    disabled={isResetting}
+                    className="p-1 rounded text-xs bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    title="Edit Transcript"
+                  >
+                    Edit
+                  </button>
+                )}
+                
                 <button
                   onClick={() => setIsResetModalOpen(true)}
-                  disabled={isResetting || isLoadingTranscription}
+                  disabled={isResetting || isLoadingTranscription || isEditingTranscript}
                   className="p-1 rounded text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:opacity-50"
                   title="Reset Interview"
                 >
@@ -1959,8 +2050,8 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
                 
                 <button
                   onClick={toggleRecording}
-                  disabled={isLoadingTranscription}
-                  className={`p-2 rounded-full ${isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white`}
+                  disabled={isLoadingTranscription || isEditingTranscript}
+                  className={`p-2 rounded-full ${isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white disabled:opacity-50`}
                   title={isRecording ? "Stop Recording" : "Start Recording"}
                 >
                   {isRecording ? (
@@ -2000,6 +2091,53 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
                 <div className="flex items-center justify-center h-24 mt-4">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-200"></div>
                 </div>
+              ) : isEditingTranscript ? (
+                /* Edit Mode - Show textarea and buttons */
+                <div className="flex flex-col h-full">
+                  <textarea
+                    value={editedTranscript}
+                    onChange={(e) => setEditedTranscript(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Handle keyboard shortcuts
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        handleCancelEdit();
+                      } else if (e.ctrlKey || e.metaKey) {
+                        if (e.key === 'Enter' || e.key === 's') {
+                          e.preventDefault();
+                          handleSaveEdit();
+                        }
+                      }
+                    }}
+                    className="flex-1 w-full p-3 text-sm font-sans bg-gray-700 border border-gray-600 rounded text-gray-200 placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Edit your transcript here..."
+                    style={{ minHeight: '200px' }}
+                    autoFocus
+                  />
+                  
+                  {/* Save/Cancel buttons */}
+                  <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-600">
+                    <div className="text-xs text-gray-400">
+                      Ctrl+Enter to save • Esc to cancel
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleCancelEdit}
+                        disabled={isSavingEdit}
+                        className="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-gray-200 rounded disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveEdit}
+                        disabled={isSavingEdit || editedTranscript.trim() === transcription.trim()}
+                        className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+                      >
+                        {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ) : transcription ? (
                 <pre className="whitespace-pre-wrap font-sans text-sm">{transcription}</pre>
               ) : (
@@ -2008,10 +2146,10 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
                 </div>
               )}
               
-              {isSavingTranscription && (
+              {(isSavingTranscription || isSavingEdit) && (
                 <div className="bg-gray-700/50 text-gray-300 text-xs py-1 px-2 rounded mt-2 flex items-center">
                   <div className="animate-spin h-3 w-3 border border-gray-300 rounded-full mr-2"></div>
-                  Saving transcript...
+                  {isSavingEdit ? 'Saving edited transcript...' : 'Saving transcript...'}
                 </div>
               )}
             </div>

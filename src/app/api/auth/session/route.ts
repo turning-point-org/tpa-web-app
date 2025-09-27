@@ -42,7 +42,10 @@ export async function GET(request: Request) {
     
     if (!session) {
       return NextResponse.json(
-        { error: 'Not authenticated' }, 
+        { 
+          error: 'Your session has expired. Please log in again.',
+          code: 'SESSION_EXPIRED'
+        }, 
         { status: 401 }
       );
     }
@@ -52,7 +55,10 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error getting session:', error);
     return NextResponse.json(
-      { error: 'Error getting session' }, 
+      { 
+        error: 'Unable to verify your session. Please log in again.',
+        code: 'SESSION_ERROR'
+      }, 
       { status: 500 }
     );
   }

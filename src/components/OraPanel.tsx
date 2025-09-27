@@ -102,6 +102,15 @@ export default function OraPanel({ scanId, tenantSlug, workspaceId }: OraPanelPr
         `/api/tenants/by-slug/workspaces/scans/documents?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}`
       );
       
+      // Check for authentication errors first
+      const { handleFetchResponse } = await import('../utils/api');
+      try {
+        await handleFetchResponse(response);
+      } catch (authError) {
+        // Auth error handler will redirect, so we can return early
+        return [];
+      }
+      
       if (!response.ok) {
         // Try to get detailed error information from the response
         let errorMessage = `Error fetching documents: ${response.status} ${response.statusText}`;
