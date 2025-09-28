@@ -799,6 +799,10 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
   const [isLoadingSummary, setIsLoadingSummary] = useState(true);
   const [lastSummaryUpdate, setLastSummaryUpdate] = useState<string | null>(null);
   
+  // Add state to track if transcript has changed since last summary generation
+  const [transcriptChangedSinceLastSummary, setTranscriptChangedSinceLastSummary] = useState(false);
+  const [lastSummarizedTranscript, setLastSummarizedTranscript] = useState<string>('');
+  
   // Refs for recording and transcription
   const azureSpeechServiceRef = useRef<SpeechRecognizer | null>(null);
   const transcriptionRef = useRef<string>('');
@@ -894,6 +898,8 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
               // New format with renamed property
               setPainPointSummaryData(data);
               setPainPointSummaryRaw(JSON.stringify(data, null, 2));
+              // Set the last summarized transcript to the current transcript to prevent auto-generation
+              setLastSummarizedTranscript(transcriptionRef.current);
             } else if (data.painPoints) {
               // Legacy format with old property name
               setPainPointSummaryData({
@@ -901,6 +907,8 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
                 overallSummary: data.overallSummary || 'No summary available'
               });
               setPainPointSummaryRaw(JSON.stringify(data, null, 2));
+              // Set the last summarized transcript to the current transcript to prevent auto-generation
+              setLastSummarizedTranscript(transcriptionRef.current);
             } else if (typeof data.summary === 'string') {
               // Old format - try to parse as JSON
               try {
@@ -911,6 +919,8 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
                   overallSummary: parsed.overallSummary || 'No structured summary available'
                 });
                 setPainPointSummaryRaw(data.summary || '');
+                // Set the last summarized transcript to the current transcript to prevent auto-generation
+                setLastSummarizedTranscript(transcriptionRef.current);
               } catch (e) {
                 // If parsing fails, it's probably markdown text format
                 setPainPointSummaryData({
@@ -918,6 +928,8 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
                   overallSummary: data.summary || 'No structured pain points available'
                 });
                 setPainPointSummaryRaw(data.summary || '');
+                // Set the last summarized transcript to the current transcript to prevent auto-generation
+                setLastSummarizedTranscript(transcriptionRef.current);
               }
             }
             
@@ -1039,6 +1051,16 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
     }
   }, [transcription]);
   
+  // Track when transcript changes to determine if we need to generate a new summary
+  useEffect(() => {
+    // Only mark as changed if we have a previous summarized transcript to compare against
+    // and the current transcript is different and not empty
+    if (lastSummarizedTranscript && transcription && transcription !== lastSummarizedTranscript) {
+      setTranscriptChangedSinceLastSummary(true);
+      console.log('Transcript changed since last summary generation');
+    }
+  }, [transcription, lastSummarizedTranscript]);
+  
   // Function to save transcription to the database
   const saveTranscriptionToDatabase = useCallback(async (transcriptionText: string) => {
     if (isSavingTranscription || !lifecycleId) return; // Prevent multiple concurrent saves
@@ -1136,6 +1158,10 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         const now = new Date();
         setLastSummaryUpdate(now.toLocaleTimeString());
         
+        // Track that we've generated a summary for the current transcript
+        setLastSummarizedTranscript(currentTranscription);
+        setTranscriptChangedSinceLastSummary(false);
+        
         // Dispatch lifecycle update event to refresh LifecycleViewer
         // Only dispatch if we're saving to DB (which means pain points may affect scores)
         if (saveToDatabase && summaryData.pain_points && summaryData.pain_points.length > 0) {
@@ -1169,10 +1195,12 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
     
     console.log('Starting summary interval');
     
-    // Update summary immediately if there's already transcription
-    if (transcriptionRef.current.trim()) {
-      console.log('Initial summary triggered');
+    // Update summary immediately if there's already transcription and it has changed
+    if (transcriptionRef.current.trim() && transcriptChangedSinceLastSummary) {
+      console.log('Initial summary triggered due to transcript changes');
       updateSummary(false); // Don't save to DB during recording
+    } else if (transcriptionRef.current.trim()) {
+      console.log('Skipping initial summary - no transcript changes detected');
     }
     
     // Set up an interval to update the summary every 30 seconds
@@ -1201,7 +1229,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
     
     // Start the recursive timer
     createSummaryTimer();
-  }, [updateSummary]);
+  }, [updateSummary, transcriptChangedSinceLastSummary]);
   
   // Function to stop recording
   const stopRecording = useCallback(() => {
@@ -1239,8 +1267,13 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         // save the current transcription if it exists and hasn't just been saved by stopRecording
         if (transcriptionRef.current.trim()) {
           saveTranscriptionToDatabase(transcriptionRef.current);
-          // Also save a final summary
-          updateSummary(true);
+          // Only generate a summary if the transcript has actually changed since the last summary
+          if (transcriptChangedSinceLastSummary) {
+            console.log('Generating final summary on unmount due to transcript changes');
+            updateSummary(true);
+          } else {
+            console.log('Skipping summary generation on unmount - no transcript changes detected');
+          }
         }
       }
       clearSummaryInterval();
@@ -1254,7 +1287,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         azureSpeechServiceRef.current = null;
       }
     };
-  }, [stopRecording, saveTranscriptionToDatabase, updateSummary]);
+  }, [stopRecording, saveTranscriptionToDatabase, updateSummary, transcriptChangedSinceLastSummary]);
   
   // Function to start recording
   const startRecording = useCallback(async () => {
@@ -1759,6 +1792,9 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
       // Update the local transcript state
       setTranscription(editedTranscript.trim());
       transcriptionRef.current = editedTranscript.trim();
+
+      // Mark transcript as changed since it was manually edited
+      setTranscriptChangedSinceLastSummary(true);
 
       // Exit edit mode
       setIsEditingTranscript(false);
