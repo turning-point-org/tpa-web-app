@@ -1037,7 +1037,6 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
   // Update the ref whenever isRecording changes
   useEffect(() => {
     isRecordingRef.current = isRecording;
-    console.log('Recording state changed:', isRecording);
   }, [isRecording]);
   
   // Keep a ref with the current transcription to use in the interval
@@ -1057,7 +1056,6 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
     // and the current transcript is different and not empty
     if (lastSummarizedTranscript && transcription && transcription !== lastSummarizedTranscript) {
       setTranscriptChangedSinceLastSummary(true);
-      console.log('Transcript changed since last summary generation');
     }
   }, [transcription, lastSummarizedTranscript]);
   
@@ -1117,8 +1115,6 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
       }
       
       setIsUpdatingSummary(true);
-      
-      console.log('Sending transcription for summary, length:', currentTranscription.length);
       
       // Call our API endpoint to generate a summary
       const response = await fetch('/api/summarize', {
@@ -1182,7 +1178,6 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
   // Function to clear the summary interval
   const clearSummaryInterval = () => {
     if (summaryIntervalRef.current) {
-      console.log('Clearing summary interval');
       clearTimeout(summaryIntervalRef.current);
       summaryIntervalRef.current = null;
     }
@@ -1193,35 +1188,25 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
     // Clear any existing interval first
     clearSummaryInterval();
     
-    console.log('Starting summary interval');
-    
     // Update summary immediately if there's already transcription and it has changed
     if (transcriptionRef.current.trim() && transcriptChangedSinceLastSummary) {
-      console.log('Initial summary triggered due to transcript changes');
       updateSummary(false); // Don't save to DB during recording
-    } else if (transcriptionRef.current.trim()) {
-      console.log('Skipping initial summary - no transcript changes detected');
     }
     
     // Set up an interval to update the summary every 30 seconds
     const createSummaryTimer = () => {
       summaryIntervalRef.current = setTimeout(() => {
-        console.log('Summary timer triggered, isRecording:', isRecordingRef.current);
         if (transcriptionRef.current.trim()) {
           updateSummary(false).then(() => { // Don't save to DB during recording
             // Set up the next timer only if still recording
             if (isRecordingRef.current) {
               createSummaryTimer();
-            } else {
-              console.log('Not creating next timer - no longer recording');
             }
           });
         } else {
           // Still set up next timer even if no transcription yet
           if (isRecordingRef.current) {
             createSummaryTimer();
-          } else {
-            console.log('Not creating next timer - no longer recording');
           }
         }
       }, 30000); // 30 seconds in milliseconds
@@ -1257,27 +1242,51 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
     }
   }, [updateSummary, saveTranscriptionToDatabase]);
   
-  // Clean up on unmount
+  // Clean up on unmount - NO DEPENDENCIES to prevent re-running during component lifecycle
   useEffect(() => {
     return () => {
       if (isRecordingRef.current) {
-        stopRecording();
-      } else {
-        // If we're not recording but the component is unmounting,
-        // save the current transcription if it exists and hasn't just been saved by stopRecording
-        if (transcriptionRef.current.trim()) {
-          saveTranscriptionToDatabase(transcriptionRef.current);
-          // Only generate a summary if the transcript has actually changed since the last summary
-          if (transcriptChangedSinceLastSummary) {
-            console.log('Generating final summary on unmount due to transcript changes');
-            updateSummary(true);
-          } else {
-            console.log('Skipping summary generation on unmount - no transcript changes detected');
-          }
+        // Use the ref directly to avoid dependency issues
+        if (azureSpeechServiceRef.current) {
+          const recognizer = azureSpeechServiceRef.current;
+          recognizer.stopContinuousRecognitionAsync(
+            () => {
+              // Don't call setIsRecording here as component is unmounting
+            },
+            (err: unknown) => {
+              console.error('Error stopping recording during cleanup:', err);
+            }
+          );
         }
       }
-      clearSummaryInterval();
-      // Also ensure the recognizer is disposed if it exists
+      
+      // Save transcription if it exists
+      if (transcriptionRef.current.trim()) {
+        // Use fetch directly to avoid dependency issues
+        fetch('/api/tenants/by-slug/workspaces/scans/pain-points-transcription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            transcription: transcriptionRef.current,
+            tenantSlug,
+            workspaceId,
+            scanId,
+            lifecycleId
+          }),
+        }).catch(err => {
+          console.error('Error saving transcription during cleanup:', err);
+        });
+      }
+      
+      // Clear intervals
+      if (summaryIntervalRef.current) {
+        clearTimeout(summaryIntervalRef.current);
+        summaryIntervalRef.current = null;
+      }
+      
+      // Clean up recognizer
       if (azureSpeechServiceRef.current) {
         try {
           azureSpeechServiceRef.current.stopContinuousRecognitionAsync();
@@ -1287,7 +1296,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         azureSpeechServiceRef.current = null;
       }
     };
-  }, [stopRecording, saveTranscriptionToDatabase, updateSummary, transcriptChangedSinceLastSummary]);
+  }, []); // NO DEPENDENCIES - only run on actual unmount
   
   // Function to start recording
   const startRecording = useCallback(async () => {
@@ -1386,14 +1395,42 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
       
       // Handle errors
       recognizer.canceled = (s, e) => {
-        setRecordingError(`Recording canceled: ${e.errorDetails} (Code: ${e.errorCode})`);
-        setIsRecording(false);
-        clearSummaryInterval();
+        // Be much more aggressive about treating errors as transient
+        // Most Azure Speech Service errors during active recording are transient
+        const genuineErrorCodes = [
+          'NoMatch', // No speech detected
+          'InitialSilenceTimeout', // User stopped talking
+          'BabbleTimeout', // Too much noise
+          'Error' // Generic unrecoverable error
+        ];
         
-        // Save the final transcription if it exists when canceled
-        if (transcriptionRef.current.trim()) {
-          saveTranscriptionToDatabase(transcriptionRef.current);
-          updateSummary(true);
+        const isGenuineError = genuineErrorCodes.includes(String(e.errorCode)) ||
+                              e.errorDetails?.includes('microphone') ||
+                              e.errorDetails?.includes('permission') ||
+                              e.errorDetails?.includes('device not found');
+        
+        if (!isGenuineError) {
+          // Treat everything else as transient - keep recording
+          setRecordingError(`Connection issue (${e.errorCode}). Recording continues...`);
+          
+          // Clear the error after a few seconds
+          setTimeout(() => {
+            if (isRecordingRef.current) {
+              setRecordingError(null);
+            }
+          }, 5000);
+          
+        } else {
+          // For genuine errors (microphone issues, permissions, etc.), stop recording
+          setRecordingError(`Recording stopped: ${e.errorDetails} (Code: ${e.errorCode})`);
+          setIsRecording(false);
+          clearSummaryInterval();
+          
+          // Save the final transcription if it exists when genuinely canceled
+          if (transcriptionRef.current.trim()) {
+            saveTranscriptionToDatabase(transcriptionRef.current);
+            updateSummary(true);
+          }
         }
       };
       
