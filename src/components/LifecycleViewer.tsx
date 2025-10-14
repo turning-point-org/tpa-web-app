@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import Modal from "@/components/Modal"; // Assuming @ points to src
 import Button from "@/components/Button"; // Import the Button component
-import ProcessMetric from "@/components/ProcessMetric"; // Import the ProcessMetric component
+// import ProcessMetric from "@/components/ProcessMetric"; // Import the ProcessMetric component
 import { Expand } from "lucide-react"; // Import Expand icon from lucide-react
 
 type TransformFunctions = {
