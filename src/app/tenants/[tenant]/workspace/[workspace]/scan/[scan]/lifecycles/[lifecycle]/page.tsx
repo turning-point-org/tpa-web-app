@@ -24,7 +24,7 @@ export default function LifecycleProcessesPage() {
   }
 
   return (
-    <div className="h-full">
+    <div className="h-full w-full max-w-full overflow-hidden">
       <LifecycleViewer 
         tenantSlug={tenantSlug}
         workspaceId={workspaceId}

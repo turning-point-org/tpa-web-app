@@ -13,8 +13,8 @@ export default function MainContent({ children, sidebarCollapsed = false }: Main
   const isFullWidthView = pathname?.includes('/lifecycles/') || pathname?.includes('/pain-points/');
   
   return (
-    <main className={`flex-grow ${sidebarCollapsed ? 'ml-20' : 'ml-80'} h-screen bg-gray-100 transition-all duration-300`}>
-      <div className={`w-full mx-auto h-full ${isFullWidthView ? '' : 'scrollable'}`}>
+    <main className={`flex-grow ${sidebarCollapsed ? 'ml-20' : 'ml-80'} h-screen bg-gray-100 transition-all duration-300 overflow-x-hidden max-w-full`}>
+      <div className={`w-full mx-auto h-full max-w-full ${isFullWidthView ? '' : 'scrollable'}`}>
         <Breadcrumbs />
         <div className={isFullWidthView ? 'h-[calc(100%-48px)]' : ''}>
           {children}

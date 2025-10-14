@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import Modal from "@/components/Modal"; // Assuming @ points to src
 import Button from "@/components/Button"; // Import the Button component
+import ProcessMetric from "@/components/ProcessMetric"; // Import the ProcessMetric component
 import { Expand } from "lucide-react"; // Import Expand icon from lucide-react
 
 type TransformFunctions = {
@@ -922,8 +923,8 @@ export default function LifecycleViewer({
   
   return (
     // Removed outer p-6, let the consumer handle padding
-    <div ref={containerRef} className="mt-0 pt-0">      
-      <div className="bg-white rounded-lg border border-gray-200 p-0 overflow-hidden relative" style={{ height: initialHeight }}> {/* Use initialHeight prop */}
+    <div ref={containerRef} className="mt-0 pt-0 w-full max-w-full">      
+      <div className="bg-white rounded-lg border border-gray-200 p-0 overflow-hidden relative w-full max-w-full" style={{ height: initialHeight }}> {/* Use initialHeight prop */}
         {/* Header Section */}
         <div className="flex justify-between items-center p-4 mb-0 rounded-t-lg bg-white shadow-sm border-b border-gray-200"> {/* Adjusted padding/margin */}
           <div className="flex items-center">
@@ -1029,6 +1030,7 @@ export default function LifecycleViewer({
         </div>
         
         {/* Canvas Area */}
+        <div className="w-full max-w-full overflow-hidden" style={{ height: 'calc(100% - 68px)' }}>
         {hasValidProcesses ? (
           // Only render TransformWrapper if there are categories (even if empty)
           <TransformWrapper
@@ -1086,7 +1088,7 @@ export default function LifecycleViewer({
                 </div>
                 
                 {/* Process Categories Canvas */}
-                <TransformComponent wrapperStyle={{ width: '100%', height: 'calc(100% - 68px)' }} contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center' }}> {/* Updated to ensure center alignment */}
+                <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ height: '100%', display: 'inline-flex', justifyContent: 'flex-start' }}> {/* Updated to ensure center alignment */}
                  <div className={`flex space-x-8 p-8 ${lifecycle?.processes?.process_categories?.length === 0 ? 'w-full items-center justify-center' : ''}`}> {/* Removed min-w-max to allow centering */}
                     {lifecycle?.processes?.process_categories.length === 0 && toggles.editMode ? (
                       <div className="text-center text-gray-500">
@@ -1115,16 +1117,23 @@ export default function LifecycleViewer({
                                  <p className="text-xs mt-1 text-gray-200 line-clamp-2">{category.description}</p> // Add line-clamp
                              )}
                              {toggles.scores && (
-                                 <div className="mt-2 flex space-x-2">
-                                     <span 
+                                 <div className="mt-2 flex flex-wrap gap-2">
+                                      <span 
                                          className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
                                          style={{ backgroundColor: '#0EA394' }}
                                          title={`Category Score: ${calculateCategoryScore(category)} (Sum of strategic objective points from pain points)`}
                                      >
                                          {calculateCategoryScore(category)} pts
                                      </span>
-                                 </div>
-                             )}
+                                      {/* <ProcessMetric title="Category Score" text={`${calculateCategoryScore(category)} pts`} type="points" />
+
+                                      <ProcessMetric title="Average Handling Time: 1 day" text="1 day" type="aht" />
+                                      <ProcessMetric title="Cycle Time: 2 days" text="2 days" type="cycleTime" />
+                                      <ProcessMetric title="Headcount: 1" text="1" type="headcount" />
+                                      <ProcessMetric title="Cost: $200" text="$200" type="cost" /> */}
+                                     
+                                   </div>
+                               )}
                              </div>
                              
                              {/* Process Groups Container */}
@@ -1192,14 +1201,21 @@ export default function LifecycleViewer({
                                         )}
                                         
                                         {toggles.scores && (
-                                            <div className="mt-1 mb-2 flex space-x-2">
-                                                <span 
+                                            <div className="mt-1 mb-2 flex flex-wrap gap-2">
+                                              <span 
                                                     className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
                                                     style={{ backgroundColor: '#0EA394' }}
                                                     title={`Score: ${calculateProcessGroupScore(group.name)} (Sum of strategic objective points from pain points)`}
                                                 >
                                                     {calculateProcessGroupScore(group.name)} pts
                                                 </span>
+                                                 {/* <ProcessMetric title="Score" text={`${calculateProcessGroupScore(group.name)} pts`} type="points" />
+                                                 
+                                                 <ProcessMetric title="Average Handling Time: 1 day" text="1 day" type="aht" />
+                                                 <ProcessMetric title="Cycle Time: 2 days" text="2 days" type="cycleTime" />
+                                                 <ProcessMetric title="Headcount: 1" text="1" type="headcount" />
+                                                 <ProcessMetric title="Cost: $200" text="$200" type="cost" /> */}
+                                                 
                                             </div>
                                         )}
                                         
@@ -1271,6 +1287,7 @@ export default function LifecycleViewer({
              {/* Removed the "Generate Processes" button as it likely belongs on a different page */}
           </div>
         )}
+        </div> {/* End width constraint wrapper */}
       </div> {/* End Canvas Area Container */}
 
       {/* Modals Section */}
