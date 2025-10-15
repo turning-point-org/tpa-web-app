@@ -319,6 +319,30 @@ function validateProcessesJson(data: any): { valid: boolean; error?: string } {
     };
   }
 }
+// Function to add default volumetric metrics to process groups
+function addDefaultMetrics(processesData: any) {
+  if (processesData?.process_categories) {
+    processesData.process_categories.forEach((category: any) => {
+      if (category.process_groups) {
+        category.process_groups.forEach((group: any) => {
+          group.aht = {
+            value: 0,
+            unit: "min",
+            base_minutes: 0
+          };
+          group.cycleTime = {
+            value: 0,
+            unit: "min",
+            base_minutes: 0
+          };
+          group.headcount = 0;
+          group.cost = 0;
+        });
+      }
+    });
+  }
+  return processesData;
+}
 
 export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
@@ -440,9 +464,12 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
       );
     }
 
+    // Add default volumetric metrics to all process groups
+    const processesWithMetrics = addDefaultMetrics(processesData);
+
     // Update the lifecycle item with the generated processes
     const lifecycleItem = lifecycles[0];
-    lifecycleItem.processes = processesData;
+    lifecycleItem.processes = processesWithMetrics;
     
     // If we have enough employees, suggest stakeholders
     if (employees.length > 1) {
@@ -450,7 +477,7 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
         const stakeholders = await suggestStakeholders(
           lifecycle_name, 
           lifecycle_description || "", 
-          processesData, 
+          processesWithMetrics, 
           employees, 
           companyInfo
         );
@@ -474,7 +501,7 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
       success: true,
       message: "Processes generated successfully",
       lifecycle_id: lifecycle_id,
-      processes: processesData,
+      processes: processesWithMetrics,
       stakeholders: lifecycleItem.stakeholders || []
     });
   } catch (error: any) {

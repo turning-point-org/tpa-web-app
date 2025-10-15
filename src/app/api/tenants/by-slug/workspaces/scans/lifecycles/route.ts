@@ -444,7 +444,19 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
         const newGroup = {
           name: group.name,
           description: group.description || "",
-          score: 0,
+          score: 0, // 
+          aht: group.aht || {
+            value: 0,
+            unit: "min",
+            base_minutes: 0
+          },
+          cycleTime: group.cycleTime || {
+            value: 0,
+            unit: "min",
+            base_minutes: 0
+          },
+          headcount: group.headcount || 0,
+          cost: group.cost || 0,
           processes: group.processes || []
         };
         
@@ -488,6 +500,20 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
         // Update the group
         lifecycle.processes.process_categories[category_index].process_groups[group_index].name = newGroupName;
         lifecycle.processes.process_categories[category_index].process_groups[group_index].description = group.description || "";
+        
+        // Update volumetric data fields
+        if (group.aht) {
+          lifecycle.processes.process_categories[category_index].process_groups[group_index].aht = group.aht;
+        }
+        if (group.cycleTime) {
+          lifecycle.processes.process_categories[category_index].process_groups[group_index].cycleTime = group.cycleTime;
+        }
+        if (group.headcount !== undefined) {
+          lifecycle.processes.process_categories[category_index].process_groups[group_index].headcount = group.headcount;
+        }
+        if (group.cost !== undefined) {
+          lifecycle.processes.process_categories[category_index].process_groups[group_index].cost = group.cost;
+        }
         
         // Update the lifecycle in the database
         lifecycle.updated_at = new Date().toISOString();
