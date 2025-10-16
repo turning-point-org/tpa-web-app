@@ -36,6 +36,27 @@ const ProcessMetric: React.FC<ProcessMetricProps> = ({
     }
   };
 
+  // Pluralize units for time-based metrics
+  const pluralizeUnit = (unit: string, value: number | string) => {
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    
+    if (numValue === 1) {
+      return unit; // singular
+    }
+    
+    // Handle common pluralization
+    switch (unit) {
+      case 'hour':
+        return 'hours';
+      case 'day':
+        return 'days';
+      case 'minute':
+        return 'minutes';
+      default:
+        return unit; // return as-is if no pluralization rule
+    }
+  };
+
   // Format display text based on type
   const formatDisplayText = () => {
     const emoji = getEmoji(type);
@@ -43,6 +64,13 @@ const ProcessMetric: React.FC<ProcessMetricProps> = ({
     // Handle cost type specially - prepend currency symbol
     if (type === 'cost' && unit) {
       return emoji ? `${emoji} ${unit}${value}` : `${unit}${value}`;
+    }
+    
+    // For time-based types (aht, cycleTime), apply pluralization
+    if ((type === 'aht' || type === 'cycleTime') && unit) {
+      const pluralUnit = pluralizeUnit(unit, value);
+      const valueUnit = `${value} ${pluralUnit}`;
+      return emoji ? `${emoji} ${valueUnit}` : valueUnit;
     }
     
     // For other types, append unit with space

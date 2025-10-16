@@ -170,6 +170,22 @@ export default function LifecycleViewer({
     cost: 0
   });
   
+  // Display values for input fields (to allow clearing)
+  const [displayValues, setDisplayValues] = useState({
+    aht: '0',
+    cycleTime: '0',
+    headcount: '0',
+    cost: '0'
+  });
+  
+  // Display values for edit modal input fields
+  const [editDisplayValues, setEditDisplayValues] = useState({
+    aht: '0',
+    cycleTime: '0',
+    headcount: '0',
+    cost: '0'
+  });
+  
   // Lifecycle info modal state
   const [showLifecycleInfo, setShowLifecycleInfo] = useState(false);
   
@@ -506,6 +522,14 @@ export default function LifecycleViewer({
       headcount: group.headcount || 0,
       cost: group.cost || 0
     });
+    
+    // Initialize edit display values
+    setEditDisplayValues({
+      aht: String(group.aht?.value || 0),
+      cycleTime: String(group.cycleTime?.value || 0),
+      headcount: String(group.headcount || 0),
+      cost: String(group.cost || 0)
+    });
   };
   
   const handleGroupUpdate = async () => {
@@ -769,6 +793,12 @@ export default function LifecycleViewer({
             cycleTime: { value: 0, unit: 'min', base_minutes: 0 },
             headcount: 0,
             cost: 0
+          });
+          setDisplayValues({
+            aht: '0',
+            cycleTime: '0',
+            headcount: '0',
+            cost: '0'
           });
         } else {
             console.error("Category index out of bounds during group creation");
@@ -1234,7 +1264,7 @@ export default function LifecycleViewer({
             minScale={0.5}
             maxScale={3}
             wheel={{ step: 0.1 }}
-            centerOnInit={true}
+            centerOnInit={false}
             limitToBounds={false}
             // doubleClick={{ disabled: true }} // Disable double click zoom if needed
           >
@@ -1299,7 +1329,7 @@ export default function LifecycleViewer({
                          lifecycle?.processes?.process_categories.map((category, catIndex) => (
                          <div 
                              key={`cat-${lifecycleId}-${catIndex}`} // More specific key
-                             className="flex-shrink-0 w-64 border border-gray-300 rounded-lg bg-gray-50 shadow-sm relative flex flex-col" // Use flex-col
+                             className="flex-shrink-0 w-72 border border-gray-300 rounded-lg bg-gray-50 shadow-sm relative flex flex-col" // Use flex-col
                              style={{ minHeight: '200px' }} // Ensure minimum height
                          >
                              {/* Category Header */}
@@ -1312,12 +1342,12 @@ export default function LifecycleViewer({
                              {toggles.processDetails && category.description && ( // Only show if description exists
                                  <p className="text-xs mt-1 text-gray-200 line-clamp-2">{category.description}</p> // Add line-clamp
                              )}
-                              <div className="mt-2 flex flex-wrap gap-2">
+                              <div className="mt-2 grid grid-cols-2 gap-2">
                                 {toggles.scores && (<ProcessMetric title={`Category Score: ${calculateCategoryScore(category)} (Sum of strategic objective points from pain points)`} value={calculateCategoryScore(category)} unit="pts" type="" />)}
-                                {toggles.aht && <ProcessMetric title="Average Handling Time" value={calculateCategoryAHT(category)} type="aht" />}
-                                {toggles.cycleTime && <ProcessMetric title="Cycle Time" value={calculateCategoryCycleTime(category)} type="cycleTime" />}
-                                {toggles.headcount && <ProcessMetric title="Headcount" value={calculateCategoryHeadcount(category)} unit="" type="headcount" />}
-                                {toggles.cost && <ProcessMetric title="Cost" value={calculateCategoryCost(category)} unit="$" type="cost" />}
+                                {toggles.aht && <ProcessMetric title={`Total Average Handling Time: ${calculateCategoryAHT(category)}`} value={calculateCategoryAHT(category)} type="aht" />}
+                                {toggles.cycleTime && <ProcessMetric title={`Total Cycle Time: ${calculateCategoryCycleTime(category)}`} value={calculateCategoryCycleTime(category)} type="cycleTime" />}
+                                {toggles.headcount && <ProcessMetric title={`Total Headcount: ${calculateCategoryHeadcount(category)}`} value={calculateCategoryHeadcount(category)} unit="" type="headcount" />}
+                                {toggles.cost && <ProcessMetric title={`Total Cost: ${calculateCategoryCost(category)}`} value={calculateCategoryCost(category)} unit="$" type="cost" />}
                               </div>
                              </div>
                              
@@ -1385,12 +1415,12 @@ export default function LifecycleViewer({
                                            <p className="text-sm text-gray-600 mb-2 line-clamp-3">{group.description}</p> // Add line-clamp
                                         )}
                                         
-                                        <div className="mt-1 mb-2 flex flex-wrap gap-2">
+                                        <div className="mt-1 mb-2 grid grid-cols-2 gap-2">
                                           {toggles.scores && (<ProcessMetric title={`Score: ${calculateProcessGroupScore(group.name)} (Sum of strategic objective points from pain points)`} value={calculateProcessGroupScore(group.name)} unit="pts" type="" />)}
-                                          {toggles.aht && group.aht && <ProcessMetric title="Average Handling Time" value={group.aht.value} unit={group.aht.unit}  type="aht" />}
-                                          {toggles.cycleTime && group.cycleTime && <ProcessMetric title="Cycle Time" value={group.cycleTime.value} unit={group.cycleTime.unit} type="cycleTime" />}
-                                          {toggles.headcount && group.headcount !== undefined && <ProcessMetric title="Headcount" value={group.headcount} unit="" type="headcount" />}
-                                          {toggles.cost && group.cost !== undefined && <ProcessMetric title="Cost" value={group.cost} unit="$" type="cost" />}
+                                          {toggles.aht && group.aht && <ProcessMetric title={`Average Handling Time: ${group.aht.value} ${group.aht.unit}`} value={group.aht.value} unit={group.aht.unit}  type="aht" />}
+                                          {toggles.cycleTime && group.cycleTime && <ProcessMetric title={`Cycle Time: ${group.cycleTime.value} ${group.cycleTime.unit}`} value={group.cycleTime.value} unit={group.cycleTime.unit} type="cycleTime" />}
+                                          {toggles.headcount && group.headcount !== undefined && <ProcessMetric title={`Headcount: ${group.headcount}`} value={group.headcount} unit="" type="headcount" />}
+                                          {toggles.cost && group.cost !== undefined && <ProcessMetric title={`Cost: ${group.cost}`} value={group.cost} unit="$" type="cost" />}
                                         </div>
                                         {/* Processes (Example - Adapt if needed) */}
                                         {group.processes && group.processes.length > 0 && toggles.processDetails && (
@@ -1651,6 +1681,12 @@ export default function LifecycleViewer({
         onClose={() => {
           setPainPointsError(""); // Reset error when closing modal
           setEditingGroup(null);
+          setEditDisplayValues({
+            aht: '0',
+            cycleTime: '0',
+            headcount: '0',
+            cost: '0'
+          });
         }}
         title={toggles.editMode ? "Edit Process Group" : editingGroup?.name || "Process Group Details"}
         maxWidth="3xl" // Increase modal width
@@ -1713,9 +1749,10 @@ export default function LifecycleViewer({
                       <input
                         type="number"
                         id="editAhtValue"
-                        value={editingGroup.aht.value}
+                        value={editDisplayValues.aht}
                         onChange={(e) => {
-                          const value = Math.max(0, parseInt(e.target.value) || 0);
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
                           let baseMinutes = 0;
                           
                           // Calculate base_minutes based on current unit
@@ -1733,6 +1770,7 @@ export default function LifecycleViewer({
                               baseMinutes = 0;
                           }
                           
+                          setEditDisplayValues({...editDisplayValues, aht: inputValue});
                           setEditingGroup({
                             ...editingGroup, 
                             aht: {...editingGroup.aht, value, base_minutes: baseMinutes}
@@ -1787,9 +1825,10 @@ export default function LifecycleViewer({
                       <input
                         type="number"
                         id="editCycleTimeValue"
-                        value={editingGroup.cycleTime.value}
+                        value={editDisplayValues.cycleTime}
                         onChange={(e) => {
-                          const value = Math.max(0, parseInt(e.target.value) || 0);
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
                           let baseMinutes = 0;
                           
                           // Calculate base_minutes based on current unit
@@ -1807,6 +1846,7 @@ export default function LifecycleViewer({
                               baseMinutes = 0;
                           }
                           
+                          setEditDisplayValues({...editDisplayValues, cycleTime: inputValue});
                           setEditingGroup({
                             ...editingGroup, 
                             cycleTime: {...editingGroup.cycleTime, value, base_minutes: baseMinutes}
@@ -1861,9 +1901,11 @@ export default function LifecycleViewer({
                       <input
                         type="number"
                         id="editHeadcount"
-                        value={editingGroup.headcount}
+                        value={editDisplayValues.headcount}
                         onChange={(e) => {
-                          const value = Math.max(0, parseInt(e.target.value) || 0);
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                          setEditDisplayValues({...editDisplayValues, headcount: inputValue});
                           setEditingGroup({...editingGroup, headcount: value});
                         }}
                         min="0"
@@ -1878,9 +1920,11 @@ export default function LifecycleViewer({
                       <input
                         type="number"
                         id="editCost"
-                        value={editingGroup.cost}
+                        value={editDisplayValues.cost}
                         onChange={(e) => {
-                          const value = Math.max(0, parseInt(e.target.value) || 0);
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                          setEditDisplayValues({...editDisplayValues, cost: inputValue});
                           setEditingGroup({...editingGroup, cost: value});
                         }}
                         min="0"
@@ -1917,6 +1961,12 @@ export default function LifecycleViewer({
                       onClick={() => {
                         setPainPointsError(""); // Reset error when closing modal
                         setEditingGroup(null);
+                        setEditDisplayValues({
+                          aht: '0',
+                          cycleTime: '0',
+                          headcount: '0',
+                          cost: '0'
+                        });
                       }}
                       variant="secondary"
                       className="text-sm font-medium"
@@ -1969,6 +2019,66 @@ export default function LifecycleViewer({
                       No description provided.
                     </p>
                   )}
+                </div>
+
+                {/* Volumetric Metrics - Display Only */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-medium text-gray-500 mb-3">Volumetric Data</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Average Handling Time */}
+                    <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                      <div className="text-xs text-gray-500 mb-1">Average Handling Time</div>
+                      <div className="text-sm font-medium text-gray-800">
+                        {editingGroup.aht && editingGroup.aht.value > 0 ? (
+                          `${editingGroup.aht.value} ${editingGroup.aht.value === 1 ? editingGroup.aht.unit : 
+                            editingGroup.aht.unit === 'hour' ? 'hours' : 
+                            editingGroup.aht.unit === 'day' ? 'days' : 
+                            editingGroup.aht.unit === 'minute' ? 'minutes' : editingGroup.aht.unit}`
+                        ) : (
+                          <span className="text-gray-400 italic">Not set</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Cycle Time */}
+                    <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                      <div className="text-xs text-gray-500 mb-1">Cycle Time</div>
+                      <div className="text-sm font-medium text-gray-800">
+                        {editingGroup.cycleTime && editingGroup.cycleTime.value > 0 ? (
+                          `${editingGroup.cycleTime.value} ${editingGroup.cycleTime.value === 1 ? editingGroup.cycleTime.unit : 
+                            editingGroup.cycleTime.unit === 'hour' ? 'hours' : 
+                            editingGroup.cycleTime.unit === 'day' ? 'days' : 
+                            editingGroup.cycleTime.unit === 'minute' ? 'minutes' : editingGroup.cycleTime.unit}`
+                        ) : (
+                          <span className="text-gray-400 italic">Not set</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Headcount */}
+                    <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                      <div className="text-xs text-gray-500 mb-1">Headcount</div>
+                      <div className="text-sm font-medium text-gray-800">
+                        {editingGroup.headcount !== undefined && editingGroup.headcount > 0 ? (
+                          editingGroup.headcount
+                        ) : (
+                          <span className="text-gray-400 italic">Not set</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Cost */}
+                    <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                      <div className="text-xs text-gray-500 mb-1">Cost</div>
+                      <div className="text-sm font-medium text-gray-800">
+                        {editingGroup.cost !== undefined && editingGroup.cost > 0 ? (
+                          `$${editingGroup.cost}`
+                        ) : (
+                          <span className="text-gray-400 italic">Not set</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 
                 {(() => {
@@ -2291,6 +2401,12 @@ export default function LifecycleViewer({
             headcount: 0,
             cost: 0
           });
+          setDisplayValues({
+            aht: '0',
+            cycleTime: '0',
+            headcount: '0',
+            cost: '0'
+          });
         }}
         title="Create New Process Group"
       >
@@ -2343,9 +2459,10 @@ export default function LifecycleViewer({
                 <input
                   type="number"
                   id="ahtValue"
-                  value={newGroup.aht.value}
+                  value={displayValues.aht}
                   onChange={(e) => {
-                    const value = Math.max(0, parseInt(e.target.value) || 0);
+                    const inputValue = e.target.value;
+                    const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
                     let baseMinutes = 0;
                     
                     // Calculate base_minutes based on current unit
@@ -2363,9 +2480,10 @@ export default function LifecycleViewer({
                         baseMinutes = 0;
                     }
                     
+                    setDisplayValues({...displayValues, aht: inputValue});
                     setNewGroup({
                       ...newGroup, 
-                      aht: {...newGroup.aht, value, base_minutes: baseMinutes}
+                      aht: {...newGroup.aht, value: value, base_minutes: baseMinutes}
                     });
                   }}
                   min="0"
@@ -2417,9 +2535,10 @@ export default function LifecycleViewer({
                 <input
                   type="number"
                   id="cycleTimeValue"
-                  value={newGroup.cycleTime.value}
+                  value={displayValues.cycleTime}
                   onChange={(e) => {
-                    const value = Math.max(0, parseInt(e.target.value) || 0);
+                    const inputValue = e.target.value;
+                    const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
                     let baseMinutes = 0;
                     
                     // Calculate base_minutes based on current unit
@@ -2437,9 +2556,10 @@ export default function LifecycleViewer({
                         baseMinutes = 0;
                     }
                     
+                    setDisplayValues({...displayValues, cycleTime: inputValue});
                     setNewGroup({
                       ...newGroup, 
-                      cycleTime: {...newGroup.cycleTime, value, base_minutes: baseMinutes}
+                      cycleTime: {...newGroup.cycleTime, value: value, base_minutes: baseMinutes}
                     });
                   }}
                   min="0"
@@ -2491,11 +2611,13 @@ export default function LifecycleViewer({
                 <input
                   type="number"
                   id="headcount"
-                  value={newGroup.headcount}
-                  onChange={(e) => {
-                    const value = Math.max(0, parseInt(e.target.value) || 0);
-                    setNewGroup({...newGroup, headcount: value});
-                  }}
+                  value={displayValues.headcount}
+                        onChange={(e) => {
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                          setDisplayValues({...displayValues, headcount: inputValue});
+                          setNewGroup({...newGroup, headcount: value});
+                        }}
                   min="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   placeholder="0"
@@ -2508,11 +2630,13 @@ export default function LifecycleViewer({
                 <input
                   type="number"
                   id="cost"
-                  value={newGroup.cost}
-                  onChange={(e) => {
-                    const value = Math.max(0, parseInt(e.target.value) || 0);
-                    setNewGroup({...newGroup, cost: value});
-                  }}
+                  value={displayValues.cost}
+                        onChange={(e) => {
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                          setDisplayValues({...displayValues, cost: inputValue});
+                          setNewGroup({...newGroup, cost: value});
+                        }}
                   min="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   placeholder="0"

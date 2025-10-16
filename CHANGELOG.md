@@ -31,12 +31,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Enhanced
 - **ProcessMetric Component**: Updated to support separate `value` and `unit` props for better data handling
+  - **Pluralization Logic**: Added intelligent pluralization for time units (hour/hours, day/days, minute/minutes)
+  - **Grid Layout**: Implemented 2-column grid layout for ProcessMetric components in process groups
 - **UI Layout Improvements**: 
   - Compact input layout with unit dropdowns positioned to the right of value inputs
   - Responsive design for volumetric data input fields
   - Consistent styling across create and edit modals
+  - **Process Category Cards**: Increased width from `w-64` to `w-72` for better text display
+  - **Grid Layout**: Applied 2-column grid layout for ProcessMetric components
 - **Data Persistence**: Full CosmosDB integration for volumetric data storage and retrieval
 - **Input Validation**: Client-side validation ensuring positive integer values for all numeric inputs
+- **Edit Modal Enhancement**: Added comprehensive volumetric metrics display section in read-only view
+  - 2x2 grid layout showing AHT, Cycle Time, Headcount, and Cost
+  - Clear "Not set" indicators for missing values
+  - Consistent styling with existing modal design
 
 ### Fixed
 - **CosmosDB Integration**: Resolved issue where volumetric data wasn't being saved during process group updates
@@ -44,6 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added proper field mapping for AHT, Cycle Time, Headcount, and Cost
 - **Data Consistency**: Ensured volumetric data persists across page refreshes and sessions
 - **State Management**: Fixed local state updates to include all volumetric fields
+- **Input Field Clearing**: Addressed issue where default '0' values in volumetric input fields could not be removed
+  - Implemented separate display state for input fields to allow visual clearing while maintaining numeric data state
+  - Applied fix to both "Create New Process Group" and "Edit Process Group" modals
+- **Text Wrapping**: Resolved text wrapping issues in ProcessMetric components
+  - Increased process category card width to provide more space for metric text
+  - Implemented grid layout for better space utilization
 
 ### Technical Details
 - **Database Schema**: Extended lifecycle documents to include volumetric data structure
