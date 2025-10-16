@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import Modal from "@/components/Modal"; // Assuming @ points to src
 import Button from "@/components/Button"; // Import the Button component
-// import ProcessMetric from "@/components/ProcessMetric"; // Import the ProcessMetric component
+import ProcessMetric from "@/components/ProcessMetric"; // Import the ProcessMetric component
 import { Expand } from "lucide-react"; // Import Expand icon from lucide-react
 
 type TransformFunctions = {
@@ -38,14 +38,50 @@ interface Lifecycle {
       name: string;
       description?: string;
       score?: number;
+      aht?: {
+        value: number;
+        unit: string;
+        base_minutes: number;
+      };
+      cycleTime?: {
+        value: number;
+        unit: string;
+        base_minutes: number;
+      };
+      headcount?: number;
+      cost?: number;
       process_groups: Array<{
         name: string;
         description: string;
         score?: number;
+        aht?: {
+          value: number;
+          unit: string;
+          base_minutes: number;
+        };
+        cycleTime?: {
+          value: number;
+          unit: string;
+          base_minutes: number;
+        };
+        headcount?: number;
+        cost?: number;
         processes?: Array<{
           name: string;
           description: string;
           score?: number;
+          aht?: {
+            value: number;
+            unit: string;
+            base_minutes: number;
+          };
+          cycleTime?: {
+            value: number;
+            unit: string;
+            base_minutes: number;
+          };
+          headcount?: number;
+          cost?: number;
         }>;
       }>;
     }>;
@@ -86,8 +122,14 @@ export default function LifecycleViewer({
   const [toggles, setToggles] = useState({
     processDetails: true,
     scores: true,
-    editMode: !isPainPointContext // Set to false by default in pain point context
+    aht: false,
+    cycleTime: false,
+    headcount: false,
+    cost: false,
+    editMode: !isPainPointContext
   });
+
+  
   
   // Category and group editing state
   const [editingCategory, setEditingCategory] = useState<{
@@ -101,6 +143,10 @@ export default function LifecycleViewer({
     groupIndex: number;
     name: string;
     description: string;
+    aht: { value: number; unit: string; base_minutes: number };
+    cycleTime: { value: number; unit: string; base_minutes: number };
+    headcount: number;
+    cost: number;
   } | null>(null);
   
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{
@@ -115,7 +161,30 @@ export default function LifecycleViewer({
   const [showNewGroupModal, setShowNewGroupModal] = useState<{
     categoryIndex: number;
   } | null>(null);
-  const [newGroup, setNewGroup] = useState({ name: '', description: '' });
+  const [newGroup, setNewGroup] = useState({ 
+    name: '', 
+    description: '',
+    aht: { value: 0, unit: 'min', base_minutes: 0 },
+    cycleTime: { value: 0, unit: 'min', base_minutes: 0 },
+    headcount: 0,
+    cost: 0
+  });
+  
+  // Display values for input fields (to allow clearing)
+  const [displayValues, setDisplayValues] = useState({
+    aht: '0',
+    cycleTime: '0',
+    headcount: '0',
+    cost: '0'
+  });
+  
+  // Display values for edit modal input fields
+  const [editDisplayValues, setEditDisplayValues] = useState({
+    aht: '0',
+    cycleTime: '0',
+    headcount: '0',
+    cost: '0'
+  });
   
   // Lifecycle info modal state
   const [showLifecycleInfo, setShowLifecycleInfo] = useState(false);
@@ -447,7 +516,19 @@ export default function LifecycleViewer({
       categoryIndex,
       groupIndex,
       name: group.name,
-      description: group.description
+      description: group.description,
+      aht: group.aht || { value: 0, unit: 'min', base_minutes: 0 },
+      cycleTime: group.cycleTime || { value: 0, unit: 'min', base_minutes: 0 },
+      headcount: group.headcount || 0,
+      cost: group.cost || 0
+    });
+    
+    // Initialize edit display values
+    setEditDisplayValues({
+      aht: String(group.aht?.value || 0),
+      cycleTime: String(group.cycleTime?.value || 0),
+      headcount: String(group.headcount || 0),
+      cost: String(group.cost || 0)
     });
   };
   
@@ -473,7 +554,11 @@ export default function LifecycleViewer({
           group_index: editingGroup.groupIndex,
           group: {
             name: editingGroup.name,
-            description: editingGroup.description
+            description: editingGroup.description,
+            aht: editingGroup.aht,
+            cycleTime: editingGroup.cycleTime,
+            headcount: editingGroup.headcount,
+            cost: editingGroup.cost
           }
         }),
       });
@@ -485,6 +570,10 @@ export default function LifecycleViewer({
             const category = updatedLifecycle.processes.process_categories[editingGroup.categoryIndex];
             category.process_groups[editingGroup.groupIndex].name = editingGroup.name;
             category.process_groups[editingGroup.groupIndex].description = editingGroup.description;
+            category.process_groups[editingGroup.groupIndex].aht = editingGroup.aht;
+            category.process_groups[editingGroup.groupIndex].cycleTime = editingGroup.cycleTime;
+            category.process_groups[editingGroup.groupIndex].headcount = editingGroup.headcount;
+            category.process_groups[editingGroup.groupIndex].cost = editingGroup.cost;
             setLifecycle(updatedLifecycle);
             setEditingGroup(null);
         } else {
@@ -664,6 +753,10 @@ export default function LifecycleViewer({
           group: {
             name: newGroup.name,
             description: newGroup.description,
+            aht: newGroup.aht,
+            cycleTime: newGroup.cycleTime,
+            headcount: newGroup.headcount,
+            cost: newGroup.cost,
             processes: [] // Start with empty processes if applicable
           }
         }),
@@ -683,13 +776,30 @@ export default function LifecycleViewer({
           category.process_groups.push({
             name: newGroup.name,
             description: newGroup.description,
+            aht: newGroup.aht,
+            cycleTime: newGroup.cycleTime,
+            headcount: newGroup.headcount,
+            cost: newGroup.cost,
             score: 0, // Initialize score
             processes: [] // Initialize processes if applicable
           });
           
           setLifecycle(updatedLifecycle);
           setShowNewGroupModal(null);
-          setNewGroup({ name: '', description: '' });
+          setNewGroup({ 
+            name: '', 
+            description: '',
+            aht: { value: 0, unit: 'min', base_minutes: 0 },
+            cycleTime: { value: 0, unit: 'min', base_minutes: 0 },
+            headcount: 0,
+            cost: 0
+          });
+          setDisplayValues({
+            aht: '0',
+            cycleTime: '0',
+            headcount: '0',
+            cost: '0'
+          });
         } else {
             console.error("Category index out of bounds during group creation");
             setError("Failed to add group locally due to index mismatch.");
@@ -802,6 +912,66 @@ export default function LifecycleViewer({
       const groupScore = calculateProcessGroupScore(group.name);
       return total + groupScore;
     }, 0);
+  };
+  
+  // Add function to calculate total headcount for a process category
+  const calculateCategoryHeadcount = (category: any): number => {
+    if (!category.process_groups) return 0;
+    
+    // Calculate sum of headcount from all groups in this category
+    return category.process_groups.reduce((total: number, group: any) => {
+      return total + (group.headcount || 0);
+    }, 0);
+  };
+  
+  // Add function to calculate total cost for a process category
+  const calculateCategoryCost = (category: any): number => {
+    if (!category.process_groups) return 0;
+    
+    // Calculate sum of cost from all groups in this category
+    return category.process_groups.reduce((total: number, group: any) => {
+      return total + (group.cost || 0);
+    }, 0);
+  };
+  
+  // Add function to format minutes into days, hours, and minutes
+  const formatMinutesToDHM = (totalMinutes: number): string => {
+    if (totalMinutes === 0) return "0min";
+    
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const minutes = totalMinutes % 60;
+    
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}min`);
+    
+    return parts.join(" ");
+  };
+  
+  // Add function to calculate and format total AHT for a process category
+  const calculateCategoryAHT = (category: any): string => {
+    if (!category.process_groups) return "0min";
+    
+    // Calculate sum of base_minutes from all groups in this category
+    const totalMinutes = category.process_groups.reduce((total: number, group: any) => {
+      return total + (group.aht?.base_minutes || 0);
+    }, 0);
+    
+    return formatMinutesToDHM(totalMinutes);
+  };
+  
+  // Add function to calculate and format total Cycle Time for a process category
+  const calculateCategoryCycleTime = (category: any): string => {
+    if (!category.process_groups) return "0min";
+    
+    // Calculate sum of base_minutes from all groups in this category
+    const totalMinutes = category.process_groups.reduce((total: number, group: any) => {
+      return total + (group.cycleTime?.base_minutes || 0);
+    }, 0);
+    
+    return formatMinutesToDHM(totalMinutes);
   };
   
   // Add new function to get strategic objectives for a process group
@@ -1009,6 +1179,62 @@ export default function LifecycleViewer({
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>
                   </div>
+
+                  {/* AHT Toggle */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">AHT</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={toggles.aht}
+                        onChange={() => handleToggle('aht')}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  {/* Cycle Time Toggle */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">Cycle Time</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={toggles.cycleTime}
+                        onChange={() => handleToggle('cycleTime')}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  {/* Headcount Toggle */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">Headcount</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={toggles.headcount}
+                        onChange={() => handleToggle('headcount')}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  {/* Cost Toggle */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">Cost</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={toggles.cost}
+                        onChange={() => handleToggle('cost')}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
                   
                    {/* Edit Mode Toggle */}
                   <div className="flex justify-between items-center">
@@ -1038,7 +1264,7 @@ export default function LifecycleViewer({
             minScale={0.5}
             maxScale={3}
             wheel={{ step: 0.1 }}
-            centerOnInit={true}
+            centerOnInit={false}
             limitToBounds={false}
             // doubleClick={{ disabled: true }} // Disable double click zoom if needed
           >
@@ -1103,7 +1329,7 @@ export default function LifecycleViewer({
                          lifecycle?.processes?.process_categories.map((category, catIndex) => (
                          <div 
                              key={`cat-${lifecycleId}-${catIndex}`} // More specific key
-                             className="flex-shrink-0 w-64 border border-gray-300 rounded-lg bg-gray-50 shadow-sm relative flex flex-col" // Use flex-col
+                             className="flex-shrink-0 w-72 border border-gray-300 rounded-lg bg-gray-50 shadow-sm relative flex flex-col" // Use flex-col
                              style={{ minHeight: '200px' }} // Ensure minimum height
                          >
                              {/* Category Header */}
@@ -1116,24 +1342,13 @@ export default function LifecycleViewer({
                              {toggles.processDetails && category.description && ( // Only show if description exists
                                  <p className="text-xs mt-1 text-gray-200 line-clamp-2">{category.description}</p> // Add line-clamp
                              )}
-                             {toggles.scores && (
-                                 <div className="mt-2 flex flex-wrap gap-2">
-                                      <span 
-                                         className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                                         style={{ backgroundColor: '#0EA394' }}
-                                         title={`Category Score: ${calculateCategoryScore(category)} (Sum of strategic objective points from pain points)`}
-                                     >
-                                         {calculateCategoryScore(category)} pts
-                                     </span>
-                                      {/* <ProcessMetric title="Category Score" text={`${calculateCategoryScore(category)} pts`} type="points" />
-
-                                      <ProcessMetric title="Average Handling Time: 1 day" text="1 day" type="aht" />
-                                      <ProcessMetric title="Cycle Time: 2 days" text="2 days" type="cycleTime" />
-                                      <ProcessMetric title="Headcount: 1" text="1" type="headcount" />
-                                      <ProcessMetric title="Cost: $200" text="$200" type="cost" /> */}
-                                     
-                                   </div>
-                               )}
+                              <div className="mt-2 grid grid-cols-2 gap-2">
+                                {toggles.scores && (<ProcessMetric title={`Category Score: ${calculateCategoryScore(category)} (Sum of strategic objective points from pain points)`} value={calculateCategoryScore(category)} unit="pts" type="" />)}
+                                {toggles.aht && <ProcessMetric title={`Total Average Handling Time: ${calculateCategoryAHT(category)}`} value={calculateCategoryAHT(category)} type="aht" />}
+                                {toggles.cycleTime && <ProcessMetric title={`Total Cycle Time: ${calculateCategoryCycleTime(category)}`} value={calculateCategoryCycleTime(category)} type="cycleTime" />}
+                                {toggles.headcount && <ProcessMetric title={`Total Headcount: ${calculateCategoryHeadcount(category)}`} value={calculateCategoryHeadcount(category)} unit="" type="headcount" />}
+                                {toggles.cost && <ProcessMetric title={`Total Cost: ${calculateCategoryCost(category)}`} value={calculateCategoryCost(category)} unit="$" type="cost" />}
+                              </div>
                              </div>
                              
                              {/* Process Groups Container */}
@@ -1200,25 +1415,13 @@ export default function LifecycleViewer({
                                            <p className="text-sm text-gray-600 mb-2 line-clamp-3">{group.description}</p> // Add line-clamp
                                         )}
                                         
-                                        {toggles.scores && (
-                                            <div className="mt-1 mb-2 flex flex-wrap gap-2">
-                                              <span 
-                                                    className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold"
-                                                    style={{ backgroundColor: '#0EA394' }}
-                                                    title={`Score: ${calculateProcessGroupScore(group.name)} (Sum of strategic objective points from pain points)`}
-                                                >
-                                                    {calculateProcessGroupScore(group.name)} pts
-                                                </span>
-                                                 {/* <ProcessMetric title="Score" text={`${calculateProcessGroupScore(group.name)} pts`} type="points" />
-                                                 
-                                                 <ProcessMetric title="Average Handling Time: 1 day" text="1 day" type="aht" />
-                                                 <ProcessMetric title="Cycle Time: 2 days" text="2 days" type="cycleTime" />
-                                                 <ProcessMetric title="Headcount: 1" text="1" type="headcount" />
-                                                 <ProcessMetric title="Cost: $200" text="$200" type="cost" /> */}
-                                                 
-                                            </div>
-                                        )}
-                                        
+                                        <div className="mt-1 mb-2 grid grid-cols-2 gap-2">
+                                          {toggles.scores && (<ProcessMetric title={`Score: ${calculateProcessGroupScore(group.name)} (Sum of strategic objective points from pain points)`} value={calculateProcessGroupScore(group.name)} unit="pts" type="" />)}
+                                          {toggles.aht && group.aht && <ProcessMetric title={`Average Handling Time: ${group.aht.value} ${group.aht.unit}`} value={group.aht.value} unit={group.aht.unit}  type="aht" />}
+                                          {toggles.cycleTime && group.cycleTime && <ProcessMetric title={`Cycle Time: ${group.cycleTime.value} ${group.cycleTime.unit}`} value={group.cycleTime.value} unit={group.cycleTime.unit} type="cycleTime" />}
+                                          {toggles.headcount && group.headcount !== undefined && <ProcessMetric title={`Headcount: ${group.headcount}`} value={group.headcount} unit="" type="headcount" />}
+                                          {toggles.cost && group.cost !== undefined && <ProcessMetric title={`Cost: ${group.cost}`} value={group.cost} unit="$" type="cost" />}
+                                        </div>
                                         {/* Processes (Example - Adapt if needed) */}
                                         {group.processes && group.processes.length > 0 && toggles.processDetails && (
                                             <div className="mt-2 space-y-1 border-t pt-2 border-gray-100">
@@ -1250,12 +1453,19 @@ export default function LifecycleViewer({
                              
                              {/* Add Process Group Button */}
                              {toggles.editMode && (
-                                 <button
-                                 onClick={(e) => {
-                                      e.stopPropagation(); // Prevent category click
-                                      setNewGroup({ name: '', description: '' });
-                                      setShowNewGroupModal({ categoryIndex: catIndex });
-                                 }}
+                                <button
+                                onClick={(e) => {
+                                     e.stopPropagation(); // Prevent category click
+                                     setNewGroup({ 
+                                       name: '', 
+                                       description: '',
+                                       aht: { value: 0, unit: 'min', base_minutes: 0 },
+                                       cycleTime: { value: 0, unit: 'min', base_minutes: 0 },
+                                       headcount: 0,
+                                       cost: 0
+                                     });
+                                     setShowNewGroupModal({ categoryIndex: catIndex });
+                                }}
                                  className="w-full p-2 mt-auto bg-gray-100 text-gray-600 rounded border border-dashed border-gray-300 hover:bg-gray-200 transition flex items-center justify-center text-sm"
                                  title="Add New Process Group to this Category"
                                  >
@@ -1471,6 +1681,12 @@ export default function LifecycleViewer({
         onClose={() => {
           setPainPointsError(""); // Reset error when closing modal
           setEditingGroup(null);
+          setEditDisplayValues({
+            aht: '0',
+            cycleTime: '0',
+            headcount: '0',
+            cost: '0'
+          });
         }}
         title={toggles.editMode ? "Edit Process Group" : editingGroup?.name || "Process Group Details"}
         maxWidth="3xl" // Increase modal width
@@ -1519,6 +1735,205 @@ export default function LifecycleViewer({
                     placeholder="Enter group description (optional)"
                   />
                 </div>
+
+                {/* Volumetric Data Section */}
+                <div className="mb-6 border-t border-gray-200 pt-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Volumetric Data</h4>
+                  
+                  {/* Average Handling Time */}
+                  <div className="mb-4">
+                    <label htmlFor="editAhtValue" className="block text-sm font-medium text-gray-700 mb-1">
+                      Average Handling Time
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        id="editAhtValue"
+                        value={editDisplayValues.aht}
+                        onChange={(e) => {
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                          let baseMinutes = 0;
+                          
+                          // Calculate base_minutes based on current unit
+                          switch (editingGroup.aht.unit) {
+                            case 'min':
+                              baseMinutes = value;
+                              break;
+                            case 'hour':
+                              baseMinutes = value * 60;
+                              break;
+                            case 'day':
+                              baseMinutes = value * 60 * 24;
+                              break;
+                            default:
+                              baseMinutes = 0;
+                          }
+                          
+                          setEditDisplayValues({...editDisplayValues, aht: inputValue});
+                          setEditingGroup({
+                            ...editingGroup, 
+                            aht: {...editingGroup.aht, value, base_minutes: baseMinutes}
+                          });
+                        }}
+                        min="0"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="0"
+                      />
+                      <select
+                        id="editAhtUnit"
+                        value={editingGroup.aht.unit}
+                        onChange={(e) => {
+                          const newUnit = e.target.value;
+                          let baseMinutes = 0;
+                          
+                          // Calculate base_minutes based on unit
+                          switch (newUnit) {
+                            case 'min':
+                              baseMinutes = editingGroup.aht.value;
+                              break;
+                            case 'hour':
+                              baseMinutes = editingGroup.aht.value * 60;
+                              break;
+                            case 'day':
+                              baseMinutes = editingGroup.aht.value * 60 * 24;
+                              break;
+                            default:
+                              baseMinutes = 0;
+                          }
+                          
+                          setEditingGroup({
+                            ...editingGroup, 
+                            aht: {...editingGroup.aht, unit: newUnit, base_minutes: baseMinutes}
+                          });
+                        }}
+                        className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="min">Min</option>
+                        <option value="hour">Hour</option>
+                        <option value="day">Day</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Cycle Time */}
+                  <div className="mb-4">
+                    <label htmlFor="editCycleTimeValue" className="block text-sm font-medium text-gray-700 mb-1">
+                      Cycle Time
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        id="editCycleTimeValue"
+                        value={editDisplayValues.cycleTime}
+                        onChange={(e) => {
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                          let baseMinutes = 0;
+                          
+                          // Calculate base_minutes based on current unit
+                          switch (editingGroup.cycleTime.unit) {
+                            case 'min':
+                              baseMinutes = value;
+                              break;
+                            case 'hour':
+                              baseMinutes = value * 60;
+                              break;
+                            case 'day':
+                              baseMinutes = value * 60 * 24;
+                              break;
+                            default:
+                              baseMinutes = 0;
+                          }
+                          
+                          setEditDisplayValues({...editDisplayValues, cycleTime: inputValue});
+                          setEditingGroup({
+                            ...editingGroup, 
+                            cycleTime: {...editingGroup.cycleTime, value, base_minutes: baseMinutes}
+                          });
+                        }}
+                        min="0"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="0"
+                      />
+                      <select
+                        id="editCycleTimeUnit"
+                        value={editingGroup.cycleTime.unit}
+                        onChange={(e) => {
+                          const newUnit = e.target.value;
+                          let baseMinutes = 0;
+                          
+                          // Calculate base_minutes based on unit
+                          switch (newUnit) {
+                            case 'min':
+                              baseMinutes = editingGroup.cycleTime.value;
+                              break;
+                            case 'hour':
+                              baseMinutes = editingGroup.cycleTime.value * 60;
+                              break;
+                            case 'day':
+                              baseMinutes = editingGroup.cycleTime.value * 60 * 24;
+                              break;
+                            default:
+                              baseMinutes = 0;
+                          }
+                          
+                          setEditingGroup({
+                            ...editingGroup, 
+                            cycleTime: {...editingGroup.cycleTime, unit: newUnit, base_minutes: baseMinutes}
+                          });
+                        }}
+                        className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="min">Min</option>
+                        <option value="hour">Hour</option>
+                        <option value="day">Day</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Headcount and Cost */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="editHeadcount" className="block text-sm font-medium text-gray-700 mb-1">
+                        Headcount
+                      </label>
+                      <input
+                        type="number"
+                        id="editHeadcount"
+                        value={editDisplayValues.headcount}
+                        onChange={(e) => {
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                          setEditDisplayValues({...editDisplayValues, headcount: inputValue});
+                          setEditingGroup({...editingGroup, headcount: value});
+                        }}
+                        min="0"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="editCost" className="block text-sm font-medium text-gray-700 mb-1">
+                        Cost ($)
+                      </label>
+                      <input
+                        type="number"
+                        id="editCost"
+                        value={editDisplayValues.cost}
+                        onChange={(e) => {
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                          setEditDisplayValues({...editDisplayValues, cost: inputValue});
+                          setEditingGroup({...editingGroup, cost: value});
+                        }}
+                        min="0"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                </div>
                 
                 <div className="flex justify-between pt-4 border-t border-gray-200">
                   {/* Delete Button */}
@@ -1546,6 +1961,12 @@ export default function LifecycleViewer({
                       onClick={() => {
                         setPainPointsError(""); // Reset error when closing modal
                         setEditingGroup(null);
+                        setEditDisplayValues({
+                          aht: '0',
+                          cycleTime: '0',
+                          headcount: '0',
+                          cost: '0'
+                        });
                       }}
                       variant="secondary"
                       className="text-sm font-medium"
@@ -1598,6 +2019,66 @@ export default function LifecycleViewer({
                       No description provided.
                     </p>
                   )}
+                </div>
+
+                {/* Volumetric Metrics - Display Only */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-medium text-gray-500 mb-3">Volumetric Data</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Average Handling Time */}
+                    <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                      <div className="text-xs text-gray-500 mb-1">Average Handling Time</div>
+                      <div className="text-sm font-medium text-gray-800">
+                        {editingGroup.aht && editingGroup.aht.value > 0 ? (
+                          `${editingGroup.aht.value} ${editingGroup.aht.value === 1 ? editingGroup.aht.unit : 
+                            editingGroup.aht.unit === 'hour' ? 'hours' : 
+                            editingGroup.aht.unit === 'day' ? 'days' : 
+                            editingGroup.aht.unit === 'minute' ? 'minutes' : editingGroup.aht.unit}`
+                        ) : (
+                          <span className="text-gray-400 italic">Not set</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Cycle Time */}
+                    <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                      <div className="text-xs text-gray-500 mb-1">Cycle Time</div>
+                      <div className="text-sm font-medium text-gray-800">
+                        {editingGroup.cycleTime && editingGroup.cycleTime.value > 0 ? (
+                          `${editingGroup.cycleTime.value} ${editingGroup.cycleTime.value === 1 ? editingGroup.cycleTime.unit : 
+                            editingGroup.cycleTime.unit === 'hour' ? 'hours' : 
+                            editingGroup.cycleTime.unit === 'day' ? 'days' : 
+                            editingGroup.cycleTime.unit === 'minute' ? 'minutes' : editingGroup.cycleTime.unit}`
+                        ) : (
+                          <span className="text-gray-400 italic">Not set</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Headcount */}
+                    <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                      <div className="text-xs text-gray-500 mb-1">Headcount</div>
+                      <div className="text-sm font-medium text-gray-800">
+                        {editingGroup.headcount !== undefined && editingGroup.headcount > 0 ? (
+                          editingGroup.headcount
+                        ) : (
+                          <span className="text-gray-400 italic">Not set</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Cost */}
+                    <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                      <div className="text-xs text-gray-500 mb-1">Cost</div>
+                      <div className="text-sm font-medium text-gray-800">
+                        {editingGroup.cost !== undefined && editingGroup.cost > 0 ? (
+                          `$${editingGroup.cost}`
+                        ) : (
+                          <span className="text-gray-400 italic">Not set</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 
                 {(() => {
@@ -1910,7 +2391,23 @@ export default function LifecycleViewer({
       {/* New Process Group Modal */}
       <Modal
         isOpen={showNewGroupModal !== null}
-        onClose={() => setShowNewGroupModal(null)}
+        onClose={() => {
+          setShowNewGroupModal(null);
+          setNewGroup({ 
+            name: '', 
+            description: '',
+            aht: { value: 0, unit: 'min', base_minutes: 0 },
+            cycleTime: { value: 0, unit: 'min', base_minutes: 0 },
+            headcount: 0,
+            cost: 0
+          });
+          setDisplayValues({
+            aht: '0',
+            cycleTime: '0',
+            headcount: '0',
+            cost: '0'
+          });
+        }}
         title="Create New Process Group"
       >
        {/* <h3 className="text-lg font-bold mb-4">Create New Process Group</h3> */}
@@ -1935,7 +2432,7 @@ export default function LifecycleViewer({
             />
           </div>
           
-          <div className="mb-6">
+          <div className="mb-4">
             <label htmlFor="newGroupDescription" className="block text-sm font-medium text-gray-700 mb-1">
               Description
             </label>
@@ -1948,10 +2445,219 @@ export default function LifecycleViewer({
               placeholder="Enter a short description (optional)"
             />
           </div>
+
+          {/* Volumetric Data Section */}
+          <div className="mb-6 border-t border-gray-200 pt-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">Volumetric Data</h4>
+            
+            {/* Average Handling Time */}
+            <div className="mb-4">
+              <label htmlFor="ahtValue" className="block text-sm font-medium text-gray-700 mb-1">
+                Average Handling Time
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  id="ahtValue"
+                  value={displayValues.aht}
+                  onChange={(e) => {
+                    const inputValue = e.target.value;
+                    const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                    let baseMinutes = 0;
+                    
+                    // Calculate base_minutes based on current unit
+                    switch (newGroup.aht.unit) {
+                      case 'min':
+                        baseMinutes = value;
+                        break;
+                      case 'hour':
+                        baseMinutes = value * 60;
+                        break;
+                      case 'day':
+                        baseMinutes = value * 60 * 24;
+                        break;
+                      default:
+                        baseMinutes = 0;
+                    }
+                    
+                    setDisplayValues({...displayValues, aht: inputValue});
+                    setNewGroup({
+                      ...newGroup, 
+                      aht: {...newGroup.aht, value: value, base_minutes: baseMinutes}
+                    });
+                  }}
+                  min="0"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="0"
+                />
+                <select
+                  id="ahtUnit"
+                  value={newGroup.aht.unit}
+                  onChange={(e) => {
+                    const newUnit = e.target.value;
+                    let baseMinutes = 0;
+                    
+                    // Calculate base_minutes based on unit
+                    switch (newUnit) {
+                      case 'min':
+                        baseMinutes = newGroup.aht.value;
+                        break;
+                      case 'hour':
+                        baseMinutes = newGroup.aht.value * 60;
+                        break;
+                      case 'day':
+                        baseMinutes = newGroup.aht.value * 60 * 24;
+                        break;
+                      default:
+                        baseMinutes = 0;
+                    }
+                    
+                    setNewGroup({
+                      ...newGroup, 
+                      aht: {...newGroup.aht, unit: newUnit, base_minutes: baseMinutes}
+                    });
+                  }}
+                  className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="min">Min</option>
+                  <option value="hour">Hour</option>
+                  <option value="day">Day</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Cycle Time */}
+            <div className="mb-4">
+              <label htmlFor="cycleTimeValue" className="block text-sm font-medium text-gray-700 mb-1">
+                Cycle Time
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  id="cycleTimeValue"
+                  value={displayValues.cycleTime}
+                  onChange={(e) => {
+                    const inputValue = e.target.value;
+                    const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                    let baseMinutes = 0;
+                    
+                    // Calculate base_minutes based on current unit
+                    switch (newGroup.cycleTime.unit) {
+                      case 'min':
+                        baseMinutes = value;
+                        break;
+                      case 'hour':
+                        baseMinutes = value * 60;
+                        break;
+                      case 'day':
+                        baseMinutes = value * 60 * 24;
+                        break;
+                      default:
+                        baseMinutes = 0;
+                    }
+                    
+                    setDisplayValues({...displayValues, cycleTime: inputValue});
+                    setNewGroup({
+                      ...newGroup, 
+                      cycleTime: {...newGroup.cycleTime, value: value, base_minutes: baseMinutes}
+                    });
+                  }}
+                  min="0"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="0"
+                />
+                <select
+                  id="cycleTimeUnit"
+                  value={newGroup.cycleTime.unit}
+                  onChange={(e) => {
+                    const newUnit = e.target.value;
+                    let baseMinutes = 0;
+                    
+                    // Calculate base_minutes based on unit
+                    switch (newUnit) {
+                      case 'min':
+                        baseMinutes = newGroup.cycleTime.value;
+                        break;
+                      case 'hour':
+                        baseMinutes = newGroup.cycleTime.value * 60;
+                        break;
+                      case 'day':
+                        baseMinutes = newGroup.cycleTime.value * 60 * 24;
+                        break;
+                      default:
+                        baseMinutes = 0;
+                    }
+                    
+                    setNewGroup({
+                      ...newGroup, 
+                      cycleTime: {...newGroup.cycleTime, unit: newUnit, base_minutes: baseMinutes}
+                    });
+                  }}
+                  className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="min">Min</option>
+                  <option value="hour">Hour</option>
+                  <option value="day">Day</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Headcount and Cost */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="headcount" className="block text-sm font-medium text-gray-700 mb-1">
+                  Headcount
+                </label>
+                <input
+                  type="number"
+                  id="headcount"
+                  value={displayValues.headcount}
+                        onChange={(e) => {
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                          setDisplayValues({...displayValues, headcount: inputValue});
+                          setNewGroup({...newGroup, headcount: value});
+                        }}
+                  min="0"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label htmlFor="cost" className="block text-sm font-medium text-gray-700 mb-1">
+                  Cost ($)
+                </label>
+                <input
+                  type="number"
+                  id="cost"
+                  value={displayValues.cost}
+                        onChange={(e) => {
+                          const inputValue = e.target.value;
+                          const value = inputValue === '' ? 0 : Math.max(0, parseInt(inputValue) || 0);
+                          setDisplayValues({...displayValues, cost: inputValue});
+                          setNewGroup({...newGroup, cost: value});
+                        }}
+                  min="0"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
           
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
             <Button
-              onClick={() => setShowNewGroupModal(null)}
+              onClick={() => {
+                setShowNewGroupModal(null);
+                setNewGroup({ 
+                  name: '', 
+                  description: '',
+                  aht: { value: 0, unit: 'min', base_minutes: 0 },
+                  cycleTime: { value: 0, unit: 'min', base_minutes: 0 },
+                  headcount: 0,
+                  cost: 0
+                });
+              }}
                variant="secondary"
                className="text-sm font-medium"
               disabled={isSubmitting}
