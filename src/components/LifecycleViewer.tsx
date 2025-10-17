@@ -936,7 +936,7 @@ export default function LifecycleViewer({
   
   // Add function to format minutes into days, hours, and minutes
   const formatMinutesToDHM = (totalMinutes: number): string => {
-    if (totalMinutes === 0) return "0min";
+    if (totalMinutes === 0) return "0 min";
     
     const days = Math.floor(totalMinutes / (24 * 60));
     const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
@@ -952,7 +952,7 @@ export default function LifecycleViewer({
   
   // Add function to calculate and format total AHT for a process category
   const calculateCategoryAHT = (category: any): string => {
-    if (!category.process_groups) return "0min";
+    if (!category.process_groups) return "0 min";
     
     // Calculate sum of base_minutes from all groups in this category
     const totalMinutes = category.process_groups.reduce((total: number, group: any) => {
@@ -964,7 +964,7 @@ export default function LifecycleViewer({
   
   // Add function to calculate and format total Cycle Time for a process category
   const calculateCategoryCycleTime = (category: any): string => {
-    if (!category.process_groups) return "0min";
+    if (!category.process_groups) return "0 min";
     
     // Calculate sum of base_minutes from all groups in this category
     const totalMinutes = category.process_groups.reduce((total: number, group: any) => {
