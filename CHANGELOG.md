@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-10-17
+
+### Added
+- **Historical Data Migration System**: Comprehensive migration tools for updating existing lifecycle documents
+  - **Migration Script**: `migrate-process-groups-volumetrics.js` for adding volumetric metrics to historical process groups
+    - Command-line interface with multiple options (dry-run, tenant-specific, batch processing, verbose logging)
+    - Automatic detection of missing volumetric metrics (aht, cycleTime, headcount, cost)
+    - Idempotent operation - safe to run multiple times without data duplication
+    - Batch processing with configurable batch sizes to prevent database overload
+    - Comprehensive error handling and detailed progress reporting
+  - **Backup System**: `backup-lifecycles.js` for creating data exports before migration
+    - Full lifecycle document export with metadata and filtering options
+    - Tenant-specific backup capability
+    - JSON format with timestamp and source information
+    - File size reporting and document count validation
+  - **Documentation Suite**: Complete guides for backup and migration procedures
+    - `BACKUP-AND-MIGRATION-GUIDE.md`: Step-by-step workflow for safe data migration
+    - `README.md`: Detailed usage instructions and safety features
+    - Azure deployment instructions and rollback procedures
+
+### Enhanced
+- **Data Consistency**: Ensured all process groups have consistent volumetric metrics structure
+  - Default values: aht = {value: 0, unit: "min", base_minutes: 0}, cycleTime = {value: 0, unit: "min", base_minutes: 0}, headcount = 0, cost = 0
+  - Migration script handles both missing fields and null/undefined values
+- **Production Safety**: Multiple backup and rollback options for safe production deployment
+  - Continuous backup setup instructions for Azure Cosmos DB
+  - Manual data export capabilities
+  - Dry-run testing mode for validation before execution
+  - Comprehensive error handling and logging
+
+### Technical Details
+- **Migration Architecture**: Modular design with separate concerns for detection, validation, and execution
+- **Command-Line Interface**: Professional CLI with help system and multiple configuration options
+- **Azure Integration**: Optimized for Azure App Service deployment with environment variable support
+- **Performance Optimization**: Batch processing and rate limiting to prevent database throttling
+- **Audit Trail**: Detailed logging with timestamps and progress tracking
+- **Error Recovery**: Graceful handling of individual failures with continuation of batch processing
+
 ## [2.1.0] - 2025-10-15
 
 ### Added
