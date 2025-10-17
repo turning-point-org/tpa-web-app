@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2025-10-17
+
+### Fixed
+- **Category Header Height Consistency**: Fixed inconsistent category header heights in LifecycleViewer component
+  - Added fixed minimum height of 120px to all process category headers
+  - Reserved consistent 32px space for category descriptions regardless of content
+  - Ensured uniform visual alignment across all process category cards
+  - Maintained existing functionality while improving visual consistency
+
+### Technical Details
+- Applied `minHeight: '120px'` style to category header containers
+- Wrapped description area in fixed-height container with `minHeight: '32px'`
+- Preserved `line-clamp-2` functionality for description text truncation
+- No breaking changes to existing functionality or data structure
+
 ## [2.2.0] - 2025-10-17
 
 ### Added
