@@ -155,7 +155,7 @@ export async function generateChatCompletion(
     }
     
     // Use a default deployment name if not specified in .env
-    const chatDeploymentName = process.env.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME || "gpt-35-turbo";
+    const chatDeploymentName = process.env.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME || "gpt-5";
     
     console.log(`Generating chat completion using deployment: ${chatDeploymentName}`);
     
