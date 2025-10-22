@@ -40,9 +40,30 @@ interface DetailsModalProps {
 
 // Function to generate CSV data
 const generateCSVData = (lifecycleName: string, categoryName: string, processGroups: ProcessGroup[]) => {
+  // First pass: collect all unique strategic objectives
+  const allStrategicObjectives = new Set<string>();
+  
+  processGroups.forEach(group => {
+    const painPoints = group.painPoints || [];
+    painPoints.forEach(painPoint => {
+      Object.entries(painPoint)
+        .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number' && value > 0)
+        .forEach(([key, _]) => {
+          const objName = key.replace('so_', '')
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+          allStrategicObjectives.add(objName);
+        });
+    });
+  });
+  
+  // Convert set to sorted array for consistent column order
+  const strategicObjectiveColumns = Array.from(allStrategicObjectives).sort();
+  
   const csvRows = [];
   
-  // Add header row
+  // Add header row with dynamic strategic objective columns
   csvRows.push([
     'Lifecycle',
     'Journey',
@@ -52,7 +73,7 @@ const generateCSVData = (lifecycleName: string, categoryName: string, processGro
     'Pain Point Name',
     'Pain Point Description',
     'Pain Point Total Score',
-    'Strategic Objectives'
+    ...strategicObjectiveColumns // Dynamic strategic objective columns
   ]);
   
   // Add data rows
@@ -70,7 +91,7 @@ const generateCSVData = (lifecycleName: string, categoryName: string, processGro
         '',
         '',
         '',
-        ''
+        ...strategicObjectiveColumns.map(() => '') // Empty values for strategic objective columns
       ]);
     } else {
       // Add a row for each pain point
@@ -80,22 +101,20 @@ const generateCSVData = (lifecycleName: string, categoryName: string, processGro
           .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number')
           .reduce((total, [_, value]) => total + (value as number), 0);
         
-        // Format strategic objectives
-        const strategicObjectives = Object.entries(painPoint)
+        // Create a map of strategic objectives for this pain point
+        const painPointSOs = new Map<string, number>();
+        Object.entries(painPoint)
           .filter(([key, value]) => key.startsWith('so_') && typeof value === 'number' && value > 0)
-          .map(([key, value]) => {
+          .forEach(([key, value]) => {
             const objName = key.replace('so_', '')
               .split('_')
               .map(word => word.charAt(0).toUpperCase() + word.slice(1))
               .join(' ');
-            let label = 'Low';
-            if (value === 2) label = 'Med';
-            else if (value >= 3) label = 'High';
-            return `${objName}: ${label} (${value})`;
-          })
-          .join('; ');
+            painPointSOs.set(objName, value as number);
+          });
         
-        csvRows.push([
+        // Create row with strategic objective scores
+        const row = [
           lifecycleName,
           categoryName,
           group.name,
@@ -104,8 +123,10 @@ const generateCSVData = (lifecycleName: string, categoryName: string, processGro
           painPoint.name || '',
           painPoint.description || '',
           totalScore,
-          strategicObjectives
-        ]);
+          ...strategicObjectiveColumns.map(objName => painPointSOs.get(objName) || '')
+        ];
+        
+        csvRows.push(row);
       });
     }
   });
@@ -127,8 +148,11 @@ const downloadCSV = (csvData: string[][], filename: string) => {
     }).join(',')
   ).join('\n');
   
+  // Add UTF-8 BOM for Excel compatibility
+  const csvWithBOM = '\uFEFF' + csvContent;
+  
   // Create and download file
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   
   if (link.download !== undefined) {
