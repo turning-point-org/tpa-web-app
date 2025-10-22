@@ -7,7 +7,7 @@ import { withTenantAuth } from "@/utils/tenant-auth";
 // Get OpenAI settings from environment variables
 const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
 const apiKey = process.env.AZURE_OPENAI_API_KEY;
-const chatDeploymentName = "gpt-4o";
+const chatDeploymentName = process.env.AZURE_OPENAI_LOW_LATENCY_CHAT_DEPLOYMENT_NAME || "gpt-5";
 
 // Create OpenAI client
 let client: OpenAIClient | null = null;
