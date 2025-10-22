@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.2] - 2025-10-22
+
+### Enhanced
+- **CSV Export Functionality**: Improved DetailsModal CSV export for better data analysis and Excel compatibility
+  - **Strategic Objectives Restructure**: Changed CSV format from concatenated strategic objectives to separate columns
+    - Each strategic objective now appears as an individual column with numerical scores (1, 2, 3)
+    - Removed semicolon-delimited concatenation for better data analysis
+    - Dynamic column generation based on available strategic objectives
+  - **Excel Character Encoding**: Fixed character display issues in Excel
+    - Added UTF-8 BOM (Byte Order Mark) to CSV files for proper Excel encoding
+    - Resolved apostrophe and special character corruption (e.g., 's → ‚Äôs)
+    - Improved compatibility with Excel's default encoding detection
+
+### Technical Improvements
+- **Data Structure**: Enhanced CSV data organization for analytical workflows
+  - Strategic objectives now appear as separate columns for independent analysis
+  - Numerical scores enable mathematical operations and filtering
+  - Consistent column ordering with alphabetical sorting
+  - Empty cell handling for pain points without specific strategic objectives
+- **File Compatibility**: Improved cross-platform file handling
+  - UTF-8 BOM ensures proper character encoding across different systems
+  - Better compatibility with Excel, Google Sheets, and other spreadsheet applications
+  - Maintains backward compatibility with text editors and other CSV readers
+
 ## [2.3.1] - 2025-10-22
 ### Added
 - New env variable "AZURE_OPENAI_LOW_LATENCY_CHAT_DEPLOYMENT_NAME" which contains the name of the low latency model being used
