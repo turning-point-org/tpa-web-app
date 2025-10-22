@@ -2,25 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { container } from "@/lib/cosmos";
 import { OpenAIClient, AzureKeyCredential } from "@azure/openai";
 import { getCompanyInfoForScan } from "@/lib/documentSummary";
-
 import { withTenantAuth } from "@/utils/tenant-auth";
-// Define types for objectives
-
-type StrategicObjective = {
-  name: string;
-  description: string;
-  status: "to be approved" | "approved";
-  scoring_criteria?: {
-    low?: string;
-    medium?: string;
-    high?: string;
-  };
-};
 
 // Get OpenAI settings from environment variables
 const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
 const apiKey = process.env.AZURE_OPENAI_API_KEY;
-const chatDeploymentName = process.env.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME || "gpt-35-turbo";
+const chatDeploymentName = "gpt-4o";
 
 // Create OpenAI client
 let client: OpenAIClient | null = null;
@@ -28,7 +15,7 @@ let client: OpenAIClient | null = null;
 if (endpoint && apiKey) {
   client = new OpenAIClient(endpoint, new AzureKeyCredential(apiKey));
 } else {
-  console.warn('Missing Azure OpenAI environment variables. Generate objectives feature will not work.');
+  console.warn('Missing Azure OpenAI environment variables. Generate scoring criteria feature will not work.');
 }
 
 // Function to get tenant_id from tenant_slug
@@ -57,11 +44,11 @@ async function getTenantIdFromSlug(tenantSlug: string): Promise<string> {
 export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const body = await req.json();
-    const { tenant_slug, workspace_id, scan_id } = body;
+    const { tenant_slug, workspace_id, scan_id, objective_name, objective_description } = body;
 
-    if (!tenant_slug || !workspace_id || !scan_id) {
+    if (!tenant_slug || !workspace_id || !scan_id || !objective_name || !objective_description) {
       return NextResponse.json(
-        { error: "Missing tenant slug, workspace id, or scan id" },
+        { error: "Missing required parameters" },
         { status: 400 }
       );
     }
@@ -195,8 +182,8 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
       });
     }
 
-    // Create the prompt for generating strategic objectives
-    const prompt = `You are an expert business consultant specializing in creating strategic objectives for organizations. Based on the company information, business lifecycles, and business strategy documents provided below, generate 4-8 strategic objectives for this organization.
+    // Create the prompt for generating scoring criteria
+    const prompt = `You are an expert business consultant specializing in strategic objective evaluation. Based on the strategic objective and company context provided below, generate specific scoring criteria that define what constitutes low, medium, and high impact for this objective.
 
 ${companyInfoSection}
 
@@ -204,55 +191,36 @@ ${lifecyclesSection}
 
 ${strategyDocsSection}
 
-For each strategic objective:
-1. Provide a clear, concise name that captures the core intent of the objective.
-2. Write a 2–4 sentence description explaining:
-   - What the objective aims to achieve.
-   - Why it is important.
-   - How it aligns with the companys context, industry, and business lifecycles.
-3. Include a definition that describes the dimension of improvement this objective focuses on (e.g., time, cost, quality, experience, risk, or sustainability).  
-   The definition should describe what is being improved and how progress or success is measured.
-4. Define scoring_criteria in 1-2 sentences that explain what a low, medium, and high impact looks like if this objective were achieved or addressed.  
-   - The criteria should be specific to the objectives context (e.g., time reduction, cost efficiency, quality improvement, customer experience).  
-   - Each level should clearly indicate the degree of improvement or value delivered.  
-   - Where possible, use measurable or quantifiable examples (e.g., % change, hours saved, dollar amounts, satisfaction levels).
+Strategic Objective:
+Title: ${objective_name}
+Description: ${objective_description}
 
-Your objectives should:
-- Be SMART (Specific, Measurable, Achievable, Relevant, Time-bound).
-- Reflect strategic alignment with the provided lifecycles and core operations.
-- Address multiple focus areas, such as:
-  - Operational Excellence  
-  - Customer Experience  
-  - Innovation & Technology  
-  - Sustainability / ESG  
-  - Financial Growth & Efficiency  
-  - People & Culture  
-- Incorporate insights and language from the provided business strategy documents where applicable.
-- Be appropriate to the companys size, geography, and maturity level.
-- Each objective must have a unique, descriptive name and measurable intent.  
-- Avoid generic goals.
+For each impact level, provide:
+- Low Impact (Score: 1): Describe minimal or negligible impact on this objective
+- Medium Impact (Score: 2): Describe moderate or noticeable impact on this objective  
+- High Impact (Score: 3): Describe significant or transformative impact on this objective
 
-If information is missing, make reasonable, industry-specific assumptions.
+The scoring criteria should:
+- Be 1-2 sentences that explain what a low, medium, and high impact looks like if this objective were achieved or addressed.  
+- Be specific to the objective's context and measurable outcomes
+- Use quantifiable examples where possible (e.g., % change, time reduction, cost savings)
+- Be relevant to the objective's focus area (operational, financial, customer, etc.)
+- Provide clear differentiation between the three impact levels
+- Be actionable and realistic for business evaluation
+- Consider the company's industry, size, and business lifecycles when defining impact levels
+- Align with the company's strategic context and business operations
 
-Respond only in the following JSON format only:
+Respond only in the following JSON format:
 {
-  "objectives": [
-    {
-      "name": "Objective Name",
-      "description": "Objective description",
-      "status": "to be approved",
-      "scoring_criteria": {
-        "low": "Describe what a low impact looks like for this objective",
-        "medium": "Describe what a medium impact looks like for this objective",
-        "high": "Describe what a high impact looks like for this objective"
-      }
-    },
-    ...
-  ]
+  "scoring_criteria": {
+    "low": "Specific description of low impact for this objective",
+    "medium": "Specific description of medium impact for this objective", 
+    "high": "Specific description of high impact for this objective"
+  }
 }`;
 
     const messages = [
-      { role: "system", content: "You are a business strategy expert specialized in creating strategic objectives for organizations in various industries." },
+      { role: "system", content: "You are a business strategy expert specialized in creating evaluation criteria for strategic objectives." },
       { role: "user", content: prompt }
     ];
 
@@ -265,50 +233,31 @@ Respond only in the following JSON format only:
     const responseText = result.choices[0].message?.content || "";
     
     // Parse JSON response
-    let objectives: StrategicObjective[];
+    let scoringCriteria;
     try {
-      // Find the JSON part in the response
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        objectives = JSON.parse(jsonMatch[0]).objectives;
+        scoringCriteria = JSON.parse(jsonMatch[0]).scoring_criteria;
       } else {
         throw new Error("Could not find valid JSON in the response");
       }
     } catch (error) {
       console.error("Error parsing OpenAI response:", error);
       return NextResponse.json(
-        { error: "Failed to parse objectives from AI response" },
+        { error: "Failed to parse scoring criteria from AI response" },
         { status: 500 }
       );
     }
 
-    // Ensure all objectives have unique names
-    const objectiveNames = new Set<string>();
-    const uniqueObjectives = objectives.filter(obj => {
-      if (objectiveNames.has(obj.name)) {
-        return false;
-      }
-      objectiveNames.add(obj.name);
-      return true;
-    });
-
-    // Update the company_info record with the new strategic objectives
-    companyInfo.strategic_objectives = uniqueObjectives;
-    companyInfo.updated_at = new Date().toISOString();
-
-    await container
-      .item(companyInfo.id, companyInfo.tenant_id)
-      .replace(companyInfo);
-
     return NextResponse.json({
       success: true,
-      objectives: uniqueObjectives
+      scoring_criteria: scoringCriteria
     });
   } catch (error: any) {
-    console.error("Error generating strategic objectives:", error);
+    console.error("Error generating scoring criteria:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to generate strategic objectives" },
+      { error: error.message || "Failed to generate scoring criteria" },
       { status: 500 }
     );
   }
-}); 
+});
