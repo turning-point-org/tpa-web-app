@@ -45,6 +45,10 @@ export default function StrategicObjectivesPage() {
   const [nameError, setNameError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [originalObjectiveName, setOriginalObjectiveName] = useState<string | null>(null);
+  const [isGeneratingScoringCriteria, setIsGeneratingScoringCriteria] = useState(false);
+  const [scoringCriteriaError, setScoringCriteriaError] = useState("");
+  const [isGeneratingEditScoringCriteria, setIsGeneratingEditScoringCriteria] = useState(false);
+  const [editScoringCriteriaError, setEditScoringCriteriaError] = useState("");
 
   const fetchObjectives = async () => {
     try {
@@ -164,6 +168,7 @@ export default function StrategicObjectivesPage() {
       }
     });
     setIsAddingNew(false);
+    setScoringCriteriaError("");
   };
 
   const handleUpdateObjective = async () => {
@@ -255,6 +260,94 @@ export default function StrategicObjectivesPage() {
     }
   };
 
+  const handleGenerateScoringCriteria = async () => {
+    if (!newObjective.name || !newObjective.description) {
+      setScoringCriteriaError("Please provide both title and description before generating scoring criteria");
+      return;
+    }
+
+    setIsGeneratingScoringCriteria(true);
+    setScoringCriteriaError("");
+
+    try {
+      const response = await fetch(
+        `/api/tenants/by-slug/workspaces/scans/generate-scoring-criteria`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tenant_slug: tenantSlug,
+            workspace_id: workspaceId,
+            scan_id: scanId,
+            objective_name: newObjective.name,
+            objective_description: newObjective.description
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate scoring criteria");
+      }
+
+      const data = await response.json();
+      setNewObjective({
+        ...newObjective,
+        scoring_criteria: data.scoring_criteria
+      });
+    } catch (err: any) {
+      setScoringCriteriaError(err.message || "An error occurred while generating scoring criteria");
+    } finally {
+      setIsGeneratingScoringCriteria(false);
+    }
+  };
+
+  const handleGenerateEditScoringCriteria = async () => {
+    if (!editingObjective?.name || !editingObjective?.description) {
+      setEditScoringCriteriaError("Please provide both title and description before generating scoring criteria");
+      return;
+    }
+
+    setIsGeneratingEditScoringCriteria(true);
+    setEditScoringCriteriaError("");
+
+    try {
+      const response = await fetch(
+        `/api/tenants/by-slug/workspaces/scans/generate-scoring-criteria`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tenant_slug: tenantSlug,
+            workspace_id: workspaceId,
+            scan_id: scanId,
+            objective_name: editingObjective.name,
+            objective_description: editingObjective.description
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate scoring criteria");
+      }
+
+      const data = await response.json();
+      setEditingObjective({
+        ...editingObjective,
+        scoring_criteria: data.scoring_criteria
+      });
+    } catch (err: any) {
+      setEditScoringCriteriaError(err.message || "An error occurred while generating scoring criteria");
+    } finally {
+      setIsGeneratingEditScoringCriteria(false);
+    }
+  };
+
   return (
     <div className="max-w-[1200px] mx-auto">
       <div className="flex justify-between items-center mb-4">
@@ -303,10 +396,10 @@ export default function StrategicObjectivesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {objectives.length ? (
             objectives.map(objective => (
-              <div key={objective.name} className="border border-gray-200 rounded-lg shadow-sm bg-white p-6 flex flex-col justify-between">
+              <div key={objective.name} className="border border-gray-200 rounded-lg shadow-sm bg-white p-6 flex flex-col">
                 <h3 className="text-lg font-semibold mb-2">{objective.name}</h3>
-                <p className="text-gray-600 mb-4">{objective.description}</p>
-                <div className="flex justify-between items-center">
+                <p className="text-gray-600 mb-4 flex-grow">{objective.description}</p>
+                <div className="flex justify-between items-center mt-auto">
                   <select
                     value={objective.status}
                     onChange={(e) => handleStatusChange(
@@ -339,7 +432,7 @@ export default function StrategicObjectivesPage() {
       {/* Add New Objective Card */}
       {isAddingNew && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-40">
-          <div className="bg-white rounded-lg shadow p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg shadow p-6 w-full max-w-lg">
             <h3 className="text-lg font-semibold mb-4">Add New Strategic Objective</h3>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -391,12 +484,117 @@ export default function StrategicObjectivesPage() {
                 <option value="approved">Approved</option>
               </select>
             </div>
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Scoring Criteria
+                </label>
+                <Button
+                  variant="secondary"
+                  onClick={handleGenerateScoringCriteria}
+                  disabled={isGeneratingScoringCriteria || !newObjective.name || !newObjective.description}
+                  icon={<Wand2 className="h-4 w-4" />}
+                >
+                  {isGeneratingScoringCriteria ? "Generating..." : "Generate Scoring Criteria"}
+                </Button>
+              </div>
+              
+              {scoringCriteriaError && (
+                <div className="mb-2 p-2 bg-red-50 text-red-700 text-sm rounded border border-red-200">
+                  {scoringCriteriaError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Low Impact (Score: 1)
+                  </label>
+                  <div className="relative">
+                    <textarea
+                      value={newObjective.scoring_criteria?.low || ""}
+                      onChange={(e) => setNewObjective({
+                        ...newObjective,
+                        scoring_criteria: {
+                          ...newObjective.scoring_criteria,
+                          low: e.target.value
+                        }
+                      })}
+                      rows={2}
+                      placeholder="Define what constitutes low impact for this objective..."
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      disabled={isGeneratingScoringCriteria}
+                    />
+                    {isGeneratingScoringCriteria && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#5319A5] border-t-transparent"></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Medium Impact (Score: 2)
+                  </label>
+                  <div className="relative">
+                    <textarea
+                      value={newObjective.scoring_criteria?.medium || ""}
+                      onChange={(e) => setNewObjective({
+                        ...newObjective,
+                        scoring_criteria: {
+                          ...newObjective.scoring_criteria,
+                          medium: e.target.value
+                        }
+                      })}
+                      rows={2}
+                      placeholder="Define what constitutes medium impact for this objective..."
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      disabled={isGeneratingScoringCriteria}
+                    />
+                    {isGeneratingScoringCriteria && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#5319A5] border-t-transparent"></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    High Impact (Score: 3)
+                  </label>
+                  <div className="relative">
+                    <textarea
+                      value={newObjective.scoring_criteria?.high || ""}
+                      onChange={(e) => setNewObjective({
+                        ...newObjective,
+                        scoring_criteria: {
+                          ...newObjective.scoring_criteria,
+                          high: e.target.value
+                        }
+                      })}
+                      rows={2}
+                      placeholder="Define what constitutes high impact for this objective..."
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      disabled={isGeneratingScoringCriteria}
+                    />
+                    {isGeneratingScoringCriteria && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#5319A5] border-t-transparent"></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="flex justify-end space-x-2">
               <Button
                 variant="secondary"
                 onClick={() => {
                   setIsAddingNew(false);
                   setNameError(null);
+                  setScoringCriteriaError("");
                 }}
               >
                 Cancel
@@ -474,6 +672,7 @@ export default function StrategicObjectivesPage() {
           setEditingObjective(null);
           setOriginalObjectiveName(null);
           setNameError(null);
+          setEditScoringCriteriaError("");
         }}
         maxWidth="2xl"
       >
@@ -520,65 +719,105 @@ export default function StrategicObjectivesPage() {
             
             {/* Scoring Criteria Section */}
             <div className="mb-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Scoring Criteria</h4>
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="text-sm font-medium text-gray-700">Scoring Criteria</h4>
+                <Button
+                  variant="secondary"
+                  onClick={handleGenerateEditScoringCriteria}
+                  disabled={isGeneratingEditScoringCriteria || !editingObjective.name || !editingObjective.description}
+                  icon={<Wand2 className="h-4 w-4" />}
+                >
+                  {isGeneratingEditScoringCriteria ? "Generating..." : "Generate Scoring Criteria"}
+                </Button>
+              </div>
               <p className="text-xs text-gray-500 mb-3">Define custom scoring criteria for this strategic objective. These will be used when AI evaluates pain points.</p>
+              
+              {editScoringCriteriaError && (
+                <div className="mb-3 p-2 bg-red-50 text-red-700 text-sm rounded border border-red-200">
+                  {editScoringCriteriaError}
+                </div>
+              )}
               
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">
                     Low Impact (Score: 1)
                   </label>
-                  <textarea
-                    value={editingObjective.scoring_criteria?.low || ""}
-                    onChange={(e) => setEditingObjective({
-                      ...editingObjective,
-                      scoring_criteria: {
-                        ...editingObjective.scoring_criteria,
-                        low: e.target.value
-                      }
-                    })}
-                    rows={2}
-                    placeholder="Define what constitutes low impact for this objective..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
+                  <div className="relative">
+                    <textarea
+                      value={editingObjective.scoring_criteria?.low || ""}
+                      onChange={(e) => setEditingObjective({
+                        ...editingObjective,
+                        scoring_criteria: {
+                          ...editingObjective.scoring_criteria,
+                          low: e.target.value
+                        }
+                      })}
+                      rows={2}
+                      placeholder="Define what constitutes low impact for this objective..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      disabled={isGeneratingEditScoringCriteria}
+                    />
+                    {isGeneratingEditScoringCriteria && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#5319A5] border-t-transparent"></div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">
                     Medium Impact (Score: 2)
                   </label>
-                  <textarea
-                    value={editingObjective.scoring_criteria?.medium || ""}
-                    onChange={(e) => setEditingObjective({
-                      ...editingObjective,
-                      scoring_criteria: {
-                        ...editingObjective.scoring_criteria,
-                        medium: e.target.value
-                      }
-                    })}
-                    rows={2}
-                    placeholder="Define what constitutes medium impact for this objective..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
+                  <div className="relative">
+                    <textarea
+                      value={editingObjective.scoring_criteria?.medium || ""}
+                      onChange={(e) => setEditingObjective({
+                        ...editingObjective,
+                        scoring_criteria: {
+                          ...editingObjective.scoring_criteria,
+                          medium: e.target.value
+                        }
+                      })}
+                      rows={2}
+                      placeholder="Define what constitutes medium impact for this objective..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      disabled={isGeneratingEditScoringCriteria}
+                    />
+                    {isGeneratingEditScoringCriteria && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#5319A5] border-t-transparent"></div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">
                     High Impact (Score: 3)
                   </label>
-                  <textarea
-                    value={editingObjective.scoring_criteria?.high || ""}
-                    onChange={(e) => setEditingObjective({
-                      ...editingObjective,
-                      scoring_criteria: {
-                        ...editingObjective.scoring_criteria,
-                        high: e.target.value
-                      }
-                    })}
-                    rows={2}
-                    placeholder="Define what constitutes high impact for this objective..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
+                  <div className="relative">
+                    <textarea
+                      value={editingObjective.scoring_criteria?.high || ""}
+                      onChange={(e) => setEditingObjective({
+                        ...editingObjective,
+                        scoring_criteria: {
+                          ...editingObjective.scoring_criteria,
+                          high: e.target.value
+                        }
+                      })}
+                      rows={2}
+                      placeholder="Define what constitutes high impact for this objective..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      disabled={isGeneratingEditScoringCriteria}
+                    />
+                    {isGeneratingEditScoringCriteria && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#5319A5] border-t-transparent"></div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -600,6 +839,7 @@ export default function StrategicObjectivesPage() {
                     setShowEditModal(false);
                     setEditingObjective(null);
                     setOriginalObjectiveName(null);
+                    setEditScoringCriteriaError("");
                   }}
                   icon={<X className="h-5 w-5" />}
                 >

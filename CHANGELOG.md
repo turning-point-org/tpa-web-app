@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2025-10-22
+
+### Added
+- **AI-Powered Scoring Criteria Generation**: New functionality for automatically generating strategic objective scoring criteria
+  - **Generate Scoring Criteria API**: New endpoint `/api/tenants/by-slug/workspaces/scans/generate-scoring-criteria` for AI-driven scoring criteria generation
+    - Uses Azure OpenAI to generate contextually relevant low, medium, and high impact criteria
+    - Incorporates company information, business lifecycles, and strategy documents for enhanced accuracy
+    - Returns structured JSON with specific scoring criteria for each impact level
+  - **Enhanced Add New Strategic Objective Modal**: Integrated scoring criteria generation within the objective creation workflow
+    - Added scoring criteria text areas for Low Impact (Score: 1), Medium Impact (Score: 2), and High Impact (Score: 3)
+    - "Generate Scoring Criteria" button with Wand2 icon for AI-powered generation
+    - Loading spinners within each text input during generation process
+    - Comprehensive error handling and user feedback
+  - **Enhanced Edit Strategic Objective Modal**: Added AI-powered scoring criteria generation to existing objective editing
+    - "Generate Scoring Criteria" button with Wand2 icon for regenerating criteria
+    - Loading spinners within each scoring criteria text area during generation
+    - Button disabled until both title and description are populated
+    - Separate error handling and state management for edit modal
+    - Consistent UI/UX with the Add New Strategic Objective modal
+
+### Enhanced
+- **Strategic Objectives UI/UX**: Improved user experience and visual consistency
+  - **Button Component**: Enhanced disabled state styling for secondary and danger-secondary variants
+    - Added proper disabled styling with gray borders, text, and background
+    - Improved cursor behavior with `cursor-not-allowed` for disabled states
+  - **Strategic Objective Cards**: Fixed vertical alignment of description text
+    - Changed from vertically centered to top-left aligned for better readability
+    - Improved card layout with proper flex positioning
+  - **Generate Scoring Criteria Button**: Enhanced user interaction and validation
+    - Button is disabled and greyed out until both title and description are populated
+    - Visual feedback with loading state and proper disabled styling
+    - Consistent purple color scheme matching app design system
+
+### Technical Improvements
+- **API Integration**: Enhanced context gathering for more accurate AI responses
+  - Company information integration (name, industry, country, description, website)
+  - Business lifecycles context for operational relevance
+  - Business strategy documents integration for strategic alignment
+  - Improved prompt engineering for better scoring criteria generation
+- **Error Handling**: Comprehensive error handling and user feedback
+  - Proper error states and user notifications
+  - Graceful fallbacks for API failures
+  - Clear validation messages and loading states
+
 ## [2.2.0] - 2025-10-17
 
 ### Added
