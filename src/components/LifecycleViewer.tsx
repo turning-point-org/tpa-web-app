@@ -1335,13 +1335,16 @@ export default function LifecycleViewer({
                              {/* Category Header */}
                              <div 
                                  className={`p-3 bg-gray-700 text-white relative rounded-t-lg ${toggles.editMode ? 'cursor-pointer hover:bg-gray-800' : 'cursor-pointer hover:bg-gray-600'} transition-colors`}
+                                 style={{ minHeight: '120px' }}
                                  onClick={() => handleCategoryClick(catIndex)}
                                  title={toggles.editMode ? "Click to edit category" : "Click to view category details"}
                              >
                              <h3 className="font-semibold truncate">{category.name}</h3> {/* Add truncate */}
-                             {toggles.processDetails && category.description && ( // Only show if description exists
-                                 <p className="text-xs mt-1 text-gray-200 line-clamp-2">{category.description}</p> // Add line-clamp
-                             )}
+                             <div className="mt-1" style={{ minHeight: '32px' }}>
+                               {toggles.processDetails && category.description && ( // Only show if description exists
+                                   <p className="text-xs text-gray-200 line-clamp-2">{category.description}</p> // Add line-clamp
+                               )}
+                             </div>
                               <div className="mt-2 grid grid-cols-2 gap-2">
                                 {toggles.scores && (<ProcessMetric title={`Category Score: ${calculateCategoryScore(category)} (Sum of strategic objective points from pain points)`} value={calculateCategoryScore(category)} unit="pts" type="" />)}
                                 {toggles.aht && <ProcessMetric title={`Total Average Handling Time: ${calculateCategoryAHT(category)}`} value={calculateCategoryAHT(category)} type="aht" />}
