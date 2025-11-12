@@ -819,16 +819,16 @@ function OpportunityExplorer({
               <div className="flex flex-col h-full">
                 {/* Lifecycle header - showing points and cost */}
                 <div className="bg-white p-3 border-b border-gray-200 group-hover:bg-[#f9f5ff] transition-colors duration-200">
-                  <div className="flex items-center justify-center space-x-2">
+                  <div className="flex flex-col items-center justify-center gap-2 min-w-0">
                     <span 
-                      className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-bold"
+                      className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-bold whitespace-nowrap"
                       style={{ backgroundColor: '#0EA394' }}
                       title="Total points"
                     >
                       {totalPoints} pts
                     </span>
                     <span 
-                      className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-bold"
+                      className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-bold whitespace-nowrap"
                       style={{ backgroundColor: '#7A2BF7' }}
                       title="Total cost to serve"
                     >
@@ -838,7 +838,7 @@ function OpportunityExplorer({
                 </div>
                 
                 {/* Main content area with stacked bars */}
-                <div className="flex-grow flex flex-col justify-end px-4">
+                <div className="flex-grow flex flex-col justify-end px-4 min-h-0 overflow-hidden">
                   {categories
                     .sort((a, b) => calculateCategoryTotalPoints(lifecycle.id, a) - calculateCategoryTotalPoints(lifecycle.id, b))
                     .map((category, idx) => {
@@ -883,7 +883,7 @@ function OpportunityExplorer({
                 </div>
                 
                 {/* Lifecycle footer */}
-                <div className="bg-gray-50 p-3 border-t border-gray-200 mt-auto w-full h-[90px] flex flex-col justify-center group-hover:bg-[#f9f5ff] transition-colors duration-200">
+                <div className="bg-gray-50 p-3 border-t border-gray-200 w-full h-[90px] flex-shrink-0 flex flex-col justify-center group-hover:bg-[#f9f5ff] transition-colors duration-200">
                   <h3 className="text-base font-medium text-center line-clamp-2 overflow-hidden group-hover:text-[#5319A5] transition-colors duration-200">
                     {lifecycle.name}
                   </h3>

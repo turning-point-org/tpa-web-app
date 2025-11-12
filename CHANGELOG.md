@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.3] - 2025-11-12
+
+### Fixed
+- **Scenario Planning Opportunity Explorer Layout**: Resolved layout issues in the Opportunity Explorer component
+  - **Lifecycle Footer Visibility**: Fixed issue where the lifecycle footer was being pushed out of view by the flex-grow content area
+    - Added `min-h-0` and `overflow-hidden` to the main content area to prevent it from exceeding its container
+    - Added `flex-shrink-0` to the lifecycle footer to ensure it always maintains its 90px height
+    - Removed `mt-auto` from footer as it's not needed with proper flex constraints
+  - **Header Badge Overflow**: Fixed issue where span elements in the lifecycle header were getting cut off when text length grew
+    - Changed layout from horizontal (`flex`) to vertical (`flex-col`) stacking
+    - Added `whitespace-nowrap` to prevent text wrapping within each badge
+    - Ensured each badge (points and cost) appears on its own line for better readability
+    - Improved spacing with `gap-2` for consistent vertical spacing
+
+### Technical Details
+- Applied proper flexbox constraints to prevent content overflow
+- Maintained responsive design while ensuring all content remains visible
+- Improved layout stability for varying content lengths
+
 ## [2.3.2] - 2025-10-22
 
 ### Enhanced
