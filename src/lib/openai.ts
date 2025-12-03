@@ -1,4 +1,5 @@
 import { OpenAIClient, AzureKeyCredential } from "@azure/openai";
+import { retry, wrap, handleWhen , TaskCancelledError, ConstantBackoff , timeout, TimeoutStrategy} from "cockatiel";
 
 // Get OpenAI settings from environment variables
 const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
@@ -16,6 +17,39 @@ if (endpoint && apiKey) {
   // Log a warning instead of throwing an error at load time
   console.warn('Missing Azure OpenAI environment variables. Features requiring OpenAI will not work.');
 }
+
+// ============================================================================
+// COCKATIEL RESILIENCE POLICIES
+// ============================================================================
+
+// Retry policy: Exponential backoff with 3 retries
+// Retries on transient errors (5xx, network errors, timeouts)
+const retryPolicy = retry(
+  handleWhen((error: any) => {
+    if (error instanceof TaskCancelledError) return false;
+    if (error.statusCode >= 500) return true;
+    if (error.statusCode === 429) {
+      console.log('Az OpenAI Rate limited. Retrying after delay...');
+      return true;}
+    if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') return true;
+    return false;
+  }),
+  {
+    maxAttempts: 5,
+    backoff: new ConstantBackoff(10000) // 10 seconds fixed delay
+  }
+);
+
+// Timeout policy: 240 seconds ( 4 mins ) for chat completion
+const timeoutPolicy = timeout(240000, TimeoutStrategy.Aggressive);
+
+// Circuit breaker: Open after 5 consecutive failures, half-open after 30s
+// const breaker = circuitBreaker(ConsecutiveBreaker.consecutive(5), {halfOpenAfter: 30000,});
+
+// Combine all policies: timeout -> retry -> circuit breaker
+const resiliencePolicy = wrap(timeoutPolicy, retryPolicy);
+
+// ============================================================================
 
 /**
  * Generate embeddings for a text document
@@ -257,7 +291,13 @@ Maintain a professional, helpful tone and refer to previous parts of the convers
     messages.push({ role: "user", content: `Context information from documents:\n\n${context}\n\nQuestion: ${query}` });
     
     try {
-      const result = await client.getChatCompletions(chatDeploymentName, messages);
+      // ============================================================================
+      // WRAP THE API CALL WITH COCKATIEL RESILIENCE POLICIES
+      // ============================================================================
+      const result = await resiliencePolicy.execute(async () => {
+        return await client!.getChatCompletions(chatDeploymentName, messages);
+      });
+      // ============================================================================
       
       if (!result || !result.choices || result.choices.length === 0) {
         throw new Error("No completion result returned from Azure OpenAI");
