@@ -40,8 +40,8 @@ const retryPolicy = retry(
   }
 );
 
-// Timeout policy: 300 seconds ( 5 mins ) for chat completion
-const timeoutPolicy = timeout(300000, TimeoutStrategy.Aggressive);
+// Timeout policy: 240 seconds ( 4 mins ) for chat completion
+const timeoutPolicy = timeout(240000, TimeoutStrategy.Aggressive);
 
 // Circuit breaker: Open after 5 consecutive failures, half-open after 30s
 // const breaker = circuitBreaker(ConsecutiveBreaker.consecutive(5), {halfOpenAfter: 30000,});
