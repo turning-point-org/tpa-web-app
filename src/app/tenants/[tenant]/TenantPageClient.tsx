@@ -15,7 +15,10 @@ export default function TenantPageClient({ tenant }: TenantPageClientProps) {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
 
   // Check if user is admin (has @turningpointadvisory.com.au email)
-  const isAdmin = user?.email?.endsWith('@turningpointadvisory.com.au') ?? false;
+  const isAdmin = (
+    user?.email?.endsWith('@turningpointadvisory.com.au') ||
+    user?.email?.endsWith('@novigi.com.au')
+  ) ?? false;
 
   if (!isAdmin) {
     return null; // Don't show anything if user is not admin
