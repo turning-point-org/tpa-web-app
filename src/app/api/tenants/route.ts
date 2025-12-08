@@ -8,7 +8,12 @@ import { withAuth } from "@/utils/api-handler";
  * Helper function to check if user is a super user (admin)
  */
 function isSuperUser(email: string): boolean {
-  return email.toLowerCase().endsWith('@turningpointadvisory.com.au');
+  const lowerCaseEmail = email.toLowerCase();
+  
+  return (
+    lowerCaseEmail.endsWith('@turningpointadvisory.com.au') ||
+    lowerCaseEmail.endsWith('@novigi.com.au')
+  );
 }
 
 // Authenticated GET endpoint for tenants

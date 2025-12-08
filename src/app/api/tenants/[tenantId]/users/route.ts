@@ -7,7 +7,12 @@ import { TenantUser } from "@/types";
 import { withTenantAuth } from "@/utils/tenant-auth";
 // Helper function to check if user is admin (has @turningpointadvisory.com.au email)
 function isAdmin(email: string): boolean {
-  return email.endsWith('@turningpointadvisory.com.au');
+  const lowerCaseEmail = email.toLowerCase();
+  
+  return (
+    lowerCaseEmail.endsWith('@turningpointadvisory.com.au') ||
+    lowerCaseEmail.endsWith('@novigi.com.au')
+  );
 }
 
 // GET: Get all users for a tenant
