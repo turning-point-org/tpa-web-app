@@ -394,4 +394,113 @@ export const DELETE = withTenantAuth(async (req: NextRequest, user?: any, tenant
       { status: 500 }
     );
   }
-}); 
+});
+
+export const PATCH = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
+    try {
+      const body = await req.json();
+      const { 
+        transcription_id,
+        lifecycle_id,
+        transcription,
+        transcript_name,
+        journey_ref,
+        tenantSlug,
+        workspaceId,
+        scanId
+      } = body;
+  
+      if (!transcription_id || !lifecycle_id || !transcription) {
+        return NextResponse.json(
+          { error: "Missing required fields: transcription_id, lifecycle_id, and transcription are required." },
+          { status: 400 }
+        );
+      }
+  
+      if (!container) {
+        return NextResponse.json(
+          { error: "Database connection not available" },
+          { status: 503 }
+        );
+      }
+  
+      let tenant_id;
+      try {
+        tenant_id = await getTenantIdFromSlug(tenantSlug);
+      } catch (error) {
+        return NextResponse.json(
+          { error: "Failed to find tenant for partitioning." },
+          { status: 500 }
+        );
+      }
+  
+      // Find the existing transcription document
+      const query = `SELECT * FROM c WHERE c.id = @transcriptionId AND c.lifecycle_id = @lifecycleId`;
+      const { resources } = await container.items.query({
+        query,
+        parameters: [
+          { name: "@transcriptionId", value: transcription_id },
+          { name: "@lifecycleId", value: lifecycle_id }
+        ]
+      }).fetchAll();
+  
+      if (resources.length === 0) {
+        return NextResponse.json(
+          { error: "Transcription not found." },
+          { status: 404 }
+        );
+      }
+  
+      const existingTranscription = resources[0];
+  
+      // Update the document
+      const updatedItem = {
+        ...existingTranscription,
+        transcription: transcription,
+        transcript_name: transcript_name || existingTranscription.transcript_name,
+        journey_ref: journey_ref || existingTranscription.journey_ref,
+        updated_at: new Date().toISOString()
+      };
+  
+      await container.item(updatedItem.id, tenant_id).replace(updatedItem);
+  
+      // Trigger re-summarization
+      try {
+        const allTranscriptionsQuery = `SELECT * FROM c WHERE c.type = "pain_point_transcription" AND c.lifecycle_id = @lifecycleId ORDER BY c.created_at ASC`;
+        const { resources: allTranscriptions } = await container.items.query({
+            query: allTranscriptionsQuery,
+            parameters: [{ name: "@lifecycleId", value: lifecycle_id }]
+        }).fetchAll();
+  
+        const fullText = allTranscriptions.map(t => t.transcription).join('\n\n---\n\n');
+        const summarizeUrl = new URL('/api/summarize', req.url);
+  
+        fetch(summarizeUrl.href, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: fullText,
+                tenantSlug,
+                workspaceId,
+                scanId,
+                lifecycleId: lifecycle_id,
+                saveToDatabase: true
+            })
+        }).catch(error => {
+            console.error('Failed to trigger background summarization after update:', error);
+        });
+  
+      } catch (summaryError) {
+          console.error('Error triggering summary update after transcription update:', summaryError);
+      }
+  
+      return NextResponse.json({ success: true, message: "Transcription updated successfully." });
+  
+    } catch (error: any) {
+      console.error("Error updating transcription:", error);
+      return NextResponse.json(
+        { error: error.message || "Failed to update transcription" },
+        { status: 500 }
+      );
+    }
+  }); 

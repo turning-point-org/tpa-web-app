@@ -1844,7 +1844,8 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
   };
 
   const handleSaveEdit = async () => {
-    if (!lifecycleId || editedTranscript.trim() === transcription.trim()) {
+    const transcriptionId = searchParams.get('transcription_id');
+    if (!lifecycleId || !transcriptionId || (editedTranscript.trim() === transcription.trim())) {
       handleCancelEdit();
       return;
     }
@@ -1853,12 +1854,27 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
       setIsSavingEdit(true);
       setEditError(null);
   
-      // Call the centralized save function
-      await saveTranscriptionToDatabase(
-        editedTranscript.trim(),
-        transcriptNameFromUrl,
-        journeyFromUrl
-      );
+      const response = await fetch('/api/tenants/by-slug/workspaces/scans/pain-points-transcription', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcription_id: transcriptionId,
+          lifecycle_id: lifecycleId,
+          transcription: editedTranscript.trim(),
+          transcript_name: transcriptNameFromUrl,
+          journey_ref: journeyFromUrl,
+          tenantSlug,
+          workspaceId,
+          scanId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save transcript');
+      }
   
       // Update the local transcript state
       setTranscription(editedTranscript.trim());
@@ -1873,7 +1889,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
   
       console.log('Transcript edited and saved successfully');
   
-      // Optionally trigger a summary update with the new transcript
+      // Trigger a summary update with the new transcript
       if (editedTranscript.trim()) {
         updateSummary(true);
       }
