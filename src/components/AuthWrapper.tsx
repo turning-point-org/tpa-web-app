@@ -13,8 +13,8 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
       <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
         <div className="flex flex-col items-center justify-center">
           <Image
-            src="/turning-point-logo.svg"
-            alt="TurningPoint Logo"
+            src="/novigi-logo.svg"
+            alt="Novigi Logo"
             width={150}
             height={150}
             className="mb-4"
@@ -30,8 +30,8 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
       <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
         <div className="flex flex-col items-center justify-center">
           <Image
-            src="/turning-point-logo.svg"
-            alt="TurningPoint Logo"
+            src="/novigi-logo.svg"
+            alt="Novigi Logo"
             width={150}
             height={150}
             className="mb-4"
@@ -53,13 +53,13 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
       <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
         <div className="flex flex-col items-center justify-center">
           <Image
-            src="/turning-point-logo.svg"
-            alt="TurningPoint Logo"
+            src="/novigi-logo.svg"
+            alt="Novigi Logo"
             width={150}
             height={150}
             className="mb-4"
           />
-          <h1 className="text-2xl font-bold mb-2">Welcome to TurningPoint</h1>
+          <h1 className="text-2xl font-bold mb-2">Welcome to Novigi</h1>
           <p className="text-gray-700 mb-4">Please log in to continue</p>
           <a href="/api/auth/login">
             <Button>

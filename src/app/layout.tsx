@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TurningPoint",
-  description: "TurningPoint",
+  title: "Novigi",
+  description: "Novigi",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
