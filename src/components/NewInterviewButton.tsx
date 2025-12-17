@@ -26,7 +26,7 @@ export default function NewInterviewButton({ lifecycles }: NewInterviewButtonPro
     <>
       <div className="flex justify-end mb-4">
         <Button variant="primary" onClick={() => setIsModalOpen(true)}>
-          New Interview
+          + New Interview
         </Button>
       </div>
       <CreateTranscriptModal

@@ -152,56 +152,11 @@ export default function LifecycleSelector({ initialLifecycles, initialPainPointS
                     </span>
                   )}
                 </div>
-                <p className="text-gray-600 mb-4 text-sm">{lifecycle.description}</p>
+                <p className="text-gray-600 mb-4 text-sm"></p> {/* removed - lifecycle.description */}
               </div>
               <div className="mt-auto">
                 <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <label htmlFor={`status-${lifecycle.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                      Interview Status
-                    </label>
-                    <select
-                      id={`status-${lifecycle.id}`}
-                      name="interview_status"
-                      value={lifecycle.interview_status || 'required'}
-                      onChange={(e) => handleStatusChange(lifecycle.id, e.target.value as 'required' | 'complete')}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
-                    >
-                      <option value="required">Interview Required</option>
-                      <option value="complete">Interview Complete</option>
-                    </select>
-                  </div>
-                  <div className="flex-1">
-                    <label htmlFor={`journey-${lifecycle.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                      Journey Ref
-                    </label>
-                    <select
-                      id={`journey-${lifecycle.id}`}
-                      name="journey_ref"
-                      value={selectedJourneys[lifecycle.id] || 'not_specific'}
-                      onChange={(e) => handleJourneyChange(lifecycle.id, e.target.value)}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
-                    >
-                      <option value="not_specific">Not Specific</option>
-                      {journeyOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Button
-                    onClick={() => {
-                      const journey = selectedJourneys[lifecycle.id] || 'not_specific';
-                      const isNewInterview = lifecycle.interview_status !== 'complete';
-                      const newParam = isNewInterview ? '&new=true' : '';
-                      router.push(`/tenants/${tenantSlug}/workspace/${workspaceId}/scan/${scanId}/interview-copilot/${lifecycle.id}?journey=${journey}${newParam}`);
-                    }}
-                    variant="primary"
-                    className="text-sm self-end"
-                  >
-                    {lifecycle.interview_status === 'complete' ? 'Review Interview' : 'Start Interview'}
-                  </Button>
+                  {/* removed previous ui parts */}
                 </div>
               </div>
             </div>
