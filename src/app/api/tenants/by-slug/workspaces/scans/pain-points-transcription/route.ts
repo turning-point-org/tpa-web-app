@@ -34,15 +34,9 @@ export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?
     const workspaceId = searchParams.get("workspace_id");
     const scanId = searchParams.get("scan_id");
     const lifecycleId = searchParams.get("lifecycle_id");
+    const fetchBy = searchParams.get("fetch_by");
+    const transcriptionId = searchParams.get("transcription_id");
 
-    if (!tenantSlug || !workspaceId || !scanId || !lifecycleId) {
-      return NextResponse.json(
-        { error: "Missing required parameters" },
-        { status: 400 }
-      );
-    }
-
-    // Check if container is initialized
     if (!container) {
       return NextResponse.json(
         { error: "Database connection not available" },
@@ -50,7 +44,38 @@ export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?
       );
     }
 
-    // Query for the transcription record
+    // New logic: Fetch by specific transcription ID if requested
+    if (fetchBy === 'id' && transcriptionId) {
+      if (!tenantSlug) {
+        return NextResponse.json({ error: "Missing required parameter: slug" }, { status: 400 });
+      }
+      const query = `SELECT * FROM c WHERE c.id = @transcriptionId AND c.type = 'pain_point_transcription'`;
+      const { resources } = await container.items.query({
+        query,
+        parameters: [{ name: "@transcriptionId", value: transcriptionId }]
+      }).fetchAll();
+
+      if (resources.length === 0) {
+        return NextResponse.json({ message: "Transcription not found" }, { status: 404 });
+      }
+      
+      return NextResponse.json(resources[0], {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+    }
+
+    // Original logic: Fetch latest for a lifecycle
+    if (!tenantSlug || !workspaceId || !scanId || !lifecycleId) {
+      return NextResponse.json(
+        { error: "Missing required parameters for lifecycle fetch" },
+        { status: 400 }
+      );
+    }
+
     const query = `
       SELECT * FROM c 
       WHERE c.type = "pain_point_transcription" 
@@ -84,7 +109,6 @@ export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
 
-    // Add cache control headers to prevent caching
     return NextResponse.json(sortedResources[0], {
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -101,11 +125,19 @@ export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?
   }
 });
 
-// POST endpoint to create or update a transcription
+// POST endpoint to create a transcription and trigger a summary update
 export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const body = await req.json();
-    const { transcription, tenantSlug, workspaceId, scanId, lifecycleId } = body;
+    const { 
+      transcription, 
+      tenantSlug, 
+      workspaceId, 
+      scanId, 
+      lifecycleId,
+      transcript_name, // New field
+      journey_ref      // New field
+    } = body;
 
     if (!transcription || !tenantSlug || !workspaceId || !scanId || !lifecycleId) {
       return NextResponse.json(
@@ -114,7 +146,6 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
       );
     }
 
-    // Check if container is initialized
     if (!container) {
       return NextResponse.json(
         { error: "Database connection not available" },
@@ -122,7 +153,40 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
       );
     }
 
-    // Get tenant_id from tenant_slug
+    // --- New Logic: Duplicate Check ---
+    // Check if this exact transcription already exists for this lifecycle
+    const duplicateQuery = `
+      SELECT TOP 1 c.id FROM c 
+      WHERE c.type = 'pain_point_transcription' 
+      AND c.lifecycle_id = @lifecycleId 
+      AND c.transcription = @transcription
+    `;
+    
+    const { resources: existingTranscripts } = await container.items.query({
+      query: duplicateQuery,
+      parameters: [
+        { name: "@lifecycleId", value: lifecycleId },
+        { name: "@transcription", value: transcription }
+      ]
+    }).fetchAll();
+
+    // If duplicate found, return success immediately without creating a new record
+    if (existingTranscripts.length > 0) {
+      console.log(`Skipping duplicate transcription for lifecycle: ${lifecycleId}`);
+      return NextResponse.json({ 
+        success: true, 
+        message: "Transcription already exists. Skipped creation.",
+        id: existingTranscripts[0].id // Return the ID of the existing record
+      }, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+    }
+    // --- End Duplicate Check ---
+
     let tenant_id;
     try {
       tenant_id = await getTenantIdFromSlug(tenantSlug);
@@ -133,77 +197,76 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
       );
     }
 
-    // Query for existing transcription
-    const query = `
-      SELECT * FROM c 
-      WHERE c.type = "pain_point_transcription" 
-      AND c.tenant_slug = @tenantSlug
-      AND c.workspace_id = @workspaceId
-      AND c.scan_id = @scanId
-      AND c.lifecycle_id = @lifecycleId
-    `;
-
-    const { resources } = await container.items
-      .query({
-        query,
-        parameters: [
-          { name: "@tenantSlug", value: tenantSlug },
-          { name: "@workspaceId", value: workspaceId },
-          { name: "@scanId", value: scanId },
-          { name: "@lifecycleId", value: lifecycleId }
-        ]
-      })
-      .fetchAll();
-
     const timestamp = new Date().toISOString();
+    const newId = uuidv4();
+    const newItem = {
+      id: newId,
+      tenant_id,
+      type: "pain_point_transcription",
+      tenant_slug: tenantSlug,
+      workspace_id: workspaceId,
+      scan_id: scanId,
+      lifecycle_id: lifecycleId,
+      transcription,
+      transcript_name: transcript_name || `Interview - ${timestamp}`, // Add new field with fallback
+      journey_ref: journey_ref || 'not_specific', // Add new field with fallback
+      created_at: timestamp,
+      updated_at: timestamp
+    };
 
-    if (resources.length > 0) {
-      // Update existing record
-      const existingItem = resources[0];
-      existingItem.transcription = transcription;
-      existingItem.updated_at = timestamp;
+    // Always create a new transcription record
+    await container.items.create(newItem);
 
-      await container.item(existingItem.id, tenant_id).replace(existingItem);
-      return NextResponse.json({ 
-        success: true, 
-        message: "Transcription updated successfully",
-        id: existingItem.id
-      }, {
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
+    // --- New Logic: Trigger background summarization ---
+    try {
+      // 1. Fetch all transcriptions for the lifecycle
+      const allTranscriptionsQuery = `SELECT * FROM c WHERE c.type = "pain_point_transcription" AND c.lifecycle_id = @lifecycleId ORDER BY c.created_at ASC`;
+      const { resources: allTranscriptions } = await container.items.query({
+          query: allTranscriptionsQuery,
+          parameters: [{ name: "@lifecycleId", value: lifecycleId }]
+      }).fetchAll();
+
+      // 2. Concatenate the text
+      const fullText = allTranscriptions.map(t => t.transcription).join('\n\n---\n\n');
+
+      // 3. Trigger the summarization API
+      const summarizeUrl = new URL('/api/summarize', req.url);
+
+      // Fire-and-forget the summarization request
+      fetch(summarizeUrl.href, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              text: fullText,
+              tenantSlug,
+              workspaceId,
+              scanId,
+              lifecycleId,
+              saveToDatabase: true
+          })
+      }).catch(error => {
+          // Log the error, but don't fail the main request as this is a background task
+          console.error('Failed to trigger background summarization:', error);
       });
-    } else {
-      // Create new record
-      const newId = uuidv4();
-      const newItem = {
-        id: newId,
-        tenant_id,
-        type: "pain_point_transcription",
-        tenant_slug: tenantSlug,
-        workspace_id: workspaceId,
-        scan_id: scanId,
-        lifecycle_id: lifecycleId,
-        transcription,
-        created_at: timestamp,
-        updated_at: timestamp
-      };
 
-      await container.items.create(newItem);
-      return NextResponse.json({ 
-        success: true, 
-        message: "Transcription created successfully",
-        id: newId
-      }, {
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
+    } catch (summaryError) {
+        // Log any errors during the summary trigger process but do not let it fail the main response
+        console.error('Error during summary trigger process:', summaryError);
     }
+    // --- End of New Logic ---
+
+    return NextResponse.json({ 
+      success: true, 
+      message: "Transcription created successfully, summary update triggered.",
+      id: newId
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+
   } catch (error: any) {
     console.error("Error saving transcription:", error);
     return NextResponse.json(
