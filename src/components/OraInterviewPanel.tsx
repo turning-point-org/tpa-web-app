@@ -856,13 +856,10 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         
         // Load transcript only if not recently reset AND not a new interview
         if (!wasTranscriptReset && !isNewInterview) { // Added !isNewInterview condition
-          let transcriptionUrl = `/api/tenants/by-slug/workspaces/scans/pain-points-transcription?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&t=${Date.now()}`;
-          if (transcriptionId) {
+            let transcriptionUrl = `/api/tenants/by-slug/workspaces/scans/pain-points-transcription?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`;
+            if (transcriptionId) {
             // If a specific transcription ID is provided, fetch by that ID
             transcriptionUrl += `&transcription_id=${transcriptionId}&fetch_by=id`;
-          } else {
-            // Otherwise, fall back to the original behavior of fetching the latest for the lifecycle
-            transcriptionUrl += `&lifecycle_id=${lifecycleId}`;
           }
 
           const transcriptionResponse = await fetch(transcriptionUrl, { 
@@ -1523,6 +1520,14 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
   // Update the reset interview function to only delete transcript data
   const handleResetInterview = async () => {
     if (!lifecycleId) return;
+
+    const transcriptionId = searchParams.get('transcription_id');
+
+    if (!transcriptionId) {
+      setResetError("Cannot reset: transcription ID is missing from the URL.");
+      setIsResetModalOpen(false); // Close the modal as action can't be performed
+      return;
+    }
     
     try {
       setIsResetting(true);
@@ -1556,7 +1561,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
       
       // Delete transcript record with aggressive cache control
       const transcriptResponse = await fetch(
-        `/api/tenants/by-slug/workspaces/scans/pain-points-transcription?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`,
+        `/api/tenants/by-slug/workspaces/scans/pain-points-transcription?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&transcription_id=${transcriptionId}&t=${Date.now()}`,
         {
           method: 'DELETE',
           headers: {

@@ -44,7 +44,7 @@ export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?
       );
     }
 
-    // New logic: Fetch by specific transcription ID if requested
+    // Fetch by specific transcription ID if requested
     if (fetchBy === 'id' && transcriptionId) {
       if (!tenantSlug) {
         return NextResponse.json({ error: "Missing required parameter: slug" }, { status: 400 });
@@ -68,10 +68,10 @@ export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?
       });
     }
 
-    // Original logic: Fetch latest for a lifecycle
+    // Fallback to original logic: Fetch latest for a lifecycle
     if (!tenantSlug || !workspaceId || !scanId || !lifecycleId) {
       return NextResponse.json(
-        { error: "Missing required parameters for lifecycle fetch" },
+        { error: "Missing required parameters for lifecycle fetch: slug, workspace_id, scan_id, and lifecycle_id are required." },
         { status: 400 }
       );
     }
@@ -276,7 +276,7 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
   }
 });
 
-// DELETE endpoint to remove a transcription
+// DELETE endpoint to remove a transcription by its ID
 export const DELETE = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   try {
     const { searchParams } = new URL(req.url);
@@ -284,10 +284,18 @@ export const DELETE = withTenantAuth(async (req: NextRequest, user?: any, tenant
     const workspaceId = searchParams.get("workspace_id");
     const scanId = searchParams.get("scan_id");
     const lifecycleId = searchParams.get("lifecycle_id");
+    const transcriptionId = searchParams.get("transcription_id");
+
+    if (!transcriptionId) {
+      return NextResponse.json(
+        { error: "Missing required parameter: transcription_id" },
+        { status: 400 }
+      );
+    }
 
     if (!tenantSlug || !workspaceId || !scanId || !lifecycleId) {
       return NextResponse.json(
-        { error: "Missing required parameters" },
+        { error: "Missing one or more required parameters: slug, workspace_id, scan_id, lifecycle_id" },
         { status: 400 }
       );
     }
@@ -303,28 +311,7 @@ export const DELETE = withTenantAuth(async (req: NextRequest, user?: any, tenant
     // Get tenant_id from tenant_slug
     let tenant_id;
     try {
-      const tenantQuery = `
-        SELECT * FROM c 
-        WHERE c.type = "tenant" 
-        AND LOWER(c.slug) = @slug 
-        AND c.id = c.tenant_id
-      `;
-      
-      const { resources: tenantResources } = await container.items
-        .query({
-          query: tenantQuery,
-          parameters: [{ name: "@slug", value: tenantSlug.toLowerCase() }],
-        })
-        .fetchAll();
-      
-      if (tenantResources.length === 0) {
-        return NextResponse.json(
-          { error: "Tenant not found" },
-          { status: 404 }
-        );
-      }
-      
-      tenant_id = tenantResources[0].id;
+        tenant_id = await getTenantIdFromSlug(tenantSlug);
     } catch (error) {
       return NextResponse.json(
         { error: "Failed to find tenant" },
@@ -332,13 +319,11 @@ export const DELETE = withTenantAuth(async (req: NextRequest, user?: any, tenant
       );
     }
 
-    // Query for the transcription record
+    // Query for the specific transcription record to delete
     const query = `
       SELECT * FROM c 
       WHERE c.type = "pain_point_transcription" 
-      AND c.tenant_slug = @tenantSlug
-      AND c.workspace_id = @workspaceId
-      AND c.scan_id = @scanId
+      AND c.id = @transcriptionId
       AND c.lifecycle_id = @lifecycleId
     `;
 
@@ -346,9 +331,7 @@ export const DELETE = withTenantAuth(async (req: NextRequest, user?: any, tenant
       .query({
         query,
         parameters: [
-          { name: "@tenantSlug", value: tenantSlug },
-          { name: "@workspaceId", value: workspaceId },
-          { name: "@scanId", value: scanId },
+          { name: "@transcriptionId", value: transcriptionId },
           { name: "@lifecycleId", value: lifecycleId }
         ]
       })
@@ -356,19 +339,47 @@ export const DELETE = withTenantAuth(async (req: NextRequest, user?: any, tenant
 
     if (resources.length === 0) {
       return NextResponse.json(
-        { message: "No transcription found to delete" },
+        { message: "Transcription not found to delete" },
         { status: 404 }
       );
     }
 
-    // Delete all matching records
-    for (const item of resources) {
-      await container.item(item.id, tenant_id).delete();
+    const itemToDelete = resources[0];
+    await container.item(itemToDelete.id, tenant_id).delete();
+
+    // After deleting, re-summarize the remaining transcriptions
+    try {
+      const allTranscriptionsQuery = `SELECT * FROM c WHERE c.type = "pain_point_transcription" AND c.lifecycle_id = @lifecycleId ORDER BY c.created_at ASC`;
+      const { resources: allTranscriptions } = await container.items.query({
+        query: allTranscriptionsQuery,
+        parameters: [{ name: "@lifecycleId", value: lifecycleId }]
+      }).fetchAll();
+
+      const fullText = allTranscriptions.map(t => t.transcription).join('\n\n---\n\n');
+      const summarizeUrl = new URL('/api/summarize', req.url);
+
+      fetch(summarizeUrl.href, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: fullText,
+          tenantSlug,
+          workspaceId,
+          scanId,
+          lifecycleId,
+          saveToDatabase: true
+        })
+      }).catch(error => {
+        console.error('Failed to trigger background summarization after delete:', error);
+      });
+
+    } catch (summaryError) {
+      console.error('Error triggering summary update after delete:', summaryError);
     }
 
     return NextResponse.json({
       success: true,
-      message: `Successfully deleted ${resources.length} transcription record(s)`
+      message: `Successfully deleted 1 transcription record and triggered summary update.`
     }, {
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
