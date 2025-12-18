@@ -89,7 +89,7 @@ export default function ChatModal({ isOpen, onClose, scanId, tenantSlug, workspa
       type => !uploadedTypes.some(uploadedType => uploadedType === type.toString())
     );
     
-    let message = "### Welcome to the Turning Point Advisory Data Room Assistant!\n\n";
+    let message = "### Welcome to the Ora Data Room Assistant!\n\n";
     
     if (uploadedDocuments.length === 0) {
       message += "I notice you haven't uploaded any documents yet for this scan. ";
