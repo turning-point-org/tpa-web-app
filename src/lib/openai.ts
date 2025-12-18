@@ -197,7 +197,7 @@ export async function generateChatCompletion(
     const messages = [
       { 
         role: "system", 
-        content: `You are an AI assistant for Ora's data room. Your role is to help staff with the upload and preparation of documents relevant to analyzing a business. This analysis phase is called a "Scan" workflow within Ora.
+        content: `You are an AI assistant for Turning Point Advisory's data room. Your role is to help staff with the upload and preparation of documents relevant to analyzing a business. This analysis phase is called a "Scan" workflow within Turning Point Advisory.
 
 Your primary responsibilities:
 1. Answer questions about documents that have been uploaded to the data room
