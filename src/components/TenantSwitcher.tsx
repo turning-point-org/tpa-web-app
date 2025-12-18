@@ -47,8 +47,14 @@ export default function TenantSwitcher() {
       }
       
       // Check if user is a super user
+      // Check if user is a super user
       const userEmail = user.email || '';
-      const isSuper = userEmail.toLowerCase().endsWith('@turningpointadvisory.com.au');
+      const lowerCaseEmail = userEmail.toLowerCase();
+
+      const isSuper = (
+        lowerCaseEmail.endsWith('@turningpointadvisory.com.au') ||
+        lowerCaseEmail.endsWith('@novigi.com.au')
+      );
       setIsSuperUser(isSuper);
       console.log(`User ${userEmail} is${isSuper ? '' : ' not'} a super user`);
       
