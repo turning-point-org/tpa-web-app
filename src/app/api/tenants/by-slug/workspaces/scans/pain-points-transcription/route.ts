@@ -209,7 +209,7 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
       lifecycle_id: lifecycleId,
       transcription,
       transcript_name: transcript_name || `Interview - ${timestamp}`, // Add new field with fallback
-      journey_ref: journey_ref || 'not_specific', // Add new field with fallback
+      journey_ref: journey_ref || 'Entire_Lifecycle', // Add new field with fallback
       created_at: timestamp,
       updated_at: timestamp
     };

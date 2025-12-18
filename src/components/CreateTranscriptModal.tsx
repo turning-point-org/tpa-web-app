@@ -31,7 +31,7 @@ export default function CreateTranscriptModal({ isOpen, onClose, lifecycles }: C
 
   const [transcriptName, setTranscriptName] = useState('');
   const [selectedLifecycleId, setSelectedLifecycleId] = useState<string>('');
-  const [selectedJourneyRef, setSelectedJourneyRef] = useState('not_specific');
+  const [selectedJourneyRef, setSelectedJourneyRef] = useState('Entire_Lifecycle');
   const [error, setError] = useState<string | null>(null);
 
   // Reset form when modal is opened/closed
@@ -39,7 +39,7 @@ export default function CreateTranscriptModal({ isOpen, onClose, lifecycles }: C
     if (!isOpen) {
       setTranscriptName('');
       setSelectedLifecycleId('');
-      setSelectedJourneyRef('not_specific');
+      setSelectedJourneyRef('Entire_Lifecycle');
       setError(null);
     }
   }, [isOpen]);
@@ -57,7 +57,7 @@ export default function CreateTranscriptModal({ isOpen, onClose, lifecycles }: C
 
   // Effect to reset journey ref when lifecycle changes
   useEffect(() => {
-    setSelectedJourneyRef('not_specific');
+    setSelectedJourneyRef('Entire_Lifecycle');
   }, [selectedLifecycleId]);
 
   const handleCreate = () => {
@@ -78,7 +78,7 @@ export default function CreateTranscriptModal({ isOpen, onClose, lifecycles }: C
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create New Transcript">
+    <Modal isOpen={isOpen} onClose={onClose} title="Create New Interview">
       <div className="space-y-4">
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded" role="alert">
@@ -87,7 +87,7 @@ export default function CreateTranscriptModal({ isOpen, onClose, lifecycles }: C
         )}
         <div>
           <label htmlFor="transcript-name" className="block text-sm font-medium text-gray-700">
-            Transcript Name
+            Interview Name
           </label>
           <input
             type="text"
@@ -125,7 +125,7 @@ export default function CreateTranscriptModal({ isOpen, onClose, lifecycles }: C
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             disabled={!selectedLifecycleId || journeyOptions.length === 0}
           >
-            <option value="not_specific">Not Specific</option>
+            <option value="Entire_Lifecycle">Entire Lifecycle</option>
             {journeyOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.name}</option>
             ))}
