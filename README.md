@@ -1,4 +1,4 @@
-# Turning Point Advisory Web App
+# Ora Web App
 
 A Next.js-based application that provides an intelligent document management and analysis platform for business advisory services. The application helps consultants and clients collaborate, manage business assessments, and extract insights from uploaded documents using AI-powered analysis.
 

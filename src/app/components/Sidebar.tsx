@@ -16,8 +16,8 @@ export default function Sidebar() {
       <div>
         <Link href="/" className="block mb-10">
           <Image
-            src="/turning-point-logo.svg"
-            alt="TurningPoint Logo"
+            src="/novigi-logo.svg"
+            alt="Novigi Logo"
             width={150}
             height={40}
             priority
