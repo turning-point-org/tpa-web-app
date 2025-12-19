@@ -58,7 +58,7 @@ export default function UserProfile({ isCollapsed = false }: UserProfileProps) {
             {isDropdownOpen && (
               <div className="absolute left-0 bottom-full mb-2 z-50 w-64">
                 <div className="bg-white text-black rounded-lg shadow-lg p-2">
-                  <ul className="divide-y divide-gray-200">
+                  {/* <ul className="divide-y divide-gray-200">
                     <li>
                       <Link href="/profile">
                         <span className="block px-4 py-2 hover:bg-gray-100 cursor-pointer">
@@ -80,7 +80,7 @@ export default function UserProfile({ isCollapsed = false }: UserProfileProps) {
                         </span>
                       </Link>
                     </li>
-                  </ul>
+                  </ul> */}
                   <div className="mt-2">
                     <a href="/api/auth/logout">
                       <button className="w-full text-left px-4 py-2 bg-gray-200 hover:bg-gray-100 rounded text-sm cursor-pointer">
