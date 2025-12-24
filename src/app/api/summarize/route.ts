@@ -9,6 +9,11 @@ interface PainPoint {
   description: string;
   assigned_process_group?: string;
   score?: number;
+  sources: Array<{
+    lifecycle_id: string;
+    line_numbers: number[];
+    text_excerpt?: string;
+  }>;
 }
 
 interface SummaryData {
@@ -222,71 +227,88 @@ export async function POST(req: Request) {
       
       // Create the text listing all process groups
       return `Available process groups for this lifecycle:
-${allProcessGroups.map(group => `- "${group.name}": ${group.description || 'No description provided'}`).join('\n')}`;
+      ${allProcessGroups.map(group => `- "${group.name}": ${group.description || 'No description provided'}`).join('\n')}`;
     })();
 
+    // Number the transcript lines before sending to LLM
+    const numberedText = text
+      .split('\n')
+      .map((line, i) => `Line ${i + 1}: ${line}`)
+      .join('\n');
+    
     // Use the OpenAI integration to generate structured pain point data
     const prompt = `You are Ora, an AI assistant that analyzes conversations about business pain points and extracts structured data. Users may also refer to you as "Aura" or "Aurah" in the transcript.
 
-Below is a conversation transcript with timestamps discussing business pain points:
+    Below is a conversation transcript with LINE NUMBERS discussing business pain points:
 
-${text}
+    ${numberedText}
 
-${existingPainPoints.length > 0 ? `
-IMPORTANT: There are ${existingPainPoints.length} previously identified pain points that should be PRESERVED unless there's a specific request to remove them in the transcript:
-${JSON.stringify(existingPainPoints, null, 2)}
+    ${existingPainPoints.length > 0 ? `
+    IMPORTANT: There are ${existingPainPoints.length} previously identified pain points that should be PRESERVED unless there's a specific request to remove them in the transcript:
+    ${JSON.stringify(existingPainPoints, null, 2)}
 
-Your task is to MAINTAIN these existing pain points while adding any new ones identified in the transcript, with these special instructions:
+    Your task is to MAINTAIN these existing pain points while adding any new ones identified in the transcript, with these special instructions:
 
-1. If you see requests to ADD a new pain point explicitly (like "add a pain point about X"), make sure to add it
-2. For any other pain points mentioned in the conversation, maintain the existing ones and add any new ones identified
+    1. If you see requests to ADD a new pain point explicitly (like "add a pain point about X"), make sure to add it
+    2. For any other pain points mentioned in the conversation, maintain the existing ones and add any new ones identified
 
-Assign new IDs to new pain points (use a consistent format like 'pp-N' where N is a number greater than the highest existing ID).
-`: 'No existing pain points have been identified yet. Extract them from the conversation.'}
+    Assign new IDs to new pain points (use a consistent format like 'pp-N' where N is a number greater than the highest existing ID).
+    `: 'No existing pain points have been identified yet. Extract them from the conversation.'}
 
-${processGroupsText}
-${strategicObjectivesText}
+    ${processGroupsText}
+    ${strategicObjectivesText}
 
-Please structure your response as a valid JSON object with this structure:
-{
-  "pain_points": [
+    Please structure your response as a valid JSON object with this structure:
     {
-      "id": "unique-id-1",
-      "name": "Brief name of the pain point (5-10 words)",
-      "description": "Detailed description of the pain point (1-3 sentences)",
-      "assigned_process_group": "Name of most relevant process group (must be an exact process group name from the list above)",
-      ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'}
-    },
-    {
-      "id": "unique-id-2",
-      "name": "Brief name of another pain point",
-      "description": "Detailed description of this pain point",
-      "assigned_process_group": "Unassigned",
-      ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'}
+      "pain_points": [
+        {
+          "id": "unique-id-1",
+          "name": "Brief name of the pain point (5-10 words)",
+          "description": "Detailed description of the pain point (1-3 sentences)",
+          "assigned_process_group": "Name of most relevant process group (must be an exact process group name from the list above)",
+          "sources": [
+            {
+              "lifecycle_id": "${lifecycleId}",
+              "line_numbers": [5, 12, 28],
+              "text_excerpt": "brief quote from those lines"
+            }
+          ],
+          ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'}
+        },
+        {
+          "id": "unique-id-2",
+          "name": "Brief name of another pain point",
+          "description": "Detailed description of this pain point",
+          "assigned_process_group": "Unassigned",
+          ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'}
+        }
+      ],
+      "overallSummary": "A brief overall summary of the key points from the conversation (1-2 sentences)"
     }
-  ],
-  "overallSummary": "A brief overall summary of the key points from the conversation (1-2 sentences)"
-}
 
-Rules:
-1. PRESERVE all existing pain points UNLESS there's a specific request to remove them in the transcript
-2. Only update existing pain point attributes if requested or if significantly better information is available
-3. Add new pain points for newly identified issues in the transcript
-4. Assign new unique IDs to new pain points (pp-X where X > highest existing ID)
-5. For the "assigned_process_group" field:
-   - ONLY use an EXACT process group name from the list (the names in quotes)
-   - If no relevant process group is found, use "Unassigned"
-   - Verify that your selected group name exactly matches one from the provided list
-6. Focus on actual pain points, not general discussion topics
-7. If no NEW pain points were identified, keep the existing ones (modified as requested) 
-8. The response MUST be valid JSON that can be parsed with JSON.parse()
-9. Do not include any explanatory text outside the JSON object
-10. Ensure each pain point has at least a name and description
-${strategicObjectives.length > 0 
-  ? '11. Score each pain point against EACH strategic objective on a scale of 0-3, where 3 indicates high impact/relevance to that objective. Use the custom scoring criteria provided for each objective when available to determine the appropriate score.'
-  : '11. Score pain points on a scale of 0-3, where 3 indicates the most severe/painful issues, and 0 is not applicable.'}
-
-Make sure your response is ONLY the JSON object, nothing else.`;
+    Rules:
+    1. PRESERVE all existing pain points UNLESS there's a specific request to remove them in the transcript
+    2. Only update existing pain point attributes if requested or if significantly better information is available
+    3. Add new pain points for newly identified issues in the transcript
+    4. Assign new unique IDs to new pain points (pp-X where X > highest existing ID)
+    5. For the "assigned_process_group" field:
+      - ONLY use an EXACT process group name from the list (the names in quotes)
+      - If no relevant process group is found, use "Unassigned"
+      - Verify that your selected group name exactly matches one from the provided list
+    6. Focus on actual pain points, not general discussion topics
+    7. If no NEW pain points were identified, keep the existing ones (modified as requested) 
+    8. The response MUST be valid JSON that can be parsed with JSON.parse()
+    9. Do not include any explanatory text outside the JSON object
+    10. Ensure each pain point has at least a name and description
+    ${strategicObjectives.length > 0 
+      ? '11. Score each pain point against EACH strategic objective on a scale of 0-3, where 3 indicates high impact/relevance to that objective. Use the custom scoring criteria provided for each objective when available to determine the appropriate score.'
+      : '11. Score pain points on a scale of 0-3, where 3 indicates the most severe/painful issues, and 0 is not applicable.'}
+    12. For each pain point, identify the SPECIFIC LINE NUMBERS from the transcript that support it
+    13. Include line_numbers as an array of integers (e.g., [5, 12, 28])
+    14. Add a brief text_excerpt summarizing what those lines said
+    15. CRITICAL: Always include the sources array for every pain point
+    
+    Make sure your response is ONLY the JSON object, nothing else.`;
     
     console.log('Sending to OpenAI for structured pain point extraction');
     
@@ -474,6 +496,7 @@ Make sure your response is ONLY the JSON object, nothing else.`;
             name: point.name || 'Untitled Pain Point',
             description: point.description || 'No description provided',
             assigned_process_group: point.assigned_process_group || 'Unassigned',  // Default to Unassigned if not provided
+            sources: point.sources || []
           };
           
           // Add strategic objective scores if they exist in response, otherwise use default score
