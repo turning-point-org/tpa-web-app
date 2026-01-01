@@ -408,6 +408,7 @@ export default function OraInterviewPanel({ scanId, tenantSlug, workspaceId, lif
   const searchParams = useSearchParams();
   const transcriptNameFromUrl = searchParams.get('transcript_name');
   const journeyFromUrl = searchParams.get('journey');
+  const [currentTranscriptionId, setCurrentTranscriptionId] = useState<string | null>(null);
 
   // Refs to hold the latest URL params to solve stale closure in useEffect cleanup
   const transcriptNameRef = useRef(transcriptNameFromUrl);
@@ -834,6 +835,13 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         const transcriptionId = searchParams.get('transcription_id');
         const isNewInterview = searchParams.get('new') === 'true'; // New check for 'new' parameter
 
+      // Store the current transcription_id in state
+      if (transcriptionId && !isNewInterview) {
+        setCurrentTranscriptionId(transcriptionId);
+      } else {
+        setCurrentTranscriptionId(null);
+      }
+
         // Check if transcript was recently reset
         let wasTranscriptReset = false;
         try {
@@ -1059,18 +1067,49 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
     }
   }, [transcription, lastSummarizedTranscript]);
   
-  // Function to save transcription to the database
-  const saveTranscriptionToDatabase = useCallback(async (
-    transcriptionText: string,
-    transcriptName?: string | null,
-    journeyRef?: string | null
-  ) => {
-    if (isSavingTranscription || !lifecycleId) return; // Prevent multiple concurrent saves
+// 3. Update saveTranscriptionToDatabase to handle both POST and PATCH
+const saveTranscriptionToDatabase = useCallback(async (
+  transcriptionText: string,
+  transcriptName?: string | null,
+  journeyRef?: string | null
+) => {
+  if (isSavingTranscription || !lifecycleId) return;
+  
+  try {
+    setIsSavingTranscription(true);
     
-    try {
-      setIsSavingTranscription(true);
+    // Determine if we should PATCH (update existing) or POST (create new)
+    const shouldPatch = !!currentTranscriptionId;
+    const endpoint = '/api/tenants/by-slug/workspaces/scans/pain-points-transcription';
+    
+    if (shouldPatch) {
+      // PATCH: Update existing transcription
+      const response = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcription_id: currentTranscriptionId,
+          lifecycle_id: lifecycleId,
+          transcription: transcriptionText,
+          transcript_name: transcriptName,
+          journey_ref: journeyRef,
+          tenantSlug,
+          workspaceId,
+          scanId,
+        }),
+      });
       
-      const response = await fetch('/api/tenants/by-slug/workspaces/scans/pain-points-transcription', {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Transcription update error:', response.status, errorData);
+      } else {
+        console.log('Transcription updated successfully (PATCH)');
+      }
+    } else {
+      // POST: Create new transcription
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1081,8 +1120,8 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
           workspaceId,
           scanId,
           lifecycleId,
-          transcript_name: transcriptName, // Pass the name
-          journey_ref: journeyRef,       // Pass the journey ref
+          transcript_name: transcriptName,
+          journey_ref: journeyRef,
         }),
       });
       
@@ -1090,14 +1129,21 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         const errorData = await response.json().catch(() => ({}));
         console.error('Transcription save error:', response.status, errorData);
       } else {
-        console.log('Transcription saved successfully');
+        const data = await response.json();
+        console.log('Transcription created successfully (POST)');
+        
+        // Update currentTranscriptionId with the newly created ID
+        if (data.id) {
+          setCurrentTranscriptionId(data.id);
+        }
       }
-    } catch (err) {
-      console.error('Error saving transcription:', err);
-    } finally {
-      setIsSavingTranscription(false);
     }
-  }, [tenantSlug, workspaceId, scanId, lifecycleId]);
+  } catch (err) {
+    console.error('Error saving transcription:', err);
+  } finally {
+    setIsSavingTranscription(false);
+  }
+}, [tenantSlug, workspaceId, scanId, lifecycleId, currentTranscriptionId]);
   
   // Function to dispatch lifecycle data update event
   const dispatchLifecycleUpdateEvent = useCallback(() => {
@@ -1579,6 +1625,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
       // Force cleanup of local transcript state and refs
       setTranscription('');
       transcriptionRef.current = '';
+      setCurrentTranscriptionId(null);
       
       // Store reset state in sessionStorage to persist across navigations
       // But only for the transcript, not the pain points
