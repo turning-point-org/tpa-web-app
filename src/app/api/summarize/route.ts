@@ -227,7 +227,7 @@ export async function POST(req: Request) {
       
       // Create the text listing all process groups
       return `Available process groups for this lifecycle:
-      ${allProcessGroups.map(group => `- "${group.name}": ${group.description || 'No description provided'}`).join('\n')}`;
+${allProcessGroups.map(group => `- "${group.name}": ${group.description || 'No description provided'}`).join('\n')}`;
     })();
 
     // Number the transcript lines before sending to LLM
