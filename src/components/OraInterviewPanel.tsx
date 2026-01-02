@@ -2,11 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
-import { ChatMessage, DocumentInfo } from "@/types";
+import { useSearchParams } from 'next/navigation';
+import { ChatMessage } from "@/types";
 import ReactMarkdown from 'react-markdown';
-import Image from 'next/image';
 import { OraIcon } from "@/assets/icons";
-import { ChatIcon, InterviewIcon, PainPointIcon } from "@/assets/icons/interview-icons";
+import { InterviewIcon, PainPointIcon } from "@/assets/icons/interview-icons";
 import Button from './Button';
 
 interface OraInterviewPanelProps {
@@ -72,13 +72,15 @@ interface SummaryData {
 
 // Add Speech-to-Text types
 type SpeechRecognizer = {
-  recognized: any;
-  canceled: any;
-  sessionStarted: any;
-  sessionStopped: any;
-  startContinuousRecognitionAsync: Function;
-  stopContinuousRecognitionAsync: Function;
+  recognized: (s: any, e: any) => void;
+  canceled: (s: any, e: any) => void;
+  sessionStarted: (s: any, e: any) => void;
+  sessionStopped: (s: any, e: any) => void;
+  startContinuousRecognitionAsync: (successCallback: () => void, errorCallback: (error: unknown) => void) => void;
+  stopContinuousRecognitionAsync: (successCallback?: () => void, errorCallback?: (error: unknown) => void) => void;
 };
+
+
 
 // PainPointCard component to display individual pain points
 const PainPointCard = ({ 
@@ -108,9 +110,6 @@ const PainPointCard = ({
   dispatchLifecycleUpdateEvent: () => void;
   onPainPointUpdate: (updatedPainPoint: PainPoint) => void;
 }) => {
-  // Remove editingField state that was used for cost_to_serve
-  const [editValue, setEditValue] = useState<string>('');
-  const inputRef = useRef<HTMLInputElement>(null);
   // Add state to track if strategic objectives are expanded
   const [objectivesExpanded, setObjectivesExpanded] = useState(false);
 
@@ -405,7 +404,20 @@ const DeleteConfirmModal = ({
 };
 
 export default function OraInterviewPanel({ scanId, tenantSlug, workspaceId, lifecycleId, lifecycleName }: OraInterviewPanelProps) {
-  const { user, isLoading: userLoading } = useUser();
+  const { user: _user, isLoading: _userLoading } = useUser();
+  const searchParams = useSearchParams();
+  const transcriptNameFromUrl = searchParams.get('transcript_name');
+  const journeyFromUrl = searchParams.get('journey');
+  const [currentTranscriptionId, setCurrentTranscriptionId] = useState<string | null>(null);
+
+  // Refs to hold the latest URL params to solve stale closure in useEffect cleanup
+  const transcriptNameRef = useRef(transcriptNameFromUrl);
+  const journeyRef = useRef(journeyFromUrl);
+  useEffect(() => {
+    transcriptNameRef.current = transcriptNameFromUrl;
+    journeyRef.current = journeyFromUrl;
+  }, [transcriptNameFromUrl, journeyFromUrl]);
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
@@ -661,7 +673,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         interviewContext += `- **Lifecycle ID**: ${lifecycle.id}\n`;
         
         interviewContext += `- **Active Modes**: ${Object.entries(activeModes)
-          .filter(([_, isActive]) => isActive)
+          .filter(([_mode, isActive]) => isActive)
           .map(([mode]) => mode)
           .join(', ')}\n\n`;
         
@@ -810,12 +822,26 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
   const summaryIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const transcriptionContainerRef = useRef<HTMLDivElement>(null);
   
+// ... (inside the OraInterviewPanel component)
+
+// ...
+
   // Load existing transcription and summary when component mounts
   useEffect(() => {
     const loadExistingData = async () => {
       if (!lifecycleId) return;
       
       try {
+        const transcriptionId = searchParams.get('transcription_id');
+        const isNewInterview = searchParams.get('new') === 'true'; // New check for 'new' parameter
+
+      // Store the current transcription_id in state
+      if (transcriptionId && !isNewInterview) {
+        setCurrentTranscriptionId(transcriptionId);
+      } else {
+        setCurrentTranscriptionId(null);
+      }
+
         // Check if transcript was recently reset
         let wasTranscriptReset = false;
         try {
@@ -836,35 +862,35 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         setIsLoadingTranscription(true);
         setIsLoadingSummary(true);
         
-        // Load transcript only if not recently reset
-        if (!wasTranscriptReset) {
-          // Load transcription with cache busting
-          const transcriptionResponse = await fetch(
-            `/api/tenants/by-slug/workspaces/scans/pain-points-transcription?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`,
-            { 
-              method: 'GET',
-              headers: {
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-              }
+        // Load transcript only if not recently reset AND not a new interview
+        if (!wasTranscriptReset && !isNewInterview) { // Added !isNewInterview condition
+            let transcriptionUrl = `/api/tenants/by-slug/workspaces/scans/pain-points-transcription?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`;
+            if (transcriptionId) {
+            // If a specific transcription ID is provided, fetch by that ID
+            transcriptionUrl += `&transcription_id=${transcriptionId}&fetch_by=id`;
+          }
+
+          const transcriptionResponse = await fetch(transcriptionUrl, { 
+            method: 'GET',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
             }
-          );
+          });
           
           if (transcriptionResponse.ok) {
             const data = await transcriptionResponse.json();
             if (data.transcription) {
               setTranscription(data.transcription);
               transcriptionRef.current = data.transcription;
-              console.log('Loaded existing transcription from database');
+              console.log(`Loaded transcription ${transcriptionId ? `(ID: ${transcriptionId})` : '(latest)'} from database`);
             } else {
-              // No transcription data found, ensure local state is clean
               setTranscription('');
               transcriptionRef.current = '';
-              console.log('No existing transcription found');
+              console.log('No existing transcription content found');
             }
           } else if (transcriptionResponse.status === 404) {
-            // If 404, ensure local state is clean
             setTranscription('');
             transcriptionRef.current = '';
             console.log('No transcription found (404)');
@@ -872,12 +898,13 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
             console.warn('Error loading transcription:', transcriptionResponse.status);
           }
         } else {
-          console.log('Transcript was recently reset, skipping data load');
+          // If it's a new interview or recently reset, ensure transcription is empty
+          console.log('Starting new interview or transcript was recently reset, skipping transcription data load');
           setTranscription('');
           transcriptionRef.current = '';
         }
         
-        // Always load pain points summary (even if transcript was reset)
+        // Always load pain points summary for the lifecycle (this logic remains unchanged)
         const summaryResponse = await fetch(
           `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`,
           {
@@ -893,47 +920,36 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         if (summaryResponse.ok) {
           const data = await summaryResponse.json();
           if (data.pain_points || data.painPoints || data.summary) {
-            // Check if this is the new format (pain_points) or old format
             if (data.pain_points) {
-              // New format with renamed property
               setPainPointSummaryData(data);
               setPainPointSummaryRaw(JSON.stringify(data, null, 2));
-              // Set the last summarized transcript to the current transcript to prevent auto-generation
               setLastSummarizedTranscript(transcriptionRef.current);
             } else if (data.painPoints) {
-              // Legacy format with old property name
               setPainPointSummaryData({
                 pain_points: data.painPoints,
                 overallSummary: data.overallSummary || 'No summary available'
               });
               setPainPointSummaryRaw(JSON.stringify(data, null, 2));
-              // Set the last summarized transcript to the current transcript to prevent auto-generation
               setLastSummarizedTranscript(transcriptionRef.current);
             } else if (typeof data.summary === 'string') {
-              // Old format - try to parse as JSON
               try {
                 const parsed = JSON.parse(data.summary);
-                // Handle both old and new property formats in the parsed JSON
                 setPainPointSummaryData({
                   pain_points: parsed.pain_points || parsed.painPoints || [],
                   overallSummary: parsed.overallSummary || 'No structured summary available'
                 });
                 setPainPointSummaryRaw(data.summary || '');
-                // Set the last summarized transcript to the current transcript to prevent auto-generation
                 setLastSummarizedTranscript(transcriptionRef.current);
               } catch (e) {
-                // If parsing fails, it's probably markdown text format
                 setPainPointSummaryData({
                   pain_points: [],
                   overallSummary: data.summary || 'No structured pain points available'
                 });
                 setPainPointSummaryRaw(data.summary || '');
-                // Set the last summarized transcript to the current transcript to prevent auto-generation
                 setLastSummarizedTranscript(transcriptionRef.current);
               }
             }
             
-            // If there's a timestamp, update it
             if (data.updated_at) {
               const updatedDate = new Date(data.updated_at);
               setLastSummaryUpdate(updatedDate.toLocaleTimeString());
@@ -941,21 +957,13 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
             
             console.log('Loaded existing summary from database');
           } else {
-            // No summary data found, ensure local state is clean
-            setPainPointSummaryData({
-              pain_points: [],
-              overallSummary: ''
-            });
+            setPainPointSummaryData({ pain_points: [], overallSummary: '' });
             setPainPointSummaryRaw('');
             setLastSummaryUpdate(null);
             console.log('No existing summary found');
           }
         } else if (summaryResponse.status === 404) {
-          // If 404, ensure local state is clean
-          setPainPointSummaryData({
-            pain_points: [], 
-            overallSummary: ''
-          });
+          setPainPointSummaryData({ pain_points: [], overallSummary: '' });
           setPainPointSummaryRaw('');
           setLastSummaryUpdate(null);
           console.log('No summary found (404)');
@@ -971,7 +979,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
     };
     
     loadExistingData();
-  }, [tenantSlug, workspaceId, scanId, lifecycleId]);
+  }, [tenantSlug, workspaceId, scanId, lifecycleId, searchParams]);
   
   // Add specific event listener for pain point updates from LifecycleViewer
   useEffect(() => {
@@ -1059,14 +1067,49 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
     }
   }, [transcription, lastSummarizedTranscript]);
   
-  // Function to save transcription to the database
-  const saveTranscriptionToDatabase = useCallback(async (transcriptionText: string) => {
-    if (isSavingTranscription || !lifecycleId) return; // Prevent multiple concurrent saves
+// 3. Update saveTranscriptionToDatabase to handle both POST and PATCH
+const saveTranscriptionToDatabase = useCallback(async (
+  transcriptionText: string,
+  transcriptName?: string | null,
+  journeyRef?: string | null
+) => {
+  if (isSavingTranscription || !lifecycleId) return;
+  
+  try {
+    setIsSavingTranscription(true);
     
-    try {
-      setIsSavingTranscription(true);
+    // Determine if we should PATCH (update existing) or POST (create new)
+    const shouldPatch = !!currentTranscriptionId;
+    const endpoint = '/api/tenants/by-slug/workspaces/scans/pain-points-transcription';
+    
+    if (shouldPatch) {
+      // PATCH: Update existing transcription
+      const response = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcription_id: currentTranscriptionId,
+          lifecycle_id: lifecycleId,
+          transcription: transcriptionText,
+          transcript_name: transcriptName,
+          journey_ref: journeyRef,
+          tenantSlug,
+          workspaceId,
+          scanId,
+        }),
+      });
       
-      const response = await fetch('/api/tenants/by-slug/workspaces/scans/pain-points-transcription', {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Transcription update error:', response.status, errorData);
+      } else {
+        console.log('Transcription updated successfully (PATCH)');
+      }
+    } else {
+      // POST: Create new transcription
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1076,7 +1119,9 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
           tenantSlug,
           workspaceId,
           scanId,
-          lifecycleId
+          lifecycleId,
+          transcript_name: transcriptName,
+          journey_ref: journeyRef,
         }),
       });
       
@@ -1084,14 +1129,21 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         const errorData = await response.json().catch(() => ({}));
         console.error('Transcription save error:', response.status, errorData);
       } else {
-        console.log('Transcription saved successfully');
+        const data = await response.json();
+        console.log('Transcription created successfully (POST)');
+        
+        // Update currentTranscriptionId with the newly created ID
+        if (data.id) {
+          setCurrentTranscriptionId(data.id);
+        }
       }
-    } catch (err) {
-      console.error('Error saving transcription:', err);
-    } finally {
-      setIsSavingTranscription(false);
     }
-  }, [isSavingTranscription, tenantSlug, workspaceId, scanId, lifecycleId]);
+  } catch (err) {
+    console.error('Error saving transcription:', err);
+  } finally {
+    setIsSavingTranscription(false);
+  }
+}, [tenantSlug, workspaceId, scanId, lifecycleId, currentTranscriptionId]);
   
   // Function to dispatch lifecycle data update event
   const dispatchLifecycleUpdateEvent = useCallback(() => {
@@ -1116,33 +1168,59 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
       
       setIsUpdatingSummary(true);
       
-      // Call our API endpoint to generate a summary
-      const response = await fetch('/api/summarize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          text: currentTranscription,
-          tenantSlug,
-          workspaceId,
-          scanId,
-          lifecycleId,
-          saveToDatabase
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Summary API error:', response.status, errorData);
-        throw new Error(`Failed to generate summary: ${response.status}`);
+      let summaryDataFromApi = null;
+      if (!saveToDatabase) {
+        // This branch is for real-time UI updates during recording (not saving to DB)
+        const response = await fetch('/api/summarize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            text: currentTranscription,
+            tenantSlug,
+            workspaceId,
+            scanId,
+            lifecycleId,
+            saveToDatabase: false // Explicitly false here
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Summary API error:', response.status, errorData);
+          throw new Error(`Failed to generate summary: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        summaryDataFromApi = data.summary;
+      } else {
+        // This branch is executed when a transcription has just been saved to the DB.
+        // The backend has already triggered the summarization, so we just need to re-fetch the latest summary.
+        const response = await fetch(
+          `/api/tenants/by-slug/workspaces/scans/pain-points-summary?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`,
+          {
+            method: 'GET',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Failed to re-fetch summary after backend save:', response.status, errorData);
+          throw new Error(`Failed to re-fetch summary: ${response.status}`);
+        }
+        const data = await response.json();
+        summaryDataFromApi = data; // The GET endpoint returns the summary data directly
       }
       
-      const data = await response.json();
-      
-      if (data.summary) {
+      if (summaryDataFromApi) {
         // Store the raw JSON summary data
-        const summaryData = data.summary;
+        const summaryData = summaryDataFromApi;
         
         // Update the pain point summary data state
         setPainPointSummaryData(summaryData);
@@ -1158,8 +1236,6 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         setLastSummarizedTranscript(currentTranscription);
         setTranscriptChangedSinceLastSummary(false);
         
-        // Dispatch lifecycle update event to refresh LifecycleViewer
-        // Only dispatch if we're saving to DB (which means pain points may affect scores)
         if (saveToDatabase && summaryData.pain_points && summaryData.pain_points.length > 0) {
           dispatchLifecycleUpdateEvent();
         }
@@ -1231,8 +1307,12 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
             // Generate a summary and save it to the database
             updateSummary(true);
             
-            // Save the final transcription
-            saveTranscriptionToDatabase(transcriptionRef.current);
+            // Save the final transcription, including name and journey from URL
+            saveTranscriptionToDatabase(
+              transcriptionRef.current,
+              transcriptNameFromUrl,
+              journeyFromUrl
+            );
           }
         },
         (err: unknown) => {
@@ -1240,7 +1320,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         }
       );
     }
-  }, [updateSummary, saveTranscriptionToDatabase]);
+  }, [updateSummary, saveTranscriptionToDatabase, transcriptNameFromUrl, journeyFromUrl]);
   
   // Clean up on unmount - NO DEPENDENCIES to prevent re-running during component lifecycle
   useEffect(() => {
@@ -1273,7 +1353,9 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
             tenantSlug,
             workspaceId,
             scanId,
-            lifecycleId
+            lifecycleId,
+            transcript_name: transcriptNameRef.current,
+            journey_ref: journeyRef.current,
           }),
         }).catch(err => {
           console.error('Error saving transcription during cleanup:', err);
@@ -1296,7 +1378,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
         azureSpeechServiceRef.current = null;
       }
     };
-  }, []); // NO DEPENDENCIES - only run on actual unmount
+  }, []);
   
   // Function to start recording
   const startRecording = useCallback(async () => {
@@ -1428,7 +1510,11 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
           
           // Save the final transcription if it exists when genuinely canceled
           if (transcriptionRef.current.trim()) {
-            saveTranscriptionToDatabase(transcriptionRef.current);
+            saveTranscriptionToDatabase(
+              transcriptionRef.current,
+              transcriptNameFromUrl,
+              journeyFromUrl
+            );
             updateSummary(true);
           }
         }
@@ -1461,7 +1547,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
       setRecordingError(`Failed to start recording: ${errorMessage}`);
       setIsRecording(false);
     }
-  }, [startSummaryInterval, updateSummary, saveTranscriptionToDatabase]);
+  }, [startSummaryInterval, updateSummary, saveTranscriptionToDatabase, transcriptNameFromUrl, journeyFromUrl]);
   
   // Function to toggle recording
   const toggleRecording = async () => {
@@ -1480,6 +1566,14 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
   // Update the reset interview function to only delete transcript data
   const handleResetInterview = async () => {
     if (!lifecycleId) return;
+
+    const transcriptionId = searchParams.get('transcription_id');
+
+    if (!transcriptionId) {
+      setResetError("Cannot reset: transcription ID is missing from the URL.");
+      setIsResetModalOpen(false); // Close the modal as action can't be performed
+      return;
+    }
     
     try {
       setIsResetting(true);
@@ -1513,7 +1607,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
       
       // Delete transcript record with aggressive cache control
       const transcriptResponse = await fetch(
-        `/api/tenants/by-slug/workspaces/scans/pain-points-transcription?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&t=${Date.now()}`,
+        `/api/tenants/by-slug/workspaces/scans/pain-points-transcription?slug=${tenantSlug}&workspace_id=${workspaceId}&scan_id=${scanId}&lifecycle_id=${lifecycleId}&transcription_id=${transcriptionId}&t=${Date.now()}`,
         {
           method: 'DELETE',
           headers: {
@@ -1531,6 +1625,7 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
       // Force cleanup of local transcript state and refs
       setTranscription('');
       transcriptionRef.current = '';
+      setCurrentTranscriptionId(null);
       
       // Store reset state in sessionStorage to persist across navigations
       // But only for the transcript, not the pain points
@@ -1796,54 +1891,56 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
   };
 
   const handleSaveEdit = async () => {
-    if (!lifecycleId || editedTranscript.trim() === transcription.trim()) {
-      // No changes made, just exit edit mode
+    const transcriptionId = searchParams.get('transcription_id');
+    if (!lifecycleId || !transcriptionId || (editedTranscript.trim() === transcription.trim())) {
       handleCancelEdit();
       return;
     }
-
+  
     try {
       setIsSavingEdit(true);
       setEditError(null);
-
-      // Save the edited transcript to database
+  
       const response = await fetch('/api/tenants/by-slug/workspaces/scans/pain-points-transcription', {
-        method: 'POST',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          transcription_id: transcriptionId,
+          lifecycle_id: lifecycleId,
           transcription: editedTranscript.trim(),
+          transcript_name: transcriptNameFromUrl,
+          journey_ref: journeyFromUrl,
           tenantSlug,
           workspaceId,
           scanId,
-          lifecycleId
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Failed to save edited transcript: ${response.status} ${errorData.error || ''}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save transcript');
       }
-
+  
       // Update the local transcript state
       setTranscription(editedTranscript.trim());
       transcriptionRef.current = editedTranscript.trim();
-
+  
       // Mark transcript as changed since it was manually edited
       setTranscriptChangedSinceLastSummary(true);
-
+  
       // Exit edit mode
       setIsEditingTranscript(false);
       setEditedTranscript('');
-
+  
       console.log('Transcript edited and saved successfully');
-
-      // Optionally trigger a summary update with the new transcript
+  
+      // Trigger a summary update with the new transcript
       if (editedTranscript.trim()) {
         updateSummary(true);
       }
-
+  
     } catch (error) {
       console.error('Error saving edited transcript:', error);
       setEditError(error instanceof Error ? error.message : 'Failed to save transcript');
@@ -1982,9 +2079,9 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
                           <div className="markdown-content text-gray-200">
                             <ReactMarkdown
                               components={{
-                                h1: ({node, ...props}) => <h1 className={compactMarkdownStyles.h1} {...props} />,
-                                h2: ({node, ...props}) => <h2 className={compactMarkdownStyles.h2} {...props} />,
-                                h3: ({node, ...props}) => <h3 className={compactMarkdownStyles.h3} {...props} />,
+                                h1: ({ ...props }) => <h1 className={compactMarkdownStyles.h1} {...props} />,
+                                h2: ({ ...props }) => <h2 className={compactMarkdownStyles.h2} {...props} />,
+                                h3: ({ ...props }) => <h3 className={compactMarkdownStyles.h3} {...props} />,
                                 p: ({node, children, ...props}) => {
                                   // Use a more type-safe approach
                                   const parentNode = (node as any)?.parent;
@@ -1993,15 +2090,15 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
                                     ? <span className="inline" {...props}>{children}</span>
                                     : <p className={compactMarkdownStyles.p} {...props}>{children}</p>;
                                 },
-                                ul: ({node, ...props}) => <ul className={compactMarkdownStyles.ul} {...props} />,
-                                ol: ({node, ...props}) => <ol className={compactMarkdownStyles.ol} {...props} />,
-                                li: ({node, ...props}) => <li className={compactMarkdownStyles.li} {...props} />,
-                                strong: ({node, ...props}) => <strong className={compactMarkdownStyles.strong} {...props} />,
-                                em: ({node, ...props}) => <em className={compactMarkdownStyles.em} {...props} />,
+                                ul: ({ ...props }) => <ul className={compactMarkdownStyles.ul} {...props} />,
+                                ol: ({ ...props }) => <ol className={compactMarkdownStyles.ol} {...props} />,
+                                li: ({ ...props }) => <li className={compactMarkdownStyles.li} {...props} />,
+                                strong: ({ ...props }) => <strong className={compactMarkdownStyles.strong} {...props} />,
+                                em: ({ ...props }) => <em className={compactMarkdownStyles.em} {...props} />,
                               }}
                             >
                               {message.content}
-                            </ReactMarkdown>
+                            </ReactMarkdown>    
                           </div>
                         )}
                       </div>
