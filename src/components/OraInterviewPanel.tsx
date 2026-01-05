@@ -59,6 +59,11 @@ interface PainPoint {
   name: string;
   description: string;
   assigned_process_group?: string;
+  sources?: Array<{
+    lifecycle_id: string;
+    line_numbers: number[];
+    text_excerpt?: string;
+  }>;
   // Remove the cost_to_serve property
   // Allow for strategic objective properties (so_*)
   [key: string]: any; 
@@ -95,7 +100,9 @@ const PainPointCard = ({
   lifecycleId,
   painPointSummaryData,
   dispatchLifecycleUpdateEvent,
-  onPainPointUpdate
+  onPainPointUpdate,
+  selectedPainPoint,
+  setSelectedPainPoint
 }: { 
   painPoint: PainPoint;
   onDeleteClick: (id: string) => void;
@@ -109,6 +116,8 @@ const PainPointCard = ({
   painPointSummaryData: SummaryData;
   dispatchLifecycleUpdateEvent: () => void;
   onPainPointUpdate: (updatedPainPoint: PainPoint) => void;
+  selectedPainPoint: PainPoint | null; 
+  setSelectedPainPoint: (pp: PainPoint | null) => void;
 }) => {
   // Add state to track if strategic objectives are expanded
   const [objectivesExpanded, setObjectivesExpanded] = useState(false);
@@ -201,9 +210,33 @@ const PainPointCard = ({
   const toggleObjectives = () => {
     setObjectivesExpanded(prev => !prev);
   };
+  const isSelected = selectedPainPoint?.id === painPoint.id;
 
   return (
-    <div className="bg-gray-700 rounded-md p-3 mb-3 shadow-sm border border-gray-600 relative">
+    <div 
+      className={`bg-gray-700 rounded-md p-3 mb-3 shadow-sm border relative cursor-pointer transition-all ${
+        isSelected 
+          ? 'border-teal-500 border-2 ring-2 ring-teal-400 ring-opacity-50'
+          : 'border-gray-600 hover:border-gray-500'
+      }`}
+      onClick={() => {
+        if (isSelected) {
+          setSelectedPainPoint(null);
+        } else {
+          setSelectedPainPoint(painPoint);
+          
+          if (painPoint.sources && painPoint.sources.length > 0) {
+            const firstLineNumber = painPoint.sources[0].line_numbers[0];
+            setTimeout(() => {
+              const lineElement = document.getElementById(`line-${firstLineNumber}`);
+              if (lineElement) {
+                lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 100);
+          }
+        }
+      }}
+    >
       {/* Delete button */}
       <button
         onClick={() => onDeleteClick(painPoint.id)}
@@ -426,6 +459,7 @@ export default function OraInterviewPanel({ scanId, tenantSlug, workspaceId, lif
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedPainPoint, setSelectedPainPoint] = useState<PainPoint | null>(null); // Selected pain point state
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [lifecycle, setLifecycle] = useState<Lifecycle | null>(null);
@@ -2309,7 +2343,27 @@ const saveTranscriptionToDatabase = useCallback(async (
                   </div>
                 </div>
               ) : transcription ? (
-                <pre className="whitespace-pre-wrap font-sans text-sm">{transcription}</pre>
+                <div className="space-y-0">
+                  {transcription.split('\n').map((line, index) => {
+                    const lineNumber = index + 1;
+                    const isHighlighted = selectedPainPoint?.sources
+                      ?.some(source => source.line_numbers?.includes(lineNumber)) || false;
+                    
+                    return (
+                      <div
+                        key={lineNumber}
+                        id={`line-${lineNumber}`}
+                        className={`px-2 py-1 transition-colors duration-200 ${
+                          isHighlighted 
+                          ? 'bg-teal-100 border-l-4 border-teal-500 text-gray-900' 
+                            : 'hover:bg-gray-700'
+                        }`}
+                      >
+                        <span className="text-sm">{line}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
                 <div className="text-center py-8 px-4 text-gray-400">
                   <p>{isRecording ? 'Listening for conversation...' : 'Click the record button to start capturing the interview transcript.'}</p>
@@ -2405,6 +2459,8 @@ const saveTranscriptionToDatabase = useCallback(async (
                           painPointSummaryData={painPointSummaryData}
                           dispatchLifecycleUpdateEvent={dispatchLifecycleUpdateEvent}
                           onPainPointUpdate={handlePainPointUpdate}
+                          selectedPainPoint={selectedPainPoint}
+                          setSelectedPainPoint={setSelectedPainPoint}
                         />
                       ))}
                     </>

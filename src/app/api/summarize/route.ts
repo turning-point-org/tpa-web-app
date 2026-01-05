@@ -9,6 +9,11 @@ interface PainPoint {
   description: string;
   assigned_process_group?: string;
   score?: number;
+  sources: Array<{
+    lifecycle_id: string;
+    line_numbers: number[];
+    text_excerpt?: string;
+  }>;
 }
 
 interface SummaryData {
@@ -225,12 +230,18 @@ export async function POST(req: Request) {
 ${allProcessGroups.map(group => `- "${group.name}": ${group.description || 'No description provided'}`).join('\n')}`;
     })();
 
+    // Number the transcript lines before sending to LLM
+    const numberedText = text
+      .split('\n')
+      .map((line, i) => `Line ${i + 1}: ${line}`)
+      .join('\n');
+    
     // Use the OpenAI integration to generate structured pain point data
     const prompt = `You are Ora, an AI assistant that analyzes conversations about business pain points and extracts structured data. Users may also refer to you as "Aura" or "Aurah" in the transcript.
 
-Below is a conversation transcript with timestamps discussing business pain points:
+Below is a conversation transcript with LINE NUMBERS discussing business pain points:
 
-${text}
+${numberedText}
 
 ${existingPainPoints.length > 0 ? `
 IMPORTANT: There are ${existingPainPoints.length} previously identified pain points that should be PRESERVED unless there's a specific request to remove them in the transcript:
@@ -255,6 +266,13 @@ Please structure your response as a valid JSON object with this structure:
       "name": "Brief name of the pain point (5-10 words)",
       "description": "Detailed description of the pain point (1-3 sentences)",
       "assigned_process_group": "Name of most relevant process group (must be an exact process group name from the list above)",
+      "sources": [
+        {
+          "lifecycle_id": "${lifecycleId}",
+          "line_numbers": [5, 12, 28],
+          "text_excerpt": "brief quote from those lines"
+        }
+      ],
       ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'}
     },
     {
@@ -262,6 +280,13 @@ Please structure your response as a valid JSON object with this structure:
       "name": "Brief name of another pain point",
       "description": "Detailed description of this pain point",
       "assigned_process_group": "Unassigned",
+      "sources": [
+        {
+          "lifecycle_id": "${lifecycleId}",
+          "line_numbers": [5, 12, 28],
+          "text_excerpt": "brief quote from those lines"
+        }
+      ],
       ${strategicObjectives.length > 0 ? strategicObjectivesJsonStructure : '"score": 0-3 (where 3 is most painful/severe, and 0 is not applicable)'}
     }
   ],
@@ -285,7 +310,11 @@ Rules:
 ${strategicObjectives.length > 0 
   ? '11. Score each pain point against EACH strategic objective on a scale of 0-3, where 3 indicates high impact/relevance to that objective. Use the custom scoring criteria provided for each objective when available to determine the appropriate score.'
   : '11. Score pain points on a scale of 0-3, where 3 indicates the most severe/painful issues, and 0 is not applicable.'}
-
+12. For each pain point, identify the SPECIFIC LINE NUMBERS from the transcript that support it
+13. Include line_numbers as an array of integers (e.g., [5, 12, 28])
+14. Add a brief text_excerpt summarizing what those lines said
+15. CRITICAL: Always include the sources array for every pain point
+    
 Make sure your response is ONLY the JSON object, nothing else.`;
     
     console.log('Sending to OpenAI for structured pain point extraction');
@@ -474,6 +503,7 @@ Make sure your response is ONLY the JSON object, nothing else.`;
             name: point.name || 'Untitled Pain Point',
             description: point.description || 'No description provided',
             assigned_process_group: point.assigned_process_group || 'Unassigned',  // Default to Unassigned if not provided
+            sources: point.sources || []
           };
           
           // Add strategic objective scores if they exist in response, otherwise use default score
