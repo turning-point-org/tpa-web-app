@@ -140,7 +140,7 @@ export default async function InterviewCopilotPage({ params }: { params: { tenan
           <div className="mt-12">
             <h2 className="text-2xl font-semibold mb-4">Interviews </h2>
             <p className="text-gray-600 mb-6">Review all interview transcriptions recorded for this scan. Select a transcription to view its details and associated pain points.</p>
-            <TranscriptionList transcriptions={transcriptions} painPointSummaries={painPointSummaries} />
+            <TranscriptionList lifecycles={lifecycles} transcriptions={transcriptions} painPointSummaries={painPointSummaries} />
           </div>
         </>
       )}
