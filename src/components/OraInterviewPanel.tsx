@@ -2262,7 +2262,6 @@ Let's begin by discussing what aspects of this lifecycle you'd like to explore f
                             : 'hover:bg-gray-700'
                         }`}
                       >
-                        <span className="text-gray-500 text-xs mr-3 select-none">{lineNumber}</span>
                         <span className="text-sm">{line}</span>
                       </div>
                     );
