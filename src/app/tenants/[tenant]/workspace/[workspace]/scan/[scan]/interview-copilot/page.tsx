@@ -129,18 +129,13 @@ export default async function InterviewCopilotPage({ params }: { params: { tenan
               <h2 className="text-2xl font-semibold">Start an Interview</h2>
               <NewInterviewButton lifecycles={lifecycles} />
             </div>
-            <p className="text-gray-600 mt-2">Select a business lifecycle to begin a new interview or review a previous one.</p>
-          </div>
-
-          <LifecycleSelector 
-            initialLifecycles={lifecycles} 
-            initialPainPointSummaries={painPointSummaries} 
-          />
+            <p className="text-gray-600 mt-2">Select the new interview button to begin a new interview</p>
+          </div>         
           
           <div className="mt-12">
             <h2 className="text-2xl font-semibold mb-4">Interviews </h2>
-            <p className="text-gray-600 mb-6">Review all interview transcriptions recorded for this scan. Select a transcription to view its details and associated pain points.</p>
-            <TranscriptionList transcriptions={transcriptions} painPointSummaries={painPointSummaries} />
+            <p className="text-gray-600 mb-6">Review all interviews recorded. Select an Interview to view details.</p>
+            <TranscriptionList lifecycles={lifecycles} transcriptions={transcriptions} painPointSummaries={painPointSummaries} />
           </div>
         </>
       )}
