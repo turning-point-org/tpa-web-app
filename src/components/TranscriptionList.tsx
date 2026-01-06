@@ -3,6 +3,12 @@ import React from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Button from '@/components/Button';
 
+// Define the type for the lifecycle object
+type Lifecycle = {
+  id: string;
+  name: string;
+};
+
 // Define the type for the enriched transcription object
 type EnrichedTranscription = {
   id: string;
@@ -27,11 +33,12 @@ type PainPointSummary = {
 };
 
 interface TranscriptionListProps {
+  lifecycles: Lifecycle[];
   transcriptions: EnrichedTranscription[];
   painPointSummaries: Record<string, PainPointSummary>;
 }
 
-export default function TranscriptionList({ transcriptions, painPointSummaries }: TranscriptionListProps) {
+export default function TranscriptionList({ lifecycles, transcriptions, painPointSummaries }: TranscriptionListProps) {
   const router = useRouter();
   const params = useParams();
   const tenantSlug = params.tenant as string;
@@ -56,16 +63,14 @@ export default function TranscriptionList({ transcriptions, painPointSummaries }
     router.push(`/tenants/${tenantSlug}/workspace/${workspaceId}/scan/${scanId}/interview-copilot/${lifecycleId}?${query.toString()}`);
   };
 
-  if (transcriptions.length === 0) {
+  if (lifecycles.length === 0) {
     return (
       <div className="text-center py-10 px-4 bg-gray-50 rounded-lg border border-gray-200">
-        <p className="text-gray-600">No interview transcriptions found for this scan.</p>
-        <p className="text-sm text-gray-500 mt-2">You can start an interview from the Business Lifecycles page to generate a transcript.</p>
+        <p className="text-gray-600">No business lifecycles found for this scan.</p>
+        <p className="text-sm text-gray-500 mt-2">You can create lifecycles and start interviews from the Business Lifecycles page.</p>
       </div>
     );
   }
-
-  let lastLifecycleName: string | null = null;
 
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow border border-gray-200">
@@ -87,56 +92,67 @@ export default function TranscriptionList({ transcriptions, painPointSummaries }
           </tr>
         </thead>
         <tbody className="bg-white">
-          {transcriptions.map((transcription) => {
-            const showHeader = transcription.lifecycle_name !== lastLifecycleName;
-            if (showHeader) {
-              lastLifecycleName = transcription.lifecycle_name;
-            }
-            const lifecycleId = transcription.lifecycle_id;
-            const painPoints = painPointSummaries[lifecycleId]?.pain_points || [];
+          {lifecycles.map((lifecycle) => {
+            const lifecycleTranscriptions = transcriptions.filter(t => t.lifecycle_id === lifecycle.id);
+            const painPoints = painPointSummaries[lifecycle.id]?.pain_points || [];
             const painPointCount = painPoints.length;
 
             return (
-              <React.Fragment key={transcription.id}>
-                {showHeader && (
-                  <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td colSpan={4} className="px-6 py-3 text-left">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-semibold text-gray-900">{transcription.lifecycle_name}</span>
-                        {painPointCount > 0 && (
-                          <span className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold" style={{ backgroundColor: '#0EA394' }}>
-                            {painPointCount} Pain Points
-                          </span>
-                        )}
-                      </div>
+              <React.Fragment key={lifecycle.id}>
+                {/* Lifecycle Header Row */}
+                <tr className="border-t-2 border-gray-200 bg-gray-50">
+                  <td colSpan={4} className="px-6 py-3 text-left">
+                    <div className="flex justify-between items-center">
+                      <span className="text-md font-semibold text-gray-900">{lifecycle.name}</span>
+                      {painPointCount > 0 && (
+                        <span className="inline-block px-2 py-0.5 rounded-md text-xs text-white font-semibold" style={{ backgroundColor: '#0EA394' }}>
+                          {painPointCount} Pain Points
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+
+                {/* Transcription Rows */}
+                {lifecycleTranscriptions.length > 0 ? (
+                  lifecycleTranscriptions.map(transcription => (
+                    <tr key={transcription.id} className="hover:bg-gray-50 border-t border-gray-200">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-800">{transcription.transcript_name}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-700">{transcription.journey_ref}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-700">
+                          {new Date(transcription.created_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney' })}
+                          {' '}
+                          {new Date(transcription.created_at).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <Button
+                          onClick={() => handleViewClick(
+                            transcription.lifecycle_id, 
+                            transcription.id,
+                            transcription.transcript_name,
+                            transcription.journey_ref
+                          )}
+                          variant="primary"
+                          className="text-sm"
+                        >
+                          View
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr className="hover:bg-gray-50 border-t border-gray-200">
+                    <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
+                      No interviews recorded for this lifecycle.
                     </td>
                   </tr>
                 )}
-                <tr className="hover:bg-gray-50 border-t border-gray-200">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-800">{transcription.transcript_name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-700">{transcription.journey_ref}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-700">{new Date(transcription.created_at).toLocaleString()}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <Button
-                      onClick={() => handleViewClick(
-                        transcription.lifecycle_id, 
-                        transcription.id,
-                        transcription.transcript_name,
-                        transcription.journey_ref
-                      )}
-                      variant="primary"
-                      className="text-sm"
-                    >
-                      View
-                    </Button>
-                  </td>
-                </tr>
               </React.Fragment>
             );
           })}
