@@ -125,8 +125,14 @@ export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?
 });
 
 export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
+  console.log('=== INSIDE API HANDLER ===');
+  console.log('######## User from withTenantAuth:', user ? 'EXISTS' : 'NULL');
+  console.log('######## User details:', user);
+  console.log('######## Tenant ID from withTenantAuth:', tenantId);
   try {
     const requestBody = await req.json();
+    console.log('######## Request body:', requestBody);
+    console.log('######## Action:', requestBody.action);
     const { 
       tenant_slug, 
       workspace_id, 
@@ -696,6 +702,10 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
       }
 
       case 'add_stakeholder': {
+        console.log("######## in BE add_stakeholder")
+        console.log("######## User at stakeholder add:", user);
+        console.log("######## Tenant ID at stakeholder add:", tenantId);
+
         const { stakeholder } = requestBody;
         
         if (!stakeholder || !stakeholder.name || !stakeholder.role) {
@@ -716,7 +726,9 @@ export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId
           name: stakeholder.name,
           role: stakeholder.role
         };
-        
+
+        console.log("######## BE add_stakeholder: ",newStakeholder);
+
         lifecycle.stakeholders.push(newStakeholder);
         
         // Update the lifecycle in the database
