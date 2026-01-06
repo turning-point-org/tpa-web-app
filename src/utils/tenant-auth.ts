@@ -8,14 +8,31 @@ export function withTenantAuth(
   handler: (req: NextRequest, user?: any, tenantId?: string) => Promise<NextResponse>
 ) {
   return async (req: NextRequest) => {
+    console.log('=== withTenantAuth CHECK ===');
+    console.log('URL:', req.url);
+    console.log('Method:', req.method);
+
     // Check if the request has Authorization header
     const authHeader = req.headers.get('authorization');
     
     // Check for the special header that indicates Auth0 session
     const hasAuth0Session = req.headers.get('X-Auth0-Session') === 'true';
     
-    if (!authHeader && !hasAuth0Session) {
-      console.log('API request denied - no authorization header or Auth0 session');
+    // Check for user details from middleware
+    const userId = req.headers.get('X-User-Id');
+    const userEmail = req.headers.get('X-User-Email');
+    const userName = req.headers.get('X-User-Name');
+
+    console.log('withTenantAuth: Headers check:', {
+      authHeader: !!authHeader,
+      hasAuth0Session,
+      userId: !!userId,
+      userEmail: !!userEmail
+    });
+
+    // User is authenticated if ANY of these are present:
+    if (!authHeader && !hasAuth0Session && !(userId && userEmail)) {
+      console.log('withTenantAuth: RETURNING 401 - Auth check failed');
       return NextResponse.json(
         { 
           error: 'Your session has expired. Please log in again.',
@@ -27,24 +44,18 @@ export function withTenantAuth(
     
     let user = null;
     
-    // Always try to extract user details from headers set by middleware
-    const userId = req.headers.get('X-User-Id');
-    const userEmail = req.headers.get('X-User-Email');
-    const userName = req.headers.get('X-User-Name');
-    
+    // Extract user details from headers set by middleware
     if (userId && userEmail) {
       user = {
         userId,
         email: userEmail,
         name: userName || userEmail
       };
-      console.log('Request authenticated - User details from middleware headers:', user.email);
-    }
-    
-    if (hasAuth0Session) {
-      console.log('Request authenticated via Auth0 session cookie');
+      console.log('withTenantAuth: User authenticated via middleware headers:', user.email);
+    }else if (hasAuth0Session) {
+      console.log('withTenantAuth: User authenticated via Auth0 session cookie');
     } else if (authHeader && authHeader.startsWith('Bearer ')) {
-      console.log('Request authenticated via Authorization header');
+      console.log('withTenantAuth: User authenticated via Authorization header');
     }
     
     // Extract tenant information from URL parameters or query string
@@ -62,6 +73,9 @@ export function withTenantAuth(
     if (!tenantId) {
       tenantId = url.searchParams.get('tenantId') || url.searchParams.get('tenant_id') || undefined;
     }
+    
+    console.log('withTenantAuth: Tenant ID:', tenantId || 'NOT FOUND');
+    console.log('withTenantAuth: Calling handler');
     
     // Pass the request, user, and tenantId to the handler
     return handler(req, user, tenantId);
