@@ -6,6 +6,7 @@ import { getSession } from '@auth0/nextjs-auth0/edge';
  * Extract the Auth0 token from the request cookies and add it to the request headers
  */
 export async function middleware(request: NextRequest) {
+  console.log(`=== MIDDLEWARE: ${request.method} ${request.nextUrl.pathname} ===`);
   // Skip non-API routes
   if (!request.nextUrl.pathname.startsWith('/api/')) {
     return NextResponse.next();
@@ -23,6 +24,8 @@ export async function middleware(request: NextRequest) {
     // Check cookies for Auth0 tokens
     const cookies = request.cookies;
     const hasAuth0Cookie = cookies.has('appSession');
+
+    console.log(`Middleware: Auth header: ${!!authHeader}, Cookie: ${hasAuth0Cookie}`);
     
     // Log cookie information for debugging
     console.log(`Middleware: Request to ${request.nextUrl.pathname}`);
@@ -86,7 +89,7 @@ export async function middleware(request: NextRequest) {
       
       return response;
     }
-    
+    console.log('Middleware: Allowing request to proceed');
     // Continue to the next middleware/route
     return NextResponse.next();
   } catch (error) {

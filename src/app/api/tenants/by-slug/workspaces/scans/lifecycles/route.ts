@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { withTenantAuth } from "@/utils/tenant-auth";
 export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
+  console.log('=== INSIDE API HANDLER - GET ===');
   try {
     const { searchParams } = new URL(req.url);
     const tenantSlug = searchParams.get("slug");
@@ -125,7 +126,7 @@ export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?
 });
 
 export const POST = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
-  console.log('=== INSIDE API HANDLER ===');
+  console.log('=== INSIDE API HANDLER - POST ===');
   console.log('######## User from withTenantAuth:', user ? 'EXISTS' : 'NULL');
   console.log('######## User details:', user);
   console.log('######## Tenant ID from withTenantAuth:', tenantId);
