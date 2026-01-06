@@ -130,12 +130,7 @@ export default async function InterviewCopilotPage({ params }: { params: { tenan
               <NewInterviewButton lifecycles={lifecycles} />
             </div>
             <p className="text-gray-600 mt-2">Select a business lifecycle to begin a new interview or review a previous one.</p>
-          </div>
-
-          <LifecycleSelector 
-            initialLifecycles={lifecycles} 
-            initialPainPointSummaries={painPointSummaries} 
-          />
+          </div>         
           
           <div className="mt-12">
             <h2 className="text-2xl font-semibold mb-4">Interviews </h2>
