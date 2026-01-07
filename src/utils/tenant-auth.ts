@@ -52,7 +52,7 @@ export function withTenantAuth(
         name: userName || userEmail
       };
       console.log('withTenantAuth: User authenticated via middleware headers:', user.email);
-    }else if (hasAuth0Session) {
+    } else if (hasAuth0Session) {
       console.log('withTenantAuth: User authenticated via Auth0 session cookie');
     } else if (authHeader && authHeader.startsWith('Bearer ')) {
       console.log('withTenantAuth: User authenticated via Authorization header');
@@ -76,7 +76,7 @@ export function withTenantAuth(
     
     console.log('withTenantAuth: Tenant ID:', tenantId || 'NOT FOUND');
     console.log('withTenantAuth: Calling handler');
-    
+
     // Pass the request, user, and tenantId to the handler
     return handler(req, user, tenantId);
   };

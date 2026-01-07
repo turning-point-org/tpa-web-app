@@ -482,10 +482,10 @@ These lifecycles represent the core operational processes of the organization, a
       }
     });
     
-    // Only check lifecycle status periodically, not documents
+    // Only check lifecycle status periodically, not documents(5h intervals)
     const intervalId = setInterval(() => {
       checkLifecyclesStatus();
-    }, 600000);
+    }, 18000000); 
     
     // Add event listeners
     window.addEventListener('ora-document-change', handleDocumentChange);
