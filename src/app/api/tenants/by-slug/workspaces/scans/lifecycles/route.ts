@@ -4,8 +4,6 @@ import { v4 as uuidv4 } from "uuid";
 
 import { withTenantAuth } from "@/utils/tenant-auth";
 
-export const dynamic = 'force-dynamic';
-
 export const GET = withTenantAuth(async (req: NextRequest, user?: any, tenantId?: string) => {
   console.log('=== INSIDE API HANDLER - GET ===');
   try {
