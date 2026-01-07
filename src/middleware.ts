@@ -17,22 +17,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Handle OPTIONS (preflight) requests
-  if (request.method === 'OPTIONS') {
-    return new NextResponse(null, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': 'https://turningpointadvisory.app',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cookie',
-        'Access-Control-Allow-Credentials': 'true',
-        'Access-Control-Max-Age': '86400',
-      },
-
-    });
-
-  }
-
   try {
     // Get the authorization header
     const authHeader = request.headers.get('authorization');
@@ -103,11 +87,6 @@ export async function middleware(request: NextRequest) {
         },
       });
 
-      // Add CORS headers to response
-      response.headers.set('Access-Control-Allow-Origin', 'https://turningpointadvisory.app');
-      response.headers.set('Access-Control-Allow-Credentials', 'true');
-      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
       console.log('Middleware: Allowing request to proceed');
       
       return response;
