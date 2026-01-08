@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // output: 'standalone',
+  output: 'standalone',
   distDir: 'build',
   eslint: {
     // Only run ESLint during local development and when explicitly enabled
