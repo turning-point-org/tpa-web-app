@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
 
     });
 
-    response.cookies.delete('appSession');
+  //  response.cookies.delete('appSession');
     response.cookies.set('appSession','newValue',{
       httpOnly: true, 
     //  secure: process.env.NODE_ENV === 'production', 
