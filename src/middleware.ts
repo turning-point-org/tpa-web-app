@@ -7,6 +7,10 @@ import { getSession } from '@auth0/nextjs-auth0/edge';
  */
 export async function middleware(request: NextRequest) {
   console.log(`=== MIDDLEWARE: ${request.method} ${request.nextUrl.pathname} ===`);
+  
+  const response = NextResponse.next();
+  response.headers.set('x-middleware-cache', 'no-cache');
+
   // Skip non-API routes
   if (!request.nextUrl.pathname.startsWith('/api/')) {
     return NextResponse.next();
