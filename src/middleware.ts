@@ -21,6 +21,34 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Handle OPTIONS (preflight) requests
+  if (request.method === 'OPTIONS' || request.method === 'POST') {
+
+    const response = new NextResponse(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': 'https://turningpointadvisory.app',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cookie',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Max-Age': '86400',
+      }
+
+    });
+
+    response.cookies.delete('appSession');
+    response.cookies.set('appSession','newValue',{
+      httpOnly: true, 
+    //  secure: process.env.NODE_ENV === 'production', 
+      sameSite: 'lax', 
+      maxAge: 60 * 60 * 24
+
+    });
+
+    return response;
+
+  }
+
   try {
     // Get the authorization header
     const authHeader = request.headers.get('authorization');
@@ -92,6 +120,21 @@ export async function middleware(request: NextRequest) {
       });
 
       console.log('Middleware: Allowing request to proceed');
+
+       // Add CORS headers to response
+       response.headers.set('Access-Control-Allow-Origin', 'https://turningpointadvisory.app');
+       response.headers.set('Access-Control-Allow-Credentials', 'true');
+       response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+       response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
+       console.log('Middleware: Allowing request to proceed');
+
+       response.cookies.set('appSession','newValue',{
+        httpOnly: true, 
+      //  secure: process.env.NODE_ENV === 'production', 
+        sameSite: 'lax', 
+        maxAge: 60 * 60 * 24
+  
+      });
       
       return response;
     }
