@@ -14,7 +14,7 @@ async function getTokenFromCookie() {
   // Get the Auth0 session cookie
   const sessionCookie = cookieStore.get('appSession');
   if (!sessionCookie?.value) {
-    throw new Error("Session Expired.");
+    return null;
   }
   
   try {
