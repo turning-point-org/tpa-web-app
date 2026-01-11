@@ -7,10 +7,6 @@ import { getSession } from '@auth0/nextjs-auth0/edge';
  */
 export async function middleware(request: NextRequest) {
   console.log(`=== MIDDLEWARE: ${request.method} ${request.nextUrl.pathname} ===`);
-  
-  const response = NextResponse.next();
-  response.headers.set('x-middleware-cache', 'no-cache');
-
   // Skip non-API routes
   if (!request.nextUrl.pathname.startsWith('/api/')) {
     return NextResponse.next();
@@ -19,34 +15,6 @@ export async function middleware(request: NextRequest) {
   // Skip Auth0 routes to prevent interference with Auth0's own middleware
   if (request.nextUrl.pathname.startsWith('/api/auth/')) {
     return NextResponse.next();
-  }
-
-  // Handle OPTIONS (preflight) requests
-  if (request.method === 'OPTIONS' || request.method === 'POST') {
-
-    const response = new NextResponse(null, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': 'https://turningpointadvisory.app',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cookie',
-        'Access-Control-Allow-Credentials': 'true',
-        'Access-Control-Max-Age': '86400',
-      }
-
-    });
-
-  //  response.cookies.delete('appSession');
-    response.cookies.set('appSession','newValue',{
-      httpOnly: true, 
-    //  secure: process.env.NODE_ENV === 'production', 
-      sameSite: 'lax', 
-      maxAge: 60 * 60 * 24
-
-    });
-
-    return response;
-
   }
 
   try {
@@ -120,21 +88,6 @@ export async function middleware(request: NextRequest) {
       });
 
       console.log('Middleware: Allowing request to proceed');
-
-       // Add CORS headers to response
-       response.headers.set('Access-Control-Allow-Origin', 'https://turningpointadvisory.app');
-       response.headers.set('Access-Control-Allow-Credentials', 'true');
-       response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-       response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
-       console.log('Middleware: Allowing request to proceed');
-
-       response.cookies.set('appSession','newValue',{
-        httpOnly: true, 
-      //  secure: process.env.NODE_ENV === 'production', 
-        sameSite: 'lax', 
-        maxAge: 60 * 60 * 24
-  
-      });
       
       return response;
     }
